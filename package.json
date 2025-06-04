@@ -1,0 +1,31 @@
+{
+  "name": "whatsapp",
+  "version": "1.0.0",
+  "description": "Bot WhatsApp refatorado com estrutura modular.",
+  "main": "src/app.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "nodejs",
+    "mongodb",
+    "ollama"
+  ],
+  "author": "Manus",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "elevenlabs": "^1.59.0",
+    "express": "^4.19.2",
+    "fluent-ffmpeg": "^2.1.3",
+    "mongodb": "^6.6.2",
+    "nodejs-whisper": "^0.1.19",
+    "ollama": "^0.5.1",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.23.0"
+  }
+}

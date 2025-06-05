@@ -8,7 +8,10 @@ import JobQueue from './jobQueue.js';
 class LLMService {
   constructor() {
     this.contexts = new Map();
-    this.queue = new JobQueue(CONFIG.queues.llmConcurrency);
+    this.queue = new JobQueue(
+      CONFIG.queues.llmConcurrency,
+      CONFIG.queues.memoryThresholdGB
+    );
   }
 
   getContext(contactId, type) {

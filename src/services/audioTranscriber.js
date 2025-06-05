@@ -10,7 +10,10 @@ import JobQueue from './jobQueue.js';
 // ============ Transcritor de Áudio ============
 class AudioTranscriber {
   constructor() {
-    this.queue = new JobQueue(CONFIG.queues.whisperConcurrency);
+    this.queue = new JobQueue(
+      CONFIG.queues.whisperConcurrency,
+      CONFIG.queues.memoryThresholdGB
+    );
   }
 
   async transcribe(audioBuffer) {

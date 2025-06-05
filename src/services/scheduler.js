@@ -244,6 +244,51 @@ class Scheduler {
       throw err;
     }
   }
+
+  async getStats() {
+    if (!this.schedCollection) {
+      return {
+        total: 0,
+        pending: 0,
+        sent: 0,
+        failed: 0,
+        upcoming: []
+      };
+    }
+    try {
+      const [total, pending, sent, failed, upcoming] = await Promise.all([
+        this.schedCollection.countDocuments({}),
+        this.schedCollection.countDocuments({ status: 'approved' }),
+        this.schedCollection.countDocuments({ status: 'sent' }),
+        this.schedCollection.countDocuments({ status: 'failed' }),
+        this.schedCollection
+          .find({ status: 'approved' })
+          .sort({ scheduledTime: 1 })
+          .limit(5)
+          .toArray()
+      ]);
+
+      return {
+        total,
+        pending,
+        sent,
+        failed,
+        upcoming: upcoming.map(item => ({
+          message: item.message,
+          scheduledTime: item.scheduledTime
+        }))
+      };
+    } catch (err) {
+      console.error('❌ Erro ao obter estatísticas do scheduler:', err);
+      return {
+        total: 0,
+        pending: 0,
+        sent: 0,
+        failed: 0,
+        upcoming: []
+      };
+    }
+  }
 }
 
 export default Scheduler;

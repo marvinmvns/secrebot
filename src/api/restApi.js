@@ -67,8 +67,22 @@ class RestAPI {
     });
 
     // Rota para um Dashboard simples em HTML
-    this.app.get('/dashboard', (req, res) => {
+    this.app.get('/dashboard', async (req, res) => {
       const uptimeMinutes = Math.floor(process.uptime() / 60);
+      let stats = {
+        total: 0,
+        pending: 0,
+        sent: 0,
+        failed: 0,
+        upcoming: []
+      };
+      try {
+        if (this.bot.getScheduler) {
+          stats = await this.bot.getScheduler().getStats();
+        }
+      } catch (err) {
+        console.error('❌ Erro ao coletar estatísticas para o dashboard:', err);
+      }
       const html = `
         <!DOCTYPE html>
         <html lang="pt-BR">
@@ -97,6 +111,18 @@ class RestAPI {
               <p><strong>Bot Uptime:</strong> ${uptimeMinutes} minutos</p>
               <p><strong>Timestamp:</strong> ${new Date().toLocaleString('pt-BR')}</p>
             </div>
+            <h2>📊 Estatísticas de Agendamentos</h2>
+            <p>Total: ${stats.total}</p>
+            <p>Pendentes: ${stats.pending}</p>
+            <p>Enviados: ${stats.sent}</p>
+            <p>Falhos: ${stats.failed}</p>
+            <h3>Próximos 5 Agendamentos</h3>
+            <ul class="commands-list">
+              ${stats.upcoming.map(item =>
+                `<li>${new Date(item.scheduledTime).toLocaleString('pt-BR')} - ${item.message}</li>`
+              ).join('') || '<li>Nenhum agendamento</li>'}
+            </ul>
+
             <h2>📋 Comandos Disponíveis no Bot</h2>
             <ul class="commands-list">
               ${Object.entries(COMMANDS).map(([key, cmd]) =>

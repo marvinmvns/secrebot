@@ -22,6 +22,7 @@ import {
 
 // Importar o serviço TTS
 import TtsService from '../services/ttsService.js';
+import CalorieService from '../services/calorieService.js';
 
 // ============ Bot do WhatsApp ============
 class WhatsAppBot {
@@ -287,7 +288,7 @@ class WhatsAppBot {
 
   async handleImageMessage(msg, contactId, lowerText) {
     console.log(`🖼️ Recebida imagem de ${contactId}`);
-    const media = await msg.downloadMedia();
+    let media = await Utils.downloadMediaWithRetry(msg);
     if (!media) {
       await this.sendErrorMessage(contactId, '❌ Não foi possível baixar a imagem.');
       return;
@@ -323,7 +324,35 @@ class WhatsAppBot {
       });
       const description = response.response.trim();
       console.log(`🤖 Resposta da análise de imagem (${mode}): ${description.substring(0, 100)}...`);
-      await this.sendResponse(contactId, description);
+
+      if (mode === 'calories') {
+        let foods = [];
+        try {
+          const jsonText = Utils.extractJSON(description);
+          const obj = JSON.parse(jsonText);
+          foods = Array.isArray(obj.foods) ? obj.foods : [];
+        } catch (e) {
+          console.error('❌ Erro ao analisar JSON de alimentos:', e);
+        }
+
+        if (!foods.length) {
+          await this.sendResponse(contactId, description);
+        } else {
+          const results = [];
+          for (const food of foods) {
+            const cal = await CalorieService.getCalories(food);
+            if (cal) {
+              results.push(`🍽️ ${food}: ${cal} kcal`);
+            } else {
+              results.push(`🍽️ ${food}: N/A`);
+            }
+          }
+          const finalText = results.join('\n');
+          await this.sendResponse(contactId, finalText);
+        }
+      } else {
+        await this.sendResponse(contactId, description);
+      }
     } catch (err) {
         console.error(`❌ Erro ao processar imagem de ${contactId}:`, err);
         await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);

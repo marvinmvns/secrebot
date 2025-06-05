@@ -39,6 +39,13 @@ const CONFIG = {
     stability: 0.5,
     similarityBoost: 0.75
   },
+  // Configurações para TTS local usando Piper
+  piper: {
+    // Define como habilitado quando uma variável de modelo é informada
+    enabled: !!process.env.PIPER_MODEL,
+    executable: process.env.PIPER_EXECUTABLE || 'piper',
+    model: process.env.PIPER_MODEL || ''
+  },
   calorieApi: {
     url: process.env.CALORIE_API_URL || 'https://api.api-ninjas.com/v1/nutrition?query=',
     key: process.env.CALORIE_API_KEY || ''

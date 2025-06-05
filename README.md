@@ -40,8 +40,16 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando o das
    npm install
    npx playwright install
    ```
-   
-3. **Instale o MongoDB** (Ubuntu/Debian)
+
+3. **Compile o Whisper**
+
+   Após a instalação das dependências, execute o comando abaixo para baixar o modelo e compilar o `nodejs-whisper`. Certifique-se de que ferramentas como `make` e `g++` estejam instaladas (`sudo apt install build-essential`).
+
+   ```bash
+   npx nodejs-whisper download
+   ```
+
+4. **Instale o MongoDB** (Ubuntu/Debian)
 
    ```bash
    sudo apt update
@@ -59,7 +67,7 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando o das
    > exit
    ```
 
-4. **Instale o Ollama** (Linux/macOS)
+5. **Instale o Ollama** (Linux/macOS)
 
    ```bash
    curl -L https://ollama.com/install.sh | sh
@@ -70,7 +78,7 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando o das
    # ou apenas "ollama serve" para manter em segundo plano
    ```
 
-5. **Configure as variáveis de ambiente** (crie um arquivo `.env` ou exporte no shell):
+6. **Configure as variáveis de ambiente** (crie um arquivo `.env` ou exporte no shell):
 
 
    ```bash
@@ -78,11 +86,19 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando o das
    PORT=3000
    ELEVENLABS_API_KEY=<sua_chave>
    ELEVENLABS_VOICE_ID=<voice_id>
+   # Para usar TTS local com Piper, defina o modelo (opcional)
+   PIPER_MODEL=/caminho/para/modelo.onnx
+   # Caso o executável não esteja no PATH, informe também:
+   PIPER_EXECUTABLE=/usr/local/bin/piper
    ```
+
+### TTS local com Piper
+
+Se `PIPER_MODEL` estiver definido e a chave da ElevenLabs não for fornecida, o bot utilizará o [Piper](https://github.com/rhasspy/piper) para gerar as respostas em áudio de forma totalmente local. Instale o Piper e baixe um modelo compatível (por exemplo, `pt-br-...`). Em seguida, configure as variáveis acima informando o caminho do modelo e, opcionalmente, do executável.
 
    Esses valores são lidos em `src/config/index.js` e permitem personalizar a conexão com o banco, a porta do servidor e o uso de TTS.
 
-6. **Inicie o bot**
+7. **Inicie o bot**
 
    ```bash
    npm start

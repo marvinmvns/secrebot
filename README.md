@@ -90,6 +90,8 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando o das
    PIPER_MODEL=/caminho/para/modelo.onnx
    # Caso o executável não esteja no PATH, informe também:
    PIPER_EXECUTABLE=/usr/local/bin/piper
+   # Limite de memória em GB para processar tarefas pesadas
+   QUEUE_MEM_THRESHOLD_GB=4
    ```
 
 ### TTS local com Piper

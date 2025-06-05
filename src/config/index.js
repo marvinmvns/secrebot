@@ -30,7 +30,9 @@ const CONFIG = {
   },
   queues: {
     llmConcurrency: parseInt(process.env.LLM_CONCURRENCY || '2', 10),
-    whisperConcurrency: parseInt(process.env.WHISPER_CONCURRENCY || '1', 10)
+    whisperConcurrency: parseInt(process.env.WHISPER_CONCURRENCY || '1', 10),
+    memoryThresholdGB: parseInt(process.env.QUEUE_MEM_THRESHOLD_GB || '4', 10),
+    memoryCheckInterval: parseInt(process.env.MEM_CHECK_INTERVAL || '1000', 10)
   },
   llm: {
     model: 'granite3.2:latest',

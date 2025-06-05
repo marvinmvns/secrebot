@@ -120,6 +120,7 @@ Após iniciar, envie `!menu` ou os atalhos numéricos para ver as opções. Entr
 - `!voz` para alternar respostas por voz ou texto
 - `!recurso` para exibir detalhes do sistema onde o bot está rodando
 - `!linkedin <URL>` para resumir dados públicos de um perfil
+- `!resumir` com texto ou arquivo (PDF, TXT, DOCX ou CSV) para resumir o conteúdo
 
 O endpoint `/dashboard` oferece uma página simples com as informações do bot e comandos disponíveis.
 

@@ -79,6 +79,7 @@ const COMMANDS = {
   DELETAR: '!deletaragendamento',
   VOZ: '!voz', // Novo comando para alternar resposta por voz
   RECURSO: "!recurso",
+  RESUMIR: '!resumir',
   VOLTAR: '!voltar'
 };
 
@@ -94,7 +95,8 @@ const NUMERIC_SHORTCUTS = {
   '8': COMMANDS.DELETAR,
   '9': COMMANDS.LINKEDIN,
   '10': COMMANDS.VOZ, // Novo atalho para alternar voz
-  '11': COMMANDS.RECURSO,
+ '11': COMMANDS.RECURSO,
+  '12': COMMANDS.RESUMIR,
   '0': COMMANDS.VOLTAR
 };
 
@@ -118,6 +120,7 @@ const MENU_MESSAGE = `🤖 *Bem-vindo ao Assistente WhatsApp!* 🤖\n\n📋 *Men
 9️⃣ ${COMMANDS.LINKEDIN} – 💼 Analisar perfil LinkedIn
 🔟 ${COMMANDS.VOZ} – 🗣️ Alternar resposta por voz/texto
 1️⃣1️⃣ ${COMMANDS.RECURSO} – 💻 Mostrar recursos do sistema
+1️⃣2️⃣ ${COMMANDS.RESUMIR} – 📑 Resumir texto ou arquivo (PDF, TXT, DOCX, CSV)
 
 💡 *Dica:* Você pode digitar apenas o número ou enviar um áudio com o nome da opção!
 🔙 *Voltar:* Digite ${COMMANDS.VOLTAR} ou 0 a qualquer momento`;
@@ -157,6 +160,8 @@ const ERROR_MESSAGES = {
   AUDIO_REQUIRED: `🎤 *Áudio necessário!*\n\n📎 Por favor, envie um áudio para transcrever.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
 
   IMAGE_REQUIRED: `📸 *Imagem necessária!*\n\n📎 Por favor, envie uma imagem junto com o comando.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
+  TEXT_OR_FILE_REQUIRED: `📝 *Texto ou arquivo necessário!*\n\nEnvie uma mensagem de texto ou anexe um PDF, TXT, DOCX ou CSV com o comando.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
+  UNSUPPORTED_FILE: `📎 *Tipo de arquivo não suportado!*\n\nUse apenas PDF, TXT, DOCX ou CSV.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
   // Novo erro para falha no TTS
   TTS_FAILED: `🔇 Desculpe, não consegui gerar a resposta em áudio. Enviando em texto.
 🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`

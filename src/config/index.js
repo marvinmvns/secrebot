@@ -8,7 +8,7 @@ dotenv.config();
 // ===================== CONFIGURAÇÕES =====================
 const CONFIG = {
   mongo: {
-    uri: process.env.MONGO_URI || 'mongodb://admin:admin@192.168.31.71:27017/',
+    uri: process.env.MONGO_URI || 'mongodb://admin:admin@127.0.0.1:27017/',
     dbName: 'sched',
     collectionName: 'schedv2'
   },
@@ -33,7 +33,7 @@ const CONFIG = {
     whisperConcurrency: parseInt(process.env.WHISPER_CONCURRENCY || '1', 10)
   },
   llm: {
-    model: 'llama3.2:1b',
+    model: 'granite3.2:latest',
     imageModel: 'llava:7b',
     maxTokens: 3000
   },

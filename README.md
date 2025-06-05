@@ -1,4 +1,7 @@
 
+# Secrebot
+
+
 Secrebot é um assistente para WhatsApp construído em Node.js com uma estrutura modular. O projeto integra serviços de transcrição de áudio (Whisper), modelos LLM locais via Ollama para respostas automáticas, agendamento de mensagens e geração de voz usando a API da ElevenLabs.
 
 ## Funcionalidades
@@ -35,8 +38,26 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando o das
    ```bash
    npm install
    ```
+   
+3. **Instale o MongoDB** (Ubuntu/Debian)
 
-3. **Instale o Ollama** (Linux/macOS)
+   ```bash
+   sudo apt update
+   sudo apt install -y mongodb-org
+   sudo systemctl start mongod
+   sudo systemctl enable mongod
+   ```
+
+   Depois, crie a base e o usuário:
+
+   ```bash
+   mongosh
+   > use sched
+   > db.createUser({user: "bot", pwd: "senha", roles:["readWrite"]})
+   > exit
+   ```
+
+4. **Instale o Ollama** (Linux/macOS)
 
    ```bash
    curl -L https://ollama.com/install.sh | sh
@@ -47,7 +68,8 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando o das
    # ou apenas "ollama serve" para manter em segundo plano
    ```
 
-4. **Configure as variáveis de ambiente** (crie um arquivo `.env` ou exporte no shell):
+5. **Configure as variáveis de ambiente** (crie um arquivo `.env` ou exporte no shell):
+
 
    ```bash
    MONGO_URI=mongodb://<usuario>:<senha>@<host>:<porta>/
@@ -58,7 +80,7 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando o das
 
    Esses valores são lidos em `src/config/index.js` e permitem personalizar a conexão com o banco, a porta do servidor e o uso de TTS.
 
-5. **Inicie o bot**
+6. **Inicie o bot**
 
    ```bash
    npm start
@@ -78,6 +100,33 @@ Após iniciar, envie `!menu` ou os atalhos numéricos para ver as opções. Entr
 - `!voz` para alternar respostas por voz ou texto
 
 O endpoint `/dashboard` oferece uma página simples com as informações do bot e comandos disponíveis.
+
+
+## Estrutura da Base (MongoDB)
+
+Cada lembrete é armazenado em uma coleção definida em `CONFIG.mongo` com o seguinte formato:
+
+```json
+{
+  "_id": ObjectId,
+  "recipient": "<numero>",
+  "message": "<texto>",
+  "status": "approved" | "sent" | "failed",
+  "scheduledTime": ISODate,
+  "expiryTime": ISODate,
+  "sentAt": ISODate | null,
+  "attempts": Number,
+  "lastAttemptAt": ISODate | null,
+  "error": "<mensagem de erro>"
+}
+```
+
+Ao conectar, o bot cria índices para buscas rápidas por destinatário e horário programado:
+
+```javascript
+await this.schedCollection.createIndex({ recipient: 1, status: 1 });
+await this.schedCollection.createIndex({ scheduledTime: 1, status: 1, sentAt: 1 });
+```
 
 ## Estrutura do Projeto
 

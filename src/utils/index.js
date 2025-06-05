@@ -6,13 +6,14 @@ import { CONFIG, COMMANDS } from '../config/index.js'; // Ajustar caminho se nec
 // ============ Classe de Utilitários ============
 class Utils {
   static getCurrentDateInGMTMinus3() {
-    return new Date(Date.now() - 3 * 60 * 60 * 1000);
-    //return new Date(Date.now());
+    // Retorna a data e hora atual da máquina, sem ajustes manuais de fuso
+    return new Date();
   }
 
   static toGMTMinus3(date) {
-    return new Date(date.getTime() - 3 * 60 * 60 * 1000);
-    //return new Date(Date.now());
+    // Converte a data recebida para o fuso horário local da máquina
+    const offsetMinutes = new Date().getTimezoneOffset();
+    return new Date(date.getTime() + offsetMinutes * 60 * 1000);
 
   }
 

@@ -1,24 +1,25 @@
-# Secrebot
 
-Secrebot é um assistente para WhatsApp construído em Node.js com uma estrutura modular. O projeto integra serviços de transcrição de áudio (Whisper), LLM para respostas automáticas, agendamento de mensagens e geração de voz usando a API da ElevenLabs.
+Secrebot é um assistente para WhatsApp construído em Node.js com uma estrutura modular. O projeto integra serviços de transcrição de áudio (Whisper), modelos LLM locais via Ollama para respostas automáticas, agendamento de mensagens e geração de voz usando a API da ElevenLabs.
 
 ## Funcionalidades
 
-- **Envio de Mensagens e Chatbot**: responde a comandos e perguntas via WhatsApp.
+- **Envio de Mensagens e Chatbot**: conversas alimentadas por LLM local (Ollama), respondendo a comandos e perguntas.
 - **Transcrição de Áudio**: converte mensagens de voz em texto utilizando o Whisper.
-- **Descrição de Imagens**: analisa imagens e fornece descrições detalhadas ou estimativa de calorias.
-- **Agendamento de Lembretes**: armazena lembretes em MongoDB e envia as mensagens na hora marcada.
+- **Comandos por Áudio**: o LLM interpreta gravações e mapeia para os comandos do bot.
+- **Descrição de Imagens**: analisa imagens recebidas e fornece descrições ou estimativas de calorias.
+- **Agendamento de Lembretes**: armazena lembretes em MongoDB e envia as mensagens programadas no horário marcado.
 - **Respostas em Áudio (TTS)**: opcionalmente gera áudio com a ElevenLabs para respostas por voz.
-- **API REST**: disponível para integrações externas com endpoints `/send-message`, `/health` e `/dashboard`.
+- **API REST**: integração externa pelos endpoints `/send-message`, `/health` e `/dashboard`.
 
-Os principais comandos podem ser vistos na aplicação ou acessando o dashboard.
+Os principais comandos podem ser vistos no menu do aplicativo ou acessando o dashboard.
 
 ## Requisitos
 
 - Node.js 18 ou superior
 - MongoDB acessível para armazenar agendamentos
-- `ffmpeg` instalado no sistema (necessário para a transcrição de áudio)
-- Conta e chave de API da [ElevenLabs](https://elevenlabs.io/) para recursos de voz (opcional)
+- `ffmpeg` instalado no sistema (necessário para transcrição de áudio)
+- Conta e chave da [ElevenLabs](https://elevenlabs.io/) para recursos de voz (opcional)
+- [Ollama](https://ollama.ai/) instalado para executar o modelo local de LLM
 
 ## Instalação
 
@@ -35,7 +36,18 @@ Os principais comandos podem ser vistos na aplicação ou acessando o dashboard.
    npm install
    ```
 
-3. **Configure as variáveis de ambiente** (crie um arquivo `.env` ou exporte no shell):
+3. **Instale o Ollama** (Linux/macOS)
+
+   ```bash
+   curl -L https://ollama.com/install.sh | sh
+   ```
+   Após instalado, baixe um modelo (ex.: llama3) e inicie o servidor:
+   ```bash
+   ollama run llama3
+   # ou apenas "ollama serve" para manter em segundo plano
+   ```
+
+4. **Configure as variáveis de ambiente** (crie um arquivo `.env` ou exporte no shell):
 
    ```bash
    MONGO_URI=mongodb://<usuario>:<senha>@<host>:<porta>/
@@ -46,13 +58,13 @@ Os principais comandos podem ser vistos na aplicação ou acessando o dashboard.
 
    Esses valores são lidos em `src/config/index.js` e permitem personalizar a conexão com o banco, a porta do servidor e o uso de TTS.
 
-4. **Inicie o bot**
+5. **Inicie o bot**
 
    ```bash
    npm start
    ```
 
-   Será exibido um QR Code no terminal. Escaneie com o WhatsApp para autenticar o bot. A API REST ficará disponível em `http://localhost:3000` (ou na porta configurada).
+   Um QR Code será exibido no terminal. Escaneie com o WhatsApp para autenticar o bot. A API REST ficará disponível em `http://localhost:3000` (ou na porta configurada).
 
 ## Utilização
 

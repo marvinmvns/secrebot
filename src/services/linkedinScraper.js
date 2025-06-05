@@ -1,20 +1,188 @@
 import { chromium } from 'playwright';
 
 export async function scrapeProfile(url) {
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      '--disable-blink-features=AutomationControlled',
+      '--disable-features=IsolateOrigins,site-per-process'
+    ]
+  });
+
+  const context = await browser.newContext({
+    viewport: { width: 1920, height: 1080 },
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  });
+
+  const page = await context.newPage();
+
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded' });
-    await page.waitForLoadState('networkidle').catch(() => {});
-    const name = await page.$eval('h1', el => el.textContent.trim());
-    const headline = await page.$eval('[data-field="headline"], .text-body-medium', el => el.textContent.trim()).catch(() => null);
-    const about = await page.$eval('#about ~ div p', el => el.textContent.trim()).catch(() => null);
-    const experiences = await page.$$eval('#experience ~ ul li, section[id*=experience] li', els => els.map(e => e.innerText.trim()));
-    const education = await page.$$eval('#education ~ ul li, section[id*=education] li', els => els.map(e => e.innerText.trim()));
-    return { url, name, headline, about, experiences, education };
+    await page.goto(url, {
+      waitUntil: 'networkidle',
+      timeout: 30000
+    });
+
+    await page.waitForTimeout(3000);
+    await autoScroll(page);
+
+    const profileData = await page.evaluate(() => {
+      const getText = (selector) => {
+        const element = document.querySelector(selector);
+        return element ? element.textContent.trim() : null;
+      };
+
+      const getMultipleTexts = (selector) => {
+        const elements = document.querySelectorAll(selector);
+        return Array.from(elements).map(el => el.textContent.trim()).filter(t => t);
+      };
+
+      const name = getText('h1.text-heading-xlarge') ||
+                   getText('h1') ||
+                   getText('[class*="profile-name"]') ||
+                   getText('.pv-text-details__left-panel h1');
+
+      const headline = getText('.text-body-medium.break-words') ||
+                       getText('[data-field="headline"]') ||
+                       getText('.pv-text-details__left-panel .text-body-medium') ||
+                       getText('div.text-body-medium:not(.t-black--light)');
+
+      const location = getText('.text-body-small.inline.t-black--light.break-words') ||
+                       getText('[class*="location"]') ||
+                       getText('.pv-text-details__left-panel span.text-body-small');
+
+      const aboutSection = document.querySelector('#about')?.parentElement;
+      const about = aboutSection ?
+                   getText('#about ~ div .inline-show-more-text span[aria-hidden="true"]') ||
+                   getText('#about ~ div .pv-shared-text-with-see-more span[aria-hidden="true"]') ||
+                   getText('#about ~ div') ||
+                   aboutSection.querySelector('.pv-shared-text-with-see-more')?.textContent.trim() :
+                   null;
+
+      const experienceItems = [];
+      const expSection = document.querySelector('#experience')?.parentElement;
+      if (expSection) {
+        const expCards = expSection.querySelectorAll('.pvs-entity, li.pvs-list__paged-list-item');
+        expCards.forEach(card => {
+          const role = card.querySelector('.t-bold span[aria-hidden="true"]')?.textContent.trim() ||
+                       card.querySelector('[data-field="job_title"]')?.textContent.trim();
+          const company = card.querySelector('.t-normal span[aria-hidden="true"]')?.textContent.trim() ||
+                          card.querySelector('[data-field="company_name"]')?.textContent.trim();
+          const duration = card.querySelector('.pvs-entity__caption-wrapper')?.textContent.trim() ||
+                           card.querySelector('.t-black--light span[aria-hidden="true"]')?.textContent.trim();
+          const description = card.querySelector('.pvs-list__outer-container .inline-show-more-text')?.textContent.trim();
+
+          if (role || company) {
+            experienceItems.push({
+              role: role || 'N/A',
+              company: company || 'N/A',
+              duration: duration || 'N/A',
+              description: description || null
+            });
+          }
+        });
+      }
+
+      const educationItems = [];
+      const eduSection = document.querySelector('#education')?.parentElement;
+      if (eduSection) {
+        const eduCards = eduSection.querySelectorAll('.pvs-entity, li.pvs-list__paged-list-item');
+        eduCards.forEach(card => {
+          const school = card.querySelector('.t-bold span[aria-hidden="true"]')?.textContent.trim() ||
+                         card.querySelector('[data-field="school_name"]')?.textContent.trim();
+          const degree = card.querySelector('.t-normal span[aria-hidden="true"]')?.textContent.trim() ||
+                         card.querySelector('[data-field="degree_name"]')?.textContent.trim();
+          const duration = card.querySelector('.pvs-entity__caption-wrapper')?.textContent.trim() ||
+                           card.querySelector('.t-black--light span[aria-hidden="true"]')?.textContent.trim();
+
+          if (school) {
+            educationItems.push({
+              school: school || 'N/A',
+              degree: degree || 'N/A',
+              duration: duration || 'N/A'
+            });
+          }
+        });
+      }
+
+      const skills = getMultipleTexts('#skills ~ div .t-bold span[aria-hidden="true"]') ||
+                    getMultipleTexts('[data-field="skill_name"]') ||
+                    getMultipleTexts('.pv-skill-category-entity__name');
+
+      const connections = getText('.t-bold.t-black--light') ||
+                         getText('[class*="num-connections"]') ||
+                         getText('.pv-top-card__connections');
+
+      return {
+        name,
+        headline,
+        location,
+        about,
+        connections,
+        experiences: experienceItems,
+        education: educationItems,
+        skills: skills.slice(0, 10)
+      };
+    });
+
+    return {
+      url,
+      scrapedAt: new Date().toISOString(),
+      ...profileData,
+      success: true
+    };
+
   } catch (err) {
-    throw new Error(`Scraping failed: ${err.message}`);
+    console.error('Erro durante o scraping:', err);
+    try {
+      await page.screenshot({ path: 'error-screenshot.png', fullPage: true });
+    } catch (screenshotErr) {
+      console.error('Falha ao capturar screenshot:', screenshotErr);
+    }
+
+    return {
+      url,
+      scrapedAt: new Date().toISOString(),
+      success: false,
+      error: err.message,
+      name: null,
+      headline: null,
+      location: null,
+      about: null,
+      connections: null,
+      experiences: [],
+      education: [],
+      skills: []
+    };
+
   } finally {
+    await context.close();
     await browser.close();
   }
+}
+
+async function autoScroll(page) {
+  await page.evaluate(async () => {
+    await new Promise((resolve) => {
+      let totalHeight = 0;
+      const distance = 100;
+      const timer = setInterval(() => {
+        const scrollHeight = document.body.scrollHeight;
+        window.scrollBy(0, distance);
+        totalHeight += distance;
+
+        if (totalHeight >= scrollHeight) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, 100);
+
+      setTimeout(() => {
+        clearInterval(timer);
+        resolve();
+      }, 10000);
+    });
+  });
+
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(1000);
 }

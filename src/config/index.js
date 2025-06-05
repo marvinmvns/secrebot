@@ -33,8 +33,8 @@ const CONFIG = {
   },
   // Novas configurações para ElevenLabs
   elevenlabs: {
-    apiKey: process.env.ELEVENLABS_API_KEY 
-    voiceId: process.env.ELEVENLABS_VOICE_ID 
+    apiKey: process.env.ELEVENLABS_API_KEY ,
+    voiceId: process.env.ELEVENLABS_VOICE_ID ,
     modelId: 'eleven_multilingual_v2', // Modelo de TTS
     stability: 0.5,
     similarityBoost: 0.75
@@ -54,6 +54,7 @@ const COMMANDS = {
   LINKEDIN: '!linkedin',
   DELETAR: '!deletaragendamento',
   VOZ: '!voz', // Novo comando para alternar resposta por voz
+  RECURSO: "!recurso",
   VOLTAR: '!voltar'
 };
 
@@ -69,6 +70,7 @@ const NUMERIC_SHORTCUTS = {
   '8': COMMANDS.DELETAR,
   '9': COMMANDS.LINKEDIN,
   '10': COMMANDS.VOZ, // Novo atalho para alternar voz
+  '11': COMMANDS.RECURSO,
   '0': COMMANDS.VOLTAR
 };
 
@@ -91,6 +93,7 @@ const MENU_MESSAGE = `🤖 *Bem-vindo ao Assistente WhatsApp!* 🤖\n\n📋 *Men
 8️⃣ ${COMMANDS.DELETAR} – 🗑️ Deletar agendamentos
 9️⃣ ${COMMANDS.LINKEDIN} – 💼 Analisar perfil LinkedIn
 🔟 ${COMMANDS.VOZ} – 🗣️ Alternar resposta por voz/texto
+1️⃣1️⃣ ${COMMANDS.RECURSO} – 💻 Mostrar recursos do sistema
 
 💡 *Dica:* Você pode digitar apenas o número ou enviar um áudio com o nome da opção!
 🔙 *Voltar:* Digite ${COMMANDS.VOLTAR} ou 0 a qualquer momento`;
@@ -142,8 +145,8 @@ const PROMPTS = {
   imageDescription: 'Descreva a imagem de forma detalhada e clara:',
   calorieEstimation: 'Analise a imagem e estime as calorias dos alimentos visíveis. Forneça uma análise detalhada:',
   // Novo prompt para mapear áudio para comando do menu
-  audioCommandMapping: (transcription) => `Dada a transcrição "${transcription}", qual comando do menu a seguir ela mais provavelmente representa? Responda APENAS com o comando (ex: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias, !listaragendamentos, !menu, !linkedin, !deletaragendamento, !voz, !voltar) ou "INVALIDO" se não corresponder a nenhum.
-Comandos disponíveis: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias, !listaragendamentos, !menu, !linkedin, !deletaragendamento, !voz, !voltar`
+  audioCommandMapping: (transcription) => `Dada a transcrição "${transcription}", qual comando do menu a seguir ela mais provavelmente representa? Responda APENAS com o comando (ex: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias, !listaragendamentos, !menu, !linkedin, !deletaragendamento, !voz, !recurso, !voltar) ou "INVALIDO" se não corresponder a nenhum.
+Comandos disponíveis: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias, !listaragendamentos, !menu, !linkedin, !deletaragendamento, !voz, !recurso, !voltar`
 };
 
 export {

@@ -98,6 +98,7 @@ Após iniciar, envie `!menu` ou os atalhos numéricos para ver as opções. Entr
 - `!transcrever` para modo de transcrição de áudio
 - `!foto` ou `!calorias` enviados com uma imagem
 - `!voz` para alternar respostas por voz ou texto
+- `!recurso` para exibir detalhes do sistema onde o bot está rodando
 
 O endpoint `/dashboard` oferece uma página simples com as informações do bot e comandos disponíveis.
 

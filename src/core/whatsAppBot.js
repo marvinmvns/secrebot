@@ -4,6 +4,7 @@ import qrcode from 'qrcode-terminal';
 import fs from 'fs/promises';
 import path from 'path';
 import ollama from 'ollama';
+import si from 'systeminformation';
 
 import Utils from '../utils/index.js';
 import {
@@ -237,6 +238,7 @@ class WhatsAppBot {
           [COMMANDS.LISTAR]: () => this.handleListarCommand(contactId),
           [COMMANDS.DELETAR]: () => this.handleDeletarCommand(contactId),
           [COMMANDS.VOZ]: () => this.handleVozCommand(contactId),
+          [COMMANDS.RECURSO]: () => this.handleRecursoCommand(contactId),
           [COMMANDS.FOTO]: async () => {
               await this.sendResponse(contactId, ERROR_MESSAGES.IMAGE_REQUIRED);
           },
@@ -262,6 +264,25 @@ class WhatsAppBot {
       const message = voiceEnabled ? SUCCESS_MESSAGES.VOICE_ENABLED : SUCCESS_MESSAGES.VOICE_DISABLED;
       // Enviar confirmação sempre em texto para clareza
       await this.sendResponse(contactId, message, true);
+  }
+
+  async handleRecursoCommand(contactId) {
+      try {
+        await this.sendResponse(contactId, '🔍 Coletando informações do sistema...', true);
+        const [cpu, mem, osInfo, load] = await Promise.all([
+          si.cpu(),
+          si.mem(),
+          si.osInfo(),
+          si.currentLoad(),
+        ]);
+        const totalMem = (mem.total / 1024 / 1024 / 1024).toFixed(1);
+        const usedMem = ((mem.total - mem.available) / 1024 / 1024 / 1024).toFixed(1);
+        const message = `💻 *Recursos do Sistema*\n\n🖥️ CPU: ${cpu.manufacturer} ${cpu.brand}\n⚙️ Núcleos: ${cpu.cores}\n📈 Uso CPU: ${load.currentLoad.toFixed(1)}%\n🧠 Memória: ${usedMem}/${totalMem} GB\n🛠️ OS: ${osInfo.distro} ${osInfo.release}`;
+        await this.sendResponse(contactId, message);
+      } catch (err) {
+        console.error('❌ Erro ao obter recursos do sistema:', err);
+        await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+      }
   }
 
   async handleImageMessage(msg, contactId, lowerText) {

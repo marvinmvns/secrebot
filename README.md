@@ -1,4 +1,6 @@
+
 # Secrebot
+
 
 Secrebot é um assistente para WhatsApp construído em Node.js com uma estrutura modular. O projeto integra serviços de transcrição de áudio (Whisper), modelos LLM locais via Ollama para respostas automáticas, agendamento de mensagens e geração de voz usando a API da ElevenLabs.
 
@@ -36,7 +38,7 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando o das
    ```bash
    npm install
    ```
-
+   
 3. **Instale o MongoDB** (Ubuntu/Debian)
 
    ```bash
@@ -68,6 +70,7 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando o das
 
 5. **Configure as variáveis de ambiente** (crie um arquivo `.env` ou exporte no shell):
 
+
    ```bash
    MONGO_URI=mongodb://<usuario>:<senha>@<host>:<porta>/
    PORT=3000
@@ -97,6 +100,7 @@ Após iniciar, envie `!menu` ou os atalhos numéricos para ver as opções. Entr
 - `!voz` para alternar respostas por voz ou texto
 
 O endpoint `/dashboard` oferece uma página simples com as informações do bot e comandos disponíveis.
+
 
 ## Estrutura da Base (MongoDB)
 

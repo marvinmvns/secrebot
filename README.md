@@ -10,8 +10,9 @@ Secrebot é um assistente para WhatsApp construído em Node.js com uma estrutura
 - **Transcrição de Áudio**: converte mensagens de voz em texto utilizando o Whisper.
 - **Comandos por Áudio**: o LLM interpreta gravações e mapeia para os comandos do bot.
 - **Descrição de Imagens**: analisa imagens recebidas e fornece descrições ou estimativas de calorias.
+- **Análise de Perfis do LinkedIn**: resume informações públicas usando scraping via Playwright.
 - **Agendamento de Lembretes**: armazena lembretes em MongoDB e envia as mensagens programadas no horário marcado.
-- **Respostas em Áudio (TTS)**: opcionalmente gera áudio com a ElevenLabs para respostas por voz.
+- **Respostas em Áudio (TTS)**: permite alternar entre texto e áudio usando a API da ElevenLabs.
 - **API REST**: integração externa pelos endpoints `/send-message`, `/health` e `/dashboard`.
 
 Os principais comandos podem ser vistos no menu do aplicativo ou acessando o dashboard.
@@ -72,15 +73,27 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando o das
 
 5. **Configure as variáveis de ambiente** (crie um arquivo `.env` ou exporte no shell):
 
-
    ```bash
    MONGO_URI=mongodb://<usuario>:<senha>@<host>:<porta>/
    PORT=3000
    ELEVENLABS_API_KEY=<sua_chave>
    ELEVENLABS_VOICE_ID=<voice_id>
+   CALORIE_API_URL=https://api.api-ninjas.com/v1/nutrition?query=
+   CALORIE_API_KEY=<sua_api_key>
    ```
 
-   Esses valores são lidos em `src/config/index.js` e permitem personalizar a conexão com o banco, a porta do servidor e o uso de TTS.
+   Esses valores são lidos em `src/config/index.js` e controlam:
+   - **MONGO_URI**: string de conexão do MongoDB onde são salvos os agendamentos.
+   - **PORT**: porta do servidor Express que expõe a API REST e o dashboard.
+   - **ELEVENLABS_API_KEY**: chave para gerar áudio na ElevenLabs (opcional).
+   - **ELEVENLABS_VOICE_ID**: identificação da voz usada no TTS.
+   - **CALORIE_API_URL**: URL base da API de nutrição (padrão já definido no código).
+   - **CALORIE_API_KEY**: chave desta API; se omitida, a estimativa de calorias pode não funcionar.
+
+   Caso não defina o `MONGO_URI`, o bot utilizará a string padrão
+   `mongodb://admin:admin@192.168.31.71:27017/` (usuário `admin`, senha `admin`
+   e host `192.168.31.71`). A porta do servidor REST também assume o valor
+   `3000` se `PORT` não for especificada.
 
 6. **Inicie o bot**
 

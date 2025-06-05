@@ -19,7 +19,18 @@ const CONFIG = {
     interval: 30000, // 30 segundos
     maxAttempts: 3,
     retryDelay: 2 * 60 * 60 * 1000, // 2 horas
-    concurrency: 5 // Limite de envios simultâneos
+    concurrency: 5, // Limite de envios simultâneos
+    dynamic: {
+      enabled: process.env.DYNAMIC_CONCURRENCY === 'true',
+      min: 1,
+      max: parseInt(process.env.SCHED_MAX_CONCURRENCY || '10', 10),
+      cpuThreshold: parseFloat(process.env.SCHED_CPU_THRESHOLD || '0.7'),
+      memThreshold: parseFloat(process.env.SCHED_MEM_THRESHOLD || '0.8')
+    }
+  },
+  queues: {
+    llmConcurrency: parseInt(process.env.LLM_CONCURRENCY || '2', 10),
+    whisperConcurrency: parseInt(process.env.WHISPER_CONCURRENCY || '1', 10)
   },
   llm: {
     model: 'llama3.2:1b',

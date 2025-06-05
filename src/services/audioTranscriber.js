@@ -5,28 +5,34 @@ import { nodewhisper } from 'nodejs-whisper';
 import ffmpeg from 'fluent-ffmpeg';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, __dirname } from '../config/index.js'; // Ajustar caminho se necessário
+import JobQueue from './jobQueue.js';
 
 // ============ Transcritor de Áudio ============
 class AudioTranscriber {
-  async transcribe(audioBuffer) {
-    console.log('🎤 Iniciando transcrição de áudio...');
-    const timestamp = Date.now();
-    const tempOutputPath = path.join(__dirname, `audio_${timestamp}.wav`);
+  constructor() {
+    this.queue = new JobQueue(CONFIG.queues.whisperConcurrency);
+  }
 
-    try {
-      await new Promise((resolve, reject) => {
-        const inputStream = Readable.from(audioBuffer);
-        ffmpeg(inputStream)
-          .inputFormat('ogg')
-          .outputOptions(`-ar ${CONFIG.audio.sampleRate}`)
-          .toFormat('wav')
-          .on('error', (err) => {
-            console.error('Erro no FFMPEG:', err);
-            reject(err);
-          })
-          .on('end', resolve)
-          .save(tempOutputPath);
-      });
+  async transcribe(audioBuffer) {
+    return this.queue.add(async () => {
+      console.log('🎤 Iniciando transcrição de áudio...');
+      const timestamp = Date.now();
+      const tempOutputPath = path.join(__dirname, `audio_${timestamp}.wav`);
+
+      try {
+        await new Promise((resolve, reject) => {
+          const inputStream = Readable.from(audioBuffer);
+          ffmpeg(inputStream)
+            .inputFormat('ogg')
+            .outputOptions(`-ar ${CONFIG.audio.sampleRate}`)
+            .toFormat('wav')
+            .on('error', (err) => {
+              console.error('Erro no FFMPEG:', err);
+              reject(err);
+            })
+            .on('end', resolve)
+            .save(tempOutputPath);
+        });
       
       const options = {
         modelName: CONFIG.audio.model,
@@ -58,6 +64,7 @@ class AudioTranscriber {
       await Utils.cleanupFile(tempOutputPath);
       throw err; // Re-lança o erro para ser tratado no nível superior
     }
+    });
   }
 }
 

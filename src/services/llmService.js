@@ -1,6 +1,7 @@
 import ollama from 'ollama';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, CHAT_MODES, PROMPTS } from '../config/index.js'; // Ajustar caminho se necessário
+import { scrapeProfile } from './linkedinScraper.js';
 
 // ============ Serviço LLM ============
 class LLMService {
@@ -55,11 +56,15 @@ class LLMService {
     return this.chat(contactId, text, CHAT_MODES.ASSISTANT, PROMPTS.assistant(date));
   }
 
-  async getAssistantResponseLinkedin(contactId, text) {
-    // Simulação, idealmente buscaria dados reais do LinkedIn
-    const linkedinJson = { profileData: text }; // Exemplo, usar dados reais
-    const jsonText = JSON.stringify(linkedinJson, null, 2);
-    return this.chat(contactId, jsonText, CHAT_MODES.LINKEDIN, PROMPTS.linkedin);
+  async getAssistantResponseLinkedin(contactId, url) {
+    try {
+      const data = await scrapeProfile(url);
+      const jsonText = JSON.stringify(data, null, 2);
+      return await this.chat(contactId, jsonText, CHAT_MODES.LINKEDIN, PROMPTS.linkedin);
+    } catch (err) {
+      console.error('Erro ao raspar LinkedIn:', err);
+      return 'Função em construção.';
+    }
   }
 
   clearContext(contactId, type) {

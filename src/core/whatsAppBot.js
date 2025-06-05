@@ -361,16 +361,14 @@ class WhatsAppBot {
   }
 
   async handleLinkedinCommand(contactId, text) {
-    this.setMode(contactId, CHAT_MODES.LINKEDIN);
-    const query = text.substring(COMMANDS.LINKEDIN.length).trim();
-    if (!query) {
+    const url = text.substring(COMMANDS.LINKEDIN.length).trim();
+    if (!url) {
       await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.LINKEDIN]);
       return;
     }
-    await this.sendResponse(contactId, '💼 Analisando perfil...', true); // Status sempre em texto
-    const response = await this.llmService.getAssistantResponseLinkedin(contactId, `Analisar perfil: ${query}`);
+    await this.sendResponse(contactId, '💼 Analisando perfil...', true);
+    const response = await this.llmService.getAssistantResponseLinkedin(contactId, url);
     await this.sendResponse(contactId, response);
-    this.setMode(contactId, null);
   }
 
   async handleListarCommand(contactId) {

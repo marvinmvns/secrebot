@@ -23,6 +23,7 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando o das
 - `ffmpeg` instalado no sistema (necessário para transcrição de áudio)
 - Conta e chave da [ElevenLabs](https://elevenlabs.io/) para recursos de voz (opcional)
 - [Ollama](https://ollama.ai/) instalado para executar o modelo local de LLM
+- [`Playwright`](https://playwright.dev/) instalado (após `npm install` execute `npx playwright install` para baixar os navegadores)
 
 ## Instalação
 
@@ -37,6 +38,7 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando o das
 
    ```bash
    npm install
+   npx playwright install
    ```
    
 3. **Instale o MongoDB** (Ubuntu/Debian)
@@ -99,6 +101,7 @@ Após iniciar, envie `!menu` ou os atalhos numéricos para ver as opções. Entr
 - `!foto` ou `!calorias` enviados com uma imagem
 - `!voz` para alternar respostas por voz ou texto
 - `!recurso` para exibir detalhes do sistema onde o bot está rodando
+- `!linkedin <URL>` para resumir dados públicos de um perfil
 
 O endpoint `/dashboard` oferece uma página simples com as informações do bot e comandos disponíveis.
 

@@ -27,6 +27,7 @@
     "nodejs-whisper": "^0.1.19",
     "ollama": "^0.5.1",
     "p-limit": "^6.2.0",
+    "playwright": "^1.42.0",
     "qrcode-terminal": "^0.12.0",
     "systeminformation": "^5.27.1",
     "whatsapp-web.js": "^1.23.0"

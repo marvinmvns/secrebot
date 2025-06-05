@@ -1,5 +1,6 @@
 import { MongoClient } from 'mongodb';
 import pLimit from 'p-limit';
+import si from 'systeminformation';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, ERROR_MESSAGES, SUCCESS_MESSAGES, COMMANDS } from '../config/index.js'; // Ajustar caminho se necessário
 
@@ -9,6 +10,49 @@ class Scheduler {
     this.db = null;
     this.schedCollection = null;
     this.userSchedules = new Map(); // Cache para deleção
+    this.currentConcurrency = CONFIG.scheduler.concurrency || 5;
+  }
+
+  async getDynamicConcurrency() {
+    if (!CONFIG.scheduler.dynamic.enabled) {
+      return this.currentConcurrency;
+    }
+
+    try {
+      const [load, mem] = await Promise.all([si.currentLoad(), si.mem()]);
+      const cpuUsage = load.currentLoad / 100;
+      const memUsage = (mem.total - mem.available) / mem.total;
+
+      let newConcurrency = this.currentConcurrency;
+
+      if (cpuUsage < CONFIG.scheduler.dynamic.cpuThreshold &&
+          memUsage < CONFIG.scheduler.dynamic.memThreshold) {
+        newConcurrency = Math.min(
+          this.currentConcurrency + 1,
+          CONFIG.scheduler.dynamic.max
+        );
+      } else if (
+        cpuUsage > CONFIG.scheduler.dynamic.cpuThreshold ||
+        memUsage > CONFIG.scheduler.dynamic.memThreshold
+      ) {
+        newConcurrency = Math.max(
+          this.currentConcurrency - 1,
+          CONFIG.scheduler.dynamic.min
+        );
+      }
+
+      if (newConcurrency !== this.currentConcurrency) {
+        console.log(`⚙️ Concurrency ajustada para ${newConcurrency} (CPU: ${(
+          cpuUsage * 100
+        ).toFixed(1)}%, MEM: ${(memUsage * 100).toFixed(1)}%)`);
+        this.currentConcurrency = newConcurrency;
+      }
+
+      return this.currentConcurrency;
+    } catch (err) {
+      console.error('❌ Erro ao verificar uso de hardware:', err);
+      return this.currentConcurrency;
+    }
   }
 
   async connect() {
@@ -179,7 +223,8 @@ class Scheduler {
         console.log(`⏰ Processando ${messages.length} mensagens agendadas...`);
       }
 
-      const limit = pLimit(CONFIG.scheduler.concurrency || 5);
+      const concurrency = await this.getDynamicConcurrency();
+      const limit = pLimit(concurrency);
       const results = await Promise.allSettled(
         messages.map(message =>
           limit(() => this.sendScheduledMessage(client, message))

@@ -2,11 +2,13 @@ import ollama from 'ollama';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, CHAT_MODES, PROMPTS } from '../config/index.js'; // Ajustar caminho se necessário
 import { scrapeProfile } from './linkedinScraper.js';
+import JobQueue from './jobQueue.js';
 
 // ============ Serviço LLM ============
 class LLMService {
   constructor() {
     this.contexts = new Map();
+    this.queue = new JobQueue(CONFIG.queues.llmConcurrency);
   }
 
   getContext(contactId, type) {
@@ -26,10 +28,12 @@ class LLMService {
     const messages = [{ role: 'system', content: systemPrompt }, ...limitedContext];
     
     try {
-      const response = await ollama.chat({ 
-        model: CONFIG.llm.model, 
-        messages 
-      });
+      const response = await this.queue.add(() =>
+        ollama.chat({
+          model: CONFIG.llm.model,
+          messages
+        })
+      );
       
       // Usa o método estático de Utils para extrair JSON
       const content = type === CHAT_MODES.AGENDABOT 

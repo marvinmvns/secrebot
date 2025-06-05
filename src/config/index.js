@@ -33,8 +33,8 @@ const CONFIG = {
   },
   // Novas configurações para ElevenLabs
   elevenlabs: {
-    apiKey: process.env.ELEVENLABS_API_KEY || 'sk_651f16c448a70761114be87d68a4e77ceddc7e145239e829', // Chave da API ElevenLabs (essencial)
-    voiceId: process.env.ELEVENLABS_VOICE_ID || 'UaeEQHfiDI8l58WWXiwS', // ID da voz padrão (ex: Rachel)
+    apiKey: process.env.ELEVENLABS_API_KEY 
+    voiceId: process.env.ELEVENLABS_VOICE_ID 
     modelId: 'eleven_multilingual_v2', // Modelo de TTS
     stability: 0.5,
     similarityBoost: 0.75

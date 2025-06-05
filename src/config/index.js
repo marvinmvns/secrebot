@@ -18,7 +18,8 @@ const CONFIG = {
   scheduler: {
     interval: 30000, // 30 segundos
     maxAttempts: 3,
-    retryDelay: 2 * 60 * 60 * 1000 // 2 horas
+    retryDelay: 2 * 60 * 60 * 1000, // 2 horas
+    concurrency: 5 // Limite de envios simultâneos
   },
   llm: {
     model: 'llama3.2:1b',

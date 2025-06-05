@@ -1,4 +1,5 @@
 import { MongoClient } from 'mongodb';
+import pLimit from 'p-limit';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, ERROR_MESSAGES, SUCCESS_MESSAGES, COMMANDS } from '../config/index.js'; // Ajustar caminho se necessário
 
@@ -178,8 +179,11 @@ class Scheduler {
         console.log(`⏰ Processando ${messages.length} mensagens agendadas...`);
       }
 
+      const limit = pLimit(CONFIG.scheduler.concurrency || 5);
       const results = await Promise.allSettled(
-        messages.map(message => this.sendScheduledMessage(client, message))
+        messages.map(message =>
+          limit(() => this.sendScheduledMessage(client, message))
+        )
       );
 
       results.forEach((result, index) => {

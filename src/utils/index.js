@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { encode } from 'gpt-3-encoder';
 import { CONFIG, COMMANDS } from '../config/index.js'; // Ajustar caminho se necessário
 
 // ============ Classe de Utilitários ============
@@ -16,11 +17,14 @@ class Utils {
   }
 
   static countTokens(str) {
-    // Verifica se str é uma string válida antes de chamar split
     if (typeof str !== 'string') {
-        return 0;
+      return 0;
     }
-    return str.split(/\s+/).filter(Boolean).length;
+    try {
+      return encode(str).length;
+    } catch {
+      return str.split(/\s+/).filter(Boolean).length;
+    }
   }
 
   static limitContext(context, maxTokens = CONFIG.llm.maxTokens) {

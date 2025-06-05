@@ -48,6 +48,10 @@ class WhatsAppBot {
     return this.client;
   }
 
+  getScheduler() {
+    return this.scheduler;
+  }
+
   // --- Métodos de Preferência do Usuário ---
   getUserPreference(contactId, key, defaultValue = false) {
     const prefs = this.userPreferences.get(contactId) || {};

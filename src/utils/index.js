@@ -64,6 +64,15 @@ class Utils {
     }
   }
 
+  static async downloadMediaWithRetry(msg, retries = 5, delay = 1000) {
+    for (let i = 0; i < retries; i++) {
+      const media = await msg.downloadMedia();
+      if (media) return media;
+      await new Promise(res => setTimeout(res, delay));
+    }
+    return null;
+  }
+
   static isVoltarCommand(text) {
     const lower = text.toLowerCase().trim();
     return lower === COMMANDS.VOLTAR || lower === '0' || lower === 'voltar';

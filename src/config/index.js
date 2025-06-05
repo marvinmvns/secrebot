@@ -38,6 +38,10 @@ const CONFIG = {
     modelId: 'eleven_multilingual_v2', // Modelo de TTS
     stability: 0.5,
     similarityBoost: 0.75
+  },
+  calorieApi: {
+    url: process.env.CALORIE_API_URL || 'https://api.api-ninjas.com/v1/nutrition?query=',
+    key: process.env.CALORIE_API_KEY || ''
   }
 };
 
@@ -143,7 +147,7 @@ const PROMPTS = {
   assistant: (date) => `\nVocê é um assistente virtual amigável e prestativo.\nResponda de forma útil, clara e concisa.\nUse emojis quando apropriado para tornar a conversa mais agradável.\nData atual: ${date}.`,
   linkedin: 'Transformar em um texto estruturado o json abaixo, use emojis para destacar seções',
   imageDescription: 'Descreva a imagem de forma detalhada e clara:',
-  calorieEstimation: 'Analise a imagem e estime as calorias dos alimentos visíveis. Forneça uma análise detalhada:',
+  calorieEstimation: `Identifique os alimentos presentes na imagem e responda SOMENTE com um JSON no formato {"foods":["alimento1","alimento2"]}`,
   // Novo prompt para mapear áudio para comando do menu
   audioCommandMapping: (transcription) => `Dada a transcrição "${transcription}", qual comando do menu a seguir ela mais provavelmente representa? Responda APENAS com o comando (ex: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias, !listaragendamentos, !menu, !linkedin, !deletaragendamento, !voz, !recurso, !voltar) ou "INVALIDO" se não corresponder a nenhum.
 Comandos disponíveis: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias, !listaragendamentos, !menu, !linkedin, !deletaragendamento, !voz, !recurso, !voltar`

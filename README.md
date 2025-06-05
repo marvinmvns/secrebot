@@ -144,3 +144,18 @@ await this.schedCollection.createIndex({ scheduledTime: 1, status: 1, sentAt: 1 
 ## Licença
 
 Distribuído sob a licença ISC conforme definido no `package.json`.
+
+## Docker
+
+Para criar uma imagem Docker do projeto execute:
+
+```bash
+docker build -t secrebot .
+```
+
+Os testes unitários são executados durante a fase de build. Após a conclusão, inicie o container com:
+
+```bash
+docker run -p 3000:3000 secrebot
+```
+

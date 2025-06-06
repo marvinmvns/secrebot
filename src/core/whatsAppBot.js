@@ -5,7 +5,19 @@ import fs from 'fs/promises';
 import path from 'path';
 import ollama from 'ollama';
 import si from 'systeminformation';
-import pdf from 'pdf-parse';
+import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+
+async function parsePdfBuffer(buffer) {
+  const loadingTask = pdfjsLib.getDocument({ data: buffer });
+  const pdf = await loadingTask.promise;
+  let text = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(item => item.str).join(' ') + '\n';
+  }
+  return text;
+}
 import mammoth from 'mammoth';
 
 import Utils from '../utils/index.js';
@@ -308,8 +320,9 @@ class WhatsAppBot {
           try {
               if (type === 'application/pdf' || filename.endsWith('.pdf')) {
                   await this.sendResponse(contactId, '📑 Lendo PDF...', true);
-                  const data = await pdf(buffer);
-                  textContent = data.text;
+
+                  textContent = await parsePdfBuffer(buffer);
+
               } else if (type === 'text/plain' || filename.endsWith('.txt')) {
                   textContent = buffer.toString('utf8');
               } else if (type === 'text/csv' || filename.endsWith('.csv')) {

@@ -5,6 +5,20 @@ import fs from 'fs/promises';
 import path from 'path';
 import ollama from 'ollama';
 import si from 'systeminformation';
+import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+
+async function parsePdfBuffer(buffer) {
+  const loadingTask = pdfjsLib.getDocument({ data: buffer });
+  const pdf = await loadingTask.promise;
+  let text = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(item => item.str).join(' ') + '\n';
+  }
+  return text;
+}
+import mammoth from 'mammoth';
 
 import Utils from '../utils/index.js';
 import {
@@ -244,6 +258,7 @@ class WhatsAppBot {
           [COMMANDS.DELETAR]: () => this.handleDeletarCommand(contactId),
           [COMMANDS.VOZ]: () => this.handleVozCommand(contactId),
           [COMMANDS.RECURSO]: () => this.handleRecursoCommand(contactId),
+          [COMMANDS.RESUMIR]: () => this.handleResumirCommand(msg, contactId),
           [COMMANDS.FOTO]: async () => {
               await this.sendResponse(contactId, ERROR_MESSAGES.IMAGE_REQUIRED);
           },
@@ -287,6 +302,59 @@ class WhatsAppBot {
       } catch (err) {
         console.error('❌ Erro ao obter recursos do sistema:', err);
         await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+      }
+  }
+
+  async handleResumirCommand(msg, contactId) {
+      let textContent = '';
+
+      if (msg.hasMedia) {
+          const media = await Utils.downloadMediaWithRetry(msg);
+          if (!media) {
+              await this.sendErrorMessage(contactId, '❌ Não foi possível baixar o arquivo.');
+              return;
+          }
+          const buffer = Buffer.from(media.data, 'base64');
+          const filename = msg.filename ? msg.filename.toLowerCase() : '';
+          const type = msg.mimetype;
+          try {
+              if (type === 'application/pdf' || filename.endsWith('.pdf')) {
+                  await this.sendResponse(contactId, '📑 Lendo PDF...', true);
+                  textContent = await parsePdfBuffer(buffer);
+              } else if (type === 'text/plain' || filename.endsWith('.txt')) {
+                  textContent = buffer.toString('utf8');
+              } else if (type === 'text/csv' || filename.endsWith('.csv')) {
+                  textContent = buffer.toString('utf8');
+              } else if (type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || filename.endsWith('.docx')) {
+                  await this.sendResponse(contactId, '📄 Lendo DOCX...', true);
+                  const result = await mammoth.extractRawText({ buffer });
+                  textContent = result.value;
+              } else {
+                  await this.sendResponse(contactId, ERROR_MESSAGES.UNSUPPORTED_FILE);
+                  return;
+              }
+          } catch (err) {
+              console.error(`❌ Erro ao ler arquivo para ${contactId}:`, err);
+              await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+              return;
+          }
+      } else {
+          const text = msg.body.substring(COMMANDS.RESUMIR.length).trim();
+          if (!text) {
+              await this.sendResponse(contactId, ERROR_MESSAGES.TEXT_OR_FILE_REQUIRED);
+              return;
+          }
+          textContent = text;
+      }
+
+      try {
+          const text = textContent.trim().slice(0, 8000);
+          await this.sendResponse(contactId, '📝 Resumindo...', true);
+          const summary = await this.llmService.getAssistantResponse(contactId, `Resuma em português o texto a seguir:\n\n${text}`);
+          await this.sendResponse(contactId, summary);
+      } catch (err) {
+          console.error(`❌ Erro ao resumir texto para ${contactId}:`, err);
+          await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
       }
   }
 

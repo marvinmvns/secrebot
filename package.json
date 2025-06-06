@@ -28,7 +28,7 @@
     "nodejs-whisper": "^0.2.9",
     "ollama": "^0.5.1",
     "p-limit": "^6.2.0",
-    "pdfjs-dist": "^5.3.31",
+    "pdf-parse": "^1.1.1",
     "playwright": "^1.42.0",
     "qrcode-terminal": "^0.12.0",
     "systeminformation": "^5.27.1",

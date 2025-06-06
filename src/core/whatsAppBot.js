@@ -320,7 +320,9 @@ class WhatsAppBot {
           try {
               if (type === 'application/pdf' || filename.endsWith('.pdf')) {
                   await this.sendResponse(contactId, '📑 Lendo PDF...', true);
+
                   textContent = await parsePdfBuffer(buffer);
+
               } else if (type === 'text/plain' || filename.endsWith('.txt')) {
                   textContent = buffer.toString('utf8');
               } else if (type === 'text/csv' || filename.endsWith('.csv')) {

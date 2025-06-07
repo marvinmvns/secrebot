@@ -1,0 +1,40 @@
+<!-- views/edit.ejs -->
+
+<h2>Editar Mensagem</h2>
+
+<form action="/messages/<%= message._id %>?_method=PUT" method="POST">
+  <div class="form-row">
+    <div class="form-group col-md-6">
+      <label for="recipient">Destinatário</label>
+      <input type="text" name="recipient" class="form-control" required placeholder="e.g., +5511999999999" value="<%= message.recipient %>">
+      <small class="form-text text-muted">Inclua o código do país, exemplo: +5511999999999</small>
+    </div>
+    <div class="form-group col-md-6">
+      <label for="status">Status</label>
+      <select name="status" class="form-control">
+        <option value="approved" <%= message.status === 'approved' ? 'selected' : '' %>>Aprovado</option>
+        <option value="sent" <%= message.status === 'sent' ? 'selected' : '' %>>Enviado</option>
+        <option value="failed" <%= message.status === 'failed' ? 'selected' : '' %>>Falhou</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="message">Conteúdo da Mensagem</label>
+    <textarea name="message" class="form-control" rows="4" required><%= message.message %></textarea>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group col-md-6">
+      <label for="scheduledTime">Horário Agendado</label>
+      <input type="datetime-local" name="scheduledTime" class="form-control" required value="<%= message.scheduledTime ? message.scheduledTime.toISOString().slice(0,16) : '' %>">
+    </div>
+    <div class="form-group col-md-6">
+      <label for="expiryTime">Horário de Expiração</label>
+      <input type="datetime-local" name="expiryTime" class="form-control" required value="<%= message.expiryTime ? message.expiryTime.toISOString().slice(0,16) : '' %>">
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-primary">Atualizar Mensagem</button>
+  <a href="/" class="btn btn-secondary">Cancelar</a>
+</form>

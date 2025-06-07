@@ -5,6 +5,13 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config();
 
+// Aumenta o tempo limite do Undici caso especificado
+if (process.env.OLLAMA_TIMEOUT_MS) {
+  process.env.UNDICI_HEADERS_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
+}
+
+const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
+
 // ===================== CONFIGURAÇÕES =====================
 const CONFIG = {
   mongo: {
@@ -37,7 +44,8 @@ const CONFIG = {
   llm: {
     model: 'granite3.2:latest',
     imageModel: 'llava:7b',
-    maxTokens: 3000
+    maxTokens: 3000,
+    host: OLLAMA_HOST
   },
   audio: {
     sampleRate: 16000,

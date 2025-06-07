@@ -3,7 +3,7 @@ const { Client, LocalAuth, MessageMedia } = pkg;
 import qrcode from 'qrcode-terminal';
 import fs from 'fs/promises';
 import path from 'path';
-import ollama from 'ollama';
+import { Ollama } from 'ollama';
 import si from 'systeminformation';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 
@@ -26,6 +26,7 @@ import {
   PROMPTS,
   __dirname
 } from '../config/index.js';
+const ollamaClient = new Ollama({ host: CONFIG.llm.host });
 
 // Importar o serviço TTS
 import TtsService from '../services/ttsService.js';
@@ -393,7 +394,7 @@ class WhatsAppBot {
         mode = 'description';
       }
       await this.sendResponse(contactId, processingMessage, true); // Status sempre em texto
-      const response = await ollama.generate({
+      const response = await ollamaClient.generate({
         model: CONFIG.llm.imageModel,
         prompt: prompt,
         images: [imagePath],
@@ -516,7 +517,7 @@ class WhatsAppBot {
         console.log(`🎤 Áudio recebido no menu. Mapeando transcrição "${transcription}" para comando...`);
         await this.sendResponse(contactId, '🤔 Interpretando comando de áudio...', true);
         const commandPrompt = PROMPTS.audioCommandMapping(transcription);
-        const response = await ollama.chat({
+        const response = await ollamaClient.chat({
             model: CONFIG.llm.model,
             messages: [{ role: 'user', content: commandPrompt }],
             options: { temperature: 0.2 }

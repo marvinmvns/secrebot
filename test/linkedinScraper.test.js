@@ -5,7 +5,7 @@ import { scrapeProfile, loginAndGetLiAt } from '../src/services/linkedinScraper.
 // These tests use short timeouts to avoid long waits in CI.
 
 test('scrapeProfile fails for invalid URL', async () => {
-  const res = await scrapeProfile('https://example.com/404', { timeoutMs: 1000 });
+  const res = await scrapeProfile('https://example.com/404', { liAt: 'dummy', timeoutMs: 1000, maxRetries: 1 });
   assert.equal(res.success, false);
 });
 

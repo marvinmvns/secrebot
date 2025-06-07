@@ -587,3 +587,36 @@ export function convertToCSV(profiles) {
   ].join('\n');
   return csvContent;
 }
+
+// ==================== SCRAPING COM AUTO LOGIN ====================
+export async function scrapeProfileWithAutoLogin(
+  url,
+  options = {}
+) {
+  const {
+    liAt,
+    user,
+    pass,
+    timeoutMs = 60000,
+    scrapeFn = scrapeProfile,
+    loginFn = loginAndGetLiAt
+  } = options;
+  if (!liAt && !(user && pass)) {
+    throw new Error('li_at or credentials are required');
+  }
+  let result = await scrapeFn(url, { liAt, timeoutMs });
+  const needsLogin =
+    !result.success &&
+    result.error &&
+    /too many (redirect|request)/i.test(result.error);
+  if (needsLogin && user && pass) {
+    try {
+      const newLiAt = await loginFn(user, pass, { timeoutMs });
+      result = await scrapeFn(url, { liAt: newLiAt, timeoutMs });
+      result.newLiAt = newLiAt;
+    } catch (err) {
+      // ignore login errors and return original result
+    }
+  }
+  return result;
+}

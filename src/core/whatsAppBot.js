@@ -661,7 +661,8 @@ async handleRecursoCommand(contactId) {
     }
     const liAt = this.linkedinSessions.get(contactId) || CONFIG.linkedin.liAt;
     if (!liAt) {
-      await this.sendResponse(contactId, '❌ Nenhum login encontrado. Use !linkedin login');
+      this.awaitingLinkedinCreds.set(contactId, true);
+      await this.sendResponse(contactId, '🔑 Nenhum login encontrado. Envie usuario e senha separados por ":"');
       return;
     }
     await this.sendResponse(contactId, '💼 Analisando perfil...', true);
@@ -748,7 +749,8 @@ async handleRecursoCommand(contactId) {
       case CHAT_MODES.LINKEDIN:
         const liAtCookie = this.linkedinSessions.get(contactId) || CONFIG.linkedin.liAt;
         if (!liAtCookie) {
-          await this.sendResponse(contactId, '❌ Nenhum login encontrado. Use !linkedin login');
+          this.awaitingLinkedinCreds.set(contactId, true);
+          await this.sendResponse(contactId, '🔑 Nenhum login encontrado. Envie usuario e senha separados por ":"');
           break;
         }
         await this.sendResponse(contactId, '💼 Analisando perfil...', true);

@@ -143,7 +143,7 @@ Após iniciar, envie `!menu` ou use os atalhos numéricos. As opções são:
 6️⃣ `!transcrever` para transcrever áudios
 7️⃣ `!foto` para descrever imagens
 8️⃣ `!calorias` para estimar calorias de uma foto
-9️⃣ `!linkedin <URL>` para analisar um perfil
+9️⃣ `!linkedin <URL>` para analisar um perfil (se o cookie `li_at` não estiver configurado o bot solicitará suas credenciais)
 🔟 `!voz` para alternar respostas por voz ou texto
 1️⃣1️⃣ `!recurso` para exibir detalhes do sistema
 1️⃣2️⃣ `!resumir` para resumir texto ou arquivo

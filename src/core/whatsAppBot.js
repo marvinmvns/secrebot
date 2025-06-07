@@ -170,8 +170,8 @@ class WhatsAppBot {
         console.log(`🗣️ Gerando resposta em áudio para ${contactId}...`);
         const audioBuffer = await this.ttsService.generateAudio(textContent);
         const audioBase64 = audioBuffer.toString('base64');
-        // Tentar enviar como audio/ogg primeiro, pode ser mais compatível
-        const media = new MessageMedia('audio/ogg', audioBase64, 'response.ogg');
+        // Tentar enviar como audio/ogg (opus) primeiro, pode ser mais compatível
+        const media = new MessageMedia('audio/ogg; codecs=opus', audioBase64, 'response.ogg');
         await this.client.sendMessage(contactId, media, { sendAudioAsVoice: true });
         console.log(`✅ Áudio enviado para ${contactId}`);
       } catch (ttsError) {

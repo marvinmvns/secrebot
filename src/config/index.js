@@ -105,7 +105,8 @@ const CHAT_MODES = {
   AGENDABOT: 'agendabot',
   TRANSCRICAO: 'transcricao',
   LINKEDIN: 'linkedin',
-  DELETAR: 'deletar'
+  DELETAR: 'deletar',
+  RESUMIR: 'resumir'
 };
 
 // Atualizar mensagem do menu para incluir a opção de voz
@@ -133,8 +134,8 @@ const MODE_MESSAGES = {
   [CHAT_MODES.TRANSCRICAO]: `🎤 *Modo Transcrição Ativado!*\n\n🎙️ Envie um áudio para eu transcrever em texto.\n📝 O áudio será convertido automaticamente!\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
 
   [CHAT_MODES.LINKEDIN]: `💼 *Modo LinkedIn Ativado!*\n\n🔗 Envie o link do perfil que deseja analisar.\n📊 Vou estruturar as informações para você!\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
-
-  [CHAT_MODES.DELETAR]: `🗑️ *Modo Deletar Agendamento*\n\nAguarde enquanto busco seus agendamentos...`
+  [CHAT_MODES.DELETAR]: `🗑️ *Modo Deletar Agendamento*\n\nAguarde enquanto busco seus agendamentos...`,
+  [CHAT_MODES.RESUMIR]: `📑 *Modo Resumo Ativado!*\n\nEnvie o texto ou arquivo que deseja resumir.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
 };
 
 const SUCCESS_MESSAGES = {

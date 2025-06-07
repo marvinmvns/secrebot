@@ -225,7 +225,7 @@ class WhatsAppBot {
     }
 
     if (currentMode) {
-        await this.processMessageByMode(contactId, text);
+        await this.processMessageByMode(contactId, text, msg);
         return;
     }
 
@@ -299,9 +299,19 @@ class WhatsAppBot {
   }
 
   async handleResumirCommand(msg, contactId) {
+      const text = msg.body.substring(COMMANDS.RESUMIR.length).trim();
+      if (!msg.hasMedia && !text) {
+          this.setMode(contactId, CHAT_MODES.RESUMIR);
+          await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.RESUMIR]);
+          return;
+      }
+      await this.performResumir(msg, contactId, text);
+  }
+
+  async performResumir(msg, contactId, providedText = '') {
       let textContent = '';
 
-      if (msg.hasMedia) {
+      if (msg && msg.hasMedia) {
           const media = await Utils.downloadMediaWithRetry(msg);
           if (!media) {
               await this.sendErrorMessage(contactId, '❌ Não foi possível baixar o arquivo.');
@@ -313,9 +323,7 @@ class WhatsAppBot {
           try {
               if (type === 'application/pdf' || filename.endsWith('.pdf')) {
                   await this.sendResponse(contactId, '📑 Lendo PDF...', true);
-
                   textContent = await parsePdfBuffer(buffer);
-
               } else if (type === 'text/plain' || filename.endsWith('.txt')) {
                   textContent = buffer.toString('utf8');
               } else if (type === 'text/csv' || filename.endsWith('.csv')) {
@@ -333,13 +341,15 @@ class WhatsAppBot {
               await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
               return;
           }
-      } else {
-          const text = msg.body.substring(COMMANDS.RESUMIR.length).trim();
-          if (!text) {
-              await this.sendResponse(contactId, ERROR_MESSAGES.TEXT_OR_FILE_REQUIRED);
-              return;
-          }
-          textContent = text;
+      } else if (providedText) {
+          textContent = providedText;
+      } else if (msg && msg.body) {
+          textContent = msg.body.trim();
+      }
+
+      if (!textContent) {
+          await this.sendResponse(contactId, ERROR_MESSAGES.TEXT_OR_FILE_REQUIRED);
+          return;
       }
 
       try {
@@ -501,7 +511,7 @@ class WhatsAppBot {
         await this.sendResponse(contactId, `📝 *Transcrição:*\n\n${transcription}`);
         await this.sendResponse(contactId, SUCCESS_MESSAGES.TRANSCRIPTION_COMPLETE);
       } else if (currentMode) {
-        await this.processMessageByMode(contactId, transcription);
+        await this.processMessageByMode(contactId, transcription, msg);
       } else {
         console.log(`🎤 Áudio recebido no menu. Mapeando transcrição "${transcription}" para comando...`);
         await this.sendResponse(contactId, '🤔 Interpretando comando de áudio...', true);
@@ -527,7 +537,7 @@ class WhatsAppBot {
     }
   }
 
-  async processMessageByMode(contactId, text) {
+  async processMessageByMode(contactId, text, msg) {
     const currentMode = this.getCurrentMode(contactId);
     console.log(`🔄 Processando mensagem no modo ${currentMode} para ${contactId}`);
     if (!currentMode) {
@@ -554,6 +564,10 @@ class WhatsAppBot {
         break;
       case CHAT_MODES.AGENDABOT:
         await this.processAgendabotMessage(contactId, text);
+        break;
+      case CHAT_MODES.RESUMIR:
+        await this.performResumir(msg, contactId, text);
+        this.setMode(contactId, null);
         break;
       default:
           console.warn(`⚠️ Modo desconhecido encontrado: ${currentMode}`);

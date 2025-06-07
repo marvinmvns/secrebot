@@ -23,13 +23,13 @@ const CONFIG = {
     port: process.env.PORT || 3000
   },
   scheduler: {
-    interval: 30000, // 30 segundos
-    maxAttempts: 3,
-    retryDelay: 2 * 60 * 60 * 1000, // 2 horas
-    concurrency: 5, // Limite de envios simultâneos
+    interval: parseInt(process.env.SCHED_INTERVAL || '30000', 10),
+    maxAttempts: parseInt(process.env.SCHED_MAX_ATTEMPTS || '3', 10),
+    retryDelay: parseInt(process.env.SCHED_RETRY_DELAY || String(2 * 60 * 60 * 1000), 10),
+    concurrency: parseInt(process.env.SCHED_CONCURRENCY || '5', 10),
     dynamic: {
       enabled: process.env.DYNAMIC_CONCURRENCY === 'true',
-      min: 1,
+      min: parseInt(process.env.SCHED_DYNAMIC_MIN || '1', 10),
       max: parseInt(process.env.SCHED_MAX_CONCURRENCY || '10', 10),
       cpuThreshold: parseFloat(process.env.SCHED_CPU_THRESHOLD || '0.7'),
       memThreshold: parseFloat(process.env.SCHED_MEM_THRESHOLD || '0.8')
@@ -42,28 +42,27 @@ const CONFIG = {
     memoryCheckInterval: parseInt(process.env.MEM_CHECK_INTERVAL || '1000', 10)
   },
   llm: {
-    model: 'granite3.2:latest',
-    imageModel: 'llava:7b',
-    maxTokens: 3000,
+    model: process.env.LLM_MODEL || 'granite3.2:latest',
+    imageModel: process.env.LLM_IMAGE_MODEL || 'llava:7b',
+    maxTokens: parseInt(process.env.LLM_MAX_TOKENS || '3000', 10),
     host: OLLAMA_HOST
   },
   audio: {
-    sampleRate: 16000,
-    model: 'medium',
-    language: 'pt'
+    sampleRate: parseInt(process.env.AUDIO_SAMPLE_RATE || '16000', 10),
+    model: process.env.WHISPER_MODEL || 'medium',
+    language: process.env.AUDIO_LANGUAGE || 'pt'
   },
   // Novas configurações para ElevenLabs
   elevenlabs: {
-    apiKey: process.env.ELEVENLABS_API_KEY ,
-    voiceId: process.env.ELEVENLABS_VOICE_ID ,
-    modelId: 'eleven_multilingual_v2', // Modelo de TTS
-    stability: 0.5,
-    similarityBoost: 0.75
+    apiKey: process.env.ELEVENLABS_API_KEY,
+    voiceId: process.env.ELEVENLABS_VOICE_ID,
+    modelId: process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2',
+    stability: parseFloat(process.env.ELEVENLABS_STABILITY || '0.5'),
+    similarityBoost: parseFloat(process.env.ELEVENLABS_SIMILARITY || '0.75')
   },
   // Configurações para TTS local usando Piper
   piper: {
-    // Define como habilitado quando uma variável de modelo é informada
-    enabled: !!process.env.PIPER_MODEL,
+    enabled: process.env.PIPER_ENABLED === 'true' || !!process.env.PIPER_MODEL,
     executable: process.env.PIPER_EXECUTABLE || 'piper',
     model: process.env.PIPER_MODEL || ''
   },
@@ -83,6 +82,92 @@ const CONFIG = {
     liAt: process.env.LINKEDIN_LI_AT || '',
     timeoutMs: parseInt(process.env.LINKEDIN_TIMEOUT_MS || '30000', 10)
   }
+};
+
+const CONFIG_DESCRIPTIONS = {
+  'mongo.uri': 'URI de conexão com o MongoDB',
+  'mongo.dbName': 'Nome do banco de dados',
+  'mongo.collectionName': 'Coleção onde os lembretes são armazenados',
+  'server.port': 'Porta do servidor web',
+  'scheduler.interval': 'Intervalo (ms) para verificar agendamentos',
+  'scheduler.maxAttempts': 'Tentativas máximas de envio de um lembrete',
+  'scheduler.retryDelay': 'Atraso (ms) entre novas tentativas',
+  'scheduler.concurrency': 'Número de envios simultâneos',
+  'scheduler.dynamic.enabled': 'Ativa ajuste automático de concorrência',
+  'scheduler.dynamic.min': 'Concorrência mínima dinâmica',
+  'scheduler.dynamic.max': 'Concorrência máxima dinâmica',
+  'scheduler.dynamic.cpuThreshold': 'Limite de uso de CPU para reduzir carga',
+  'scheduler.dynamic.memThreshold': 'Limite de uso de memória para reduzir carga',
+  'queues.llmConcurrency': 'Tarefas de IA em paralelo',
+  'queues.whisperConcurrency': 'Processos de transcrição em paralelo',
+  'queues.memoryThresholdGB': 'Memória (GB) para pausar filas',
+  'queues.memoryCheckInterval': 'Intervalo (ms) de checagem de memória',
+  'llm.model': 'Modelo de linguagem usado',
+  'llm.imageModel': 'Modelo para visão computacional',
+  'llm.maxTokens': 'Tokens máximos por resposta',
+  'llm.host': 'Endereço do servidor Ollama',
+  'audio.sampleRate': 'Taxa de amostragem do áudio',
+  'audio.model': 'Modelo Whisper',
+  'audio.language': 'Idioma padrão das transcrições',
+  'elevenlabs.apiKey': 'Chave da API ElevenLabs',
+  'elevenlabs.voiceId': 'ID de voz ElevenLabs',
+  'elevenlabs.modelId': 'Modelo de TTS ElevenLabs',
+  'elevenlabs.stability': 'Estabilidade da voz',
+  'elevenlabs.similarityBoost': 'Similaridade da voz',
+  'piper.enabled': 'Ativa TTS local Piper',
+  'piper.executable': 'Executável do Piper',
+  'piper.model': 'Modelo do Piper',
+  'calorieApi.url': 'URL da API de calorias',
+  'calorieApi.key': 'Chave da API de calorias',
+  'google.clientId': 'Client ID do Google',
+  'google.clientSecret': 'Client Secret do Google',
+  'google.redirect': 'URL de redirecionamento OAuth',
+  'linkedin.user': 'Usuário do LinkedIn',
+  'linkedin.pass': 'Senha do LinkedIn',
+  'linkedin.liAt': 'Cookie li_at',
+  'linkedin.timeoutMs': 'Timeout do LinkedIn (ms)'
+};
+
+const CONFIG_ENV_MAP = {
+  'mongo.uri': 'MONGO_URI',
+  'server.port': 'PORT',
+  'scheduler.interval': 'SCHED_INTERVAL',
+  'scheduler.maxAttempts': 'SCHED_MAX_ATTEMPTS',
+  'scheduler.retryDelay': 'SCHED_RETRY_DELAY',
+  'scheduler.concurrency': 'SCHED_CONCURRENCY',
+  'scheduler.dynamic.enabled': 'DYNAMIC_CONCURRENCY',
+  'scheduler.dynamic.min': 'SCHED_DYNAMIC_MIN',
+  'scheduler.dynamic.max': 'SCHED_MAX_CONCURRENCY',
+  'scheduler.dynamic.cpuThreshold': 'SCHED_CPU_THRESHOLD',
+  'scheduler.dynamic.memThreshold': 'SCHED_MEM_THRESHOLD',
+  'queues.llmConcurrency': 'LLM_CONCURRENCY',
+  'queues.whisperConcurrency': 'WHISPER_CONCURRENCY',
+  'queues.memoryThresholdGB': 'QUEUE_MEM_THRESHOLD_GB',
+  'queues.memoryCheckInterval': 'MEM_CHECK_INTERVAL',
+  'llm.model': 'LLM_MODEL',
+  'llm.imageModel': 'LLM_IMAGE_MODEL',
+  'llm.maxTokens': 'LLM_MAX_TOKENS',
+  'llm.host': 'OLLAMA_HOST',
+  'audio.sampleRate': 'AUDIO_SAMPLE_RATE',
+  'audio.model': 'WHISPER_MODEL',
+  'audio.language': 'AUDIO_LANGUAGE',
+  'elevenlabs.apiKey': 'ELEVENLABS_API_KEY',
+  'elevenlabs.voiceId': 'ELEVENLABS_VOICE_ID',
+  'elevenlabs.modelId': 'ELEVENLABS_MODEL_ID',
+  'elevenlabs.stability': 'ELEVENLABS_STABILITY',
+  'elevenlabs.similarityBoost': 'ELEVENLABS_SIMILARITY',
+  'piper.enabled': 'PIPER_ENABLED',
+  'piper.executable': 'PIPER_EXECUTABLE',
+  'piper.model': 'PIPER_MODEL',
+  'calorieApi.url': 'CALORIE_API_URL',
+  'calorieApi.key': 'CALORIE_API_KEY',
+  'google.clientId': 'GOOGLE_CLIENT_ID',
+  'google.clientSecret': 'GOOGLE_CLIENT_SECRET',
+  'google.redirect': 'GOOGLE_REDIRECT',
+  'linkedin.user': 'LINKEDIN_USER',
+  'linkedin.pass': 'LINKEDIN_PASS',
+  'linkedin.liAt': 'LINKEDIN_LI_AT',
+  'linkedin.timeoutMs': 'LINKEDIN_TIMEOUT_MS'
 };
 
 // ===================== CONSTANTES =====================
@@ -206,7 +291,13 @@ function updateConfigFromEnv() {
   CONFIG.mongo.uri = process.env.MONGO_URI || CONFIG.mongo.uri;
   CONFIG.server.port = process.env.PORT || CONFIG.server.port;
 
+  CONFIG.scheduler.interval = parseInt(process.env.SCHED_INTERVAL || CONFIG.scheduler.interval, 10);
+  CONFIG.scheduler.maxAttempts = parseInt(process.env.SCHED_MAX_ATTEMPTS || CONFIG.scheduler.maxAttempts, 10);
+  CONFIG.scheduler.retryDelay = parseInt(process.env.SCHED_RETRY_DELAY || CONFIG.scheduler.retryDelay, 10);
+  CONFIG.scheduler.concurrency = parseInt(process.env.SCHED_CONCURRENCY || CONFIG.scheduler.concurrency, 10);
+
   CONFIG.scheduler.dynamic.enabled = process.env.DYNAMIC_CONCURRENCY === 'true' || CONFIG.scheduler.dynamic.enabled;
+  CONFIG.scheduler.dynamic.min = parseInt(process.env.SCHED_DYNAMIC_MIN || CONFIG.scheduler.dynamic.min, 10);
   CONFIG.scheduler.dynamic.max = parseInt(process.env.SCHED_MAX_CONCURRENCY || CONFIG.scheduler.dynamic.max, 10);
   CONFIG.scheduler.dynamic.cpuThreshold = parseFloat(process.env.SCHED_CPU_THRESHOLD || CONFIG.scheduler.dynamic.cpuThreshold);
   CONFIG.scheduler.dynamic.memThreshold = parseFloat(process.env.SCHED_MEM_THRESHOLD || CONFIG.scheduler.dynamic.memThreshold);
@@ -216,6 +307,13 @@ function updateConfigFromEnv() {
   CONFIG.queues.memoryThresholdGB = parseInt(process.env.QUEUE_MEM_THRESHOLD_GB || CONFIG.queues.memoryThresholdGB, 10);
   CONFIG.queues.memoryCheckInterval = parseInt(process.env.MEM_CHECK_INTERVAL || CONFIG.queues.memoryCheckInterval, 10);
 
+  CONFIG.audio.sampleRate = parseInt(process.env.AUDIO_SAMPLE_RATE || CONFIG.audio.sampleRate, 10);
+  CONFIG.audio.model = process.env.WHISPER_MODEL || CONFIG.audio.model;
+  CONFIG.audio.language = process.env.AUDIO_LANGUAGE || CONFIG.audio.language;
+
+  CONFIG.llm.model = process.env.LLM_MODEL || CONFIG.llm.model;
+  CONFIG.llm.imageModel = process.env.LLM_IMAGE_MODEL || CONFIG.llm.imageModel;
+  CONFIG.llm.maxTokens = parseInt(process.env.LLM_MAX_TOKENS || CONFIG.llm.maxTokens, 10);
   CONFIG.llm.host = process.env.OLLAMA_HOST || CONFIG.llm.host;
   if (process.env.OLLAMA_TIMEOUT_MS) {
     process.env.UNDICI_HEADERS_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
@@ -223,8 +321,11 @@ function updateConfigFromEnv() {
 
   CONFIG.elevenlabs.apiKey = process.env.ELEVENLABS_API_KEY || CONFIG.elevenlabs.apiKey;
   CONFIG.elevenlabs.voiceId = process.env.ELEVENLABS_VOICE_ID || CONFIG.elevenlabs.voiceId;
+  CONFIG.elevenlabs.modelId = process.env.ELEVENLABS_MODEL_ID || CONFIG.elevenlabs.modelId;
+  CONFIG.elevenlabs.stability = parseFloat(process.env.ELEVENLABS_STABILITY || CONFIG.elevenlabs.stability);
+  CONFIG.elevenlabs.similarityBoost = parseFloat(process.env.ELEVENLABS_SIMILARITY || CONFIG.elevenlabs.similarityBoost);
 
-  CONFIG.piper.enabled = !!process.env.PIPER_MODEL;
+  CONFIG.piper.enabled = process.env.PIPER_ENABLED === 'true' || !!process.env.PIPER_MODEL || CONFIG.piper.enabled;
   CONFIG.piper.executable = process.env.PIPER_EXECUTABLE || CONFIG.piper.executable;
   CONFIG.piper.model = process.env.PIPER_MODEL || CONFIG.piper.model;
 
@@ -251,6 +352,8 @@ export {
   SUCCESS_MESSAGES,
   ERROR_MESSAGES,
   PROMPTS,
+  CONFIG_DESCRIPTIONS,
+  CONFIG_ENV_MAP,
   __dirname,
   updateConfigFromEnv
 };

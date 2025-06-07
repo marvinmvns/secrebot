@@ -7,7 +7,7 @@ import { ObjectId } from 'mongodb';
 import multer from 'multer';
 import GoogleCalendarService from '../services/googleCalendarService.js';
 import Utils from '../utils/index.js';
-import { CONFIG, COMMANDS, updateConfigFromEnv } from '../config/index.js';
+import { CONFIG, COMMANDS, updateConfigFromEnv, CONFIG_DESCRIPTIONS, CONFIG_ENV_MAP } from '../config/index.js';
 import fs from 'fs';
 import dotenv from 'dotenv';
 
@@ -205,8 +205,19 @@ class RestAPI {
       const envPath = path.join(__dirname, '../../.env');
       const examplePath = path.join(__dirname, '../../.env.example');
       const file = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf-8') : fs.readFileSync(examplePath, 'utf-8');
-      const env = dotenv.parse(file);
-      res.render('config', { env });
+      const parsed = dotenv.parse(file);
+
+      const getNested = (obj, pathStr) =>
+        pathStr.split('.').reduce((o, k) => (o || {})[k], obj);
+
+      const env = {};
+      const descriptions = {};
+      for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
+        env[envVar] = parsed[envVar] ?? getNested(CONFIG, cfgPath);
+        descriptions[envVar] = CONFIG_DESCRIPTIONS[cfgPath];
+      }
+
+      res.render('config', { env, descriptions });
     });
 
     this.app.post('/config', (req, res) => {

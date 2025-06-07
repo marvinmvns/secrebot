@@ -146,7 +146,7 @@ Após iniciar, envie `!menu` ou os atalhos numéricos para ver as opções. Entr
 - `!resumir` com texto ou arquivo (PDF, TXT, DOCX ou CSV) para resumir o conteúdo
 
 Ao iniciar o bot você terá acesso a uma pequena interface web. Na página inicial (`/`) há um menu de painéis que inclui o dashboard de agendamentos e a tela de configurações. O dashboard propriamente dito está em `/dashboard` e permite listar, criar, editar e duplicar lembretes, além de exibir estatísticas do bot.
-As configurações da aplicação ficam em `/config`. Após salvar o formulário todas as variáveis são gravadas no `.env` e a aplicação é reiniciada automaticamente para aplicar os novos valores.
+As configurações da aplicação ficam em `/config`. A tela lista todas as opções de `src/config/index.js` com uma breve descrição do uso de cada uma. Após salvar o formulário todas as variáveis são gravadas no `.env` e a aplicação é reiniciada automaticamente para aplicar os novos valores.
 
 
 ## Estrutura da Base (MongoDB)

@@ -1,6 +1,27 @@
 import { chromium } from 'playwright';
 
-export async function scrapeProfile(url) {
+export async function loginAndGetLiAt(user, pass, timeoutMs = 30000) {
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  try {
+    await page.goto('https://www.linkedin.com/login', { timeout: timeoutMs });
+    await page.fill('input[name="session_key"]', user);
+    await page.fill('input[name="session_password"]', pass);
+    await Promise.all([
+      page.waitForNavigation({ timeout: timeoutMs }),
+      page.click('button[type="submit"]')
+    ]);
+    const cookies = await context.cookies();
+    const liAt = cookies.find(c => c.name === 'li_at');
+    return liAt ? liAt.value : null;
+  } finally {
+    await context.close();
+    await browser.close();
+  }
+}
+
+export async function scrapeProfile(url, { liAt, timeoutMs = 30000 } = {}) {
   const browser = await chromium.launch({
     headless: true,
     args: [
@@ -14,13 +35,27 @@ export async function scrapeProfile(url) {
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   });
 
+  if (liAt) {
+    await context.addCookies([{ name: 'li_at', value: liAt, domain: '.linkedin.com', path: '/', httpOnly: true, secure: true }]);
+  }
+
   const page = await context.newPage();
 
   try {
-    await page.goto(url, {
-      waitUntil: 'networkidle',
-      timeout: 30000
-    });
+    let attempts = 0;
+    while (attempts < 3) {
+      try {
+        await page.goto(url, { waitUntil: 'networkidle', timeout: timeoutMs });
+        break;
+      } catch (err) {
+        if (err.name === 'TimeoutError') {
+          attempts++;
+          if (attempts >= 3) throw err;
+        } else {
+          throw err;
+        }
+      }
+    }
 
     await page.waitForTimeout(3000);
     await autoScroll(page);
@@ -132,13 +167,6 @@ export async function scrapeProfile(url) {
     };
 
   } catch (err) {
-    console.error('Erro durante o scraping:', err);
-    try {
-      await page.screenshot({ path: 'error-screenshot.png', fullPage: true });
-    } catch (screenshotErr) {
-      console.error('Falha ao capturar screenshot:', screenshotErr);
-    }
-
     return {
       url,
       scrapedAt: new Date().toISOString(),
@@ -169,20 +197,17 @@ async function autoScroll(page) {
         const scrollHeight = document.body.scrollHeight;
         window.scrollBy(0, distance);
         totalHeight += distance;
-
         if (totalHeight >= scrollHeight) {
           clearInterval(timer);
           resolve();
         }
       }, 100);
-
       setTimeout(() => {
         clearInterval(timer);
         resolve();
       }, 10000);
     });
   });
-
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(1000);
 }

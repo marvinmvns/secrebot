@@ -7,7 +7,9 @@ import { ObjectId } from 'mongodb';
 import multer from 'multer';
 import GoogleCalendarService from '../services/googleCalendarService.js';
 import Utils from '../utils/index.js';
-import { CONFIG, COMMANDS } from '../config/index.js';
+import { CONFIG, COMMANDS, updateConfigFromEnv } from '../config/index.js';
+import fs from 'fs';
+import dotenv from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -191,6 +193,23 @@ class RestAPI {
         });
       }
       res.redirect('/');
+    });
+
+    this.app.get('/config', (req, res) => {
+      const envPath = path.join(__dirname, '../../.env');
+      const examplePath = path.join(__dirname, '../../.env.example');
+      const file = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf-8') : fs.readFileSync(examplePath, 'utf-8');
+      const env = dotenv.parse(file);
+      res.render('config', { env });
+    });
+
+    this.app.post('/config', (req, res) => {
+      const envPath = path.join(__dirname, '../../.env');
+      const lines = Object.entries(req.body).map(([k,v]) => `${k}=${v}`).join('\n');
+      fs.writeFileSync(envPath, lines);
+      dotenv.config({ path: envPath, override: true });
+      updateConfigFromEnv();
+      res.redirect('/config');
     });
 
     // Rota catch-all para 404

@@ -101,9 +101,13 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando a int
    SCHED_MEM_THRESHOLD=0.8
    OLLAMA_HOST=http://127.0.0.1:11434
    OLLAMA_TIMEOUT_MS=60000
-   CALORIE_API_URL=https://api.api-ninjas.com/v1/nutrition?query=
-   CALORIE_API_KEY=
-   # Integração com Google Calendar
+  CALORIE_API_URL=https://api.api-ninjas.com/v1/nutrition?query=
+  CALORIE_API_KEY=
+  LINKEDIN_USER=
+  LINKEDIN_PASS=
+  LINKEDIN_LI_AT=
+  LINKEDIN_TIMEOUT_MS=30000
+  # Integração com Google Calendar
    GOOGLE_CLIENT_ID=
    GOOGLE_CLIENT_SECRET=
   GOOGLE_REDIRECT=http://localhost:3000/oauth2callback
@@ -124,7 +128,8 @@ Se `PIPER_MODEL` estiver definido e a chave da ElevenLabs não for fornecida, o 
    ```
 
   Um QR Code será exibido no terminal. Escaneie com o WhatsApp para autenticar o bot. A API REST ficará disponível em `http://localhost:3000` (ou na porta configurada).
-   O painel web para gerenciar agendamentos também estará acessível no mesmo endereço, em `/`.
+  O painel web para gerenciar agendamentos também estará acessível no mesmo endereço, em `/`.
+  Para editar as configurações do arquivo `.env` utilize a rota `/config` na interface web.
 
 ## Utilização
 

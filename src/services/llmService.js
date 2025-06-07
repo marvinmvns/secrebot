@@ -1,7 +1,7 @@
 import { Ollama } from 'ollama';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, CHAT_MODES, PROMPTS } from '../config/index.js'; // Ajustar caminho se necessário
-import { scrapeProfile } from './linkedinScraper.js';
+import { scrapeProfile, loginAndGetLiAt } from './linkedinScraper.js';
 import JobQueue from './jobQueue.js';
 
 // ============ Serviço LLM ============
@@ -64,9 +64,9 @@ class LLMService {
     return this.chat(contactId, text, CHAT_MODES.ASSISTANT, PROMPTS.assistant(date));
   }
 
-  async getAssistantResponseLinkedin(contactId, url) {
+  async getAssistantResponseLinkedin(contactId, url, liAt) {
     try {
-      const data = await scrapeProfile(url);
+      const data = await scrapeProfile(url, { liAt, timeoutMs: CONFIG.linkedin.timeoutMs });
       const jsonText = JSON.stringify(data, null, 2);
       return await this.chat(contactId, jsonText, CHAT_MODES.LINKEDIN, PROMPTS.linkedin);
     } catch (err) {

@@ -88,7 +88,13 @@ class RestAPI {
     // ===== Scheduler UI Routes =====
     const schedCollection = this.bot.getScheduler().schedCollection;
 
-    this.app.get('/', async (req, res) => {
+    // Página inicial com menu de dashboards
+    this.app.get('/', (req, res) => {
+      res.render('home');
+    });
+
+    // Dashboard de agendamentos
+    this.app.get('/dashboard', async (req, res) => {
       const [messages, stats] = await Promise.all([
         schedCollection.find({}).toArray(),
         this.bot.getScheduler().getStats()
@@ -209,7 +215,9 @@ class RestAPI {
       fs.writeFileSync(envPath, lines);
       dotenv.config({ path: envPath, override: true });
       updateConfigFromEnv();
-      res.redirect('/config');
+      res.send('Configurações salvas. Reiniciando...');
+      console.log('♻️  Reiniciando aplicação para aplicar novas configurações');
+      setTimeout(() => process.exit(0), 500);
     });
 
     // Rota catch-all para 404

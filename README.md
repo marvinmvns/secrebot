@@ -145,7 +145,8 @@ Após iniciar, envie `!menu` ou os atalhos numéricos para ver as opções. Entr
 - `!linkedin <URL>` para resumir dados públicos de um perfil
 - `!resumir` com texto ou arquivo (PDF, TXT, DOCX ou CSV) para resumir o conteúdo
 
-A interface web de agendamento pode ser acessada em `/`. Ela permite listar, criar, editar e duplicar lembretes usando um formulário simples e exibe estatísticas do bot.
+Ao iniciar o bot você terá acesso a uma pequena interface web. Na página inicial (`/`) há um menu de painéis que inclui o dashboard de agendamentos e a tela de configurações. O dashboard propriamente dito está em `/dashboard` e permite listar, criar, editar e duplicar lembretes, além de exibir estatísticas do bot.
+As configurações da aplicação ficam em `/config`. Após salvar o formulário todas as variáveis são gravadas no `.env` e a aplicação é reiniciada automaticamente para aplicar os novos valores.
 
 
 ## Estrutura da Base (MongoDB)
@@ -199,5 +200,11 @@ Os testes unitários são executados durante a fase de build. Após a conclusão
 
 ```bash
 docker run -p 3000:3000 secrebot
+```
+
+Para facilitar a execução com todas as dependências (MongoDB e Ollama) utilize o `docker-compose.yml` incluido no repositório:
+
+```bash
+docker compose up --build
 ```
 

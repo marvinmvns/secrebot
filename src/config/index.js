@@ -6,8 +6,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config();
 
 // Aumenta o tempo limite do Undici caso especificado
+// Ajusta os timeouts do Undici se OLLAMA_TIMEOUT_MS estiver definido
 if (process.env.OLLAMA_TIMEOUT_MS) {
   process.env.UNDICI_HEADERS_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
+  process.env.UNDICI_BODY_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
 }
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
@@ -315,6 +317,7 @@ function updateConfigFromEnv() {
   CONFIG.llm.host = process.env.OLLAMA_HOST || CONFIG.llm.host;
   if (process.env.OLLAMA_TIMEOUT_MS) {
     process.env.UNDICI_HEADERS_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
+    process.env.UNDICI_BODY_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
   }
 
   CONFIG.elevenlabs.apiKey = process.env.ELEVENLABS_API_KEY || CONFIG.elevenlabs.apiKey;

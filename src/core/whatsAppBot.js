@@ -165,7 +165,7 @@ class WhatsAppBot {
     const useVoice = this.getUserPreference(contactId, 'voiceResponse', false) && !forceText;
 
     // CORREÇÃO: A verificação 'this.ttsService' garante que o serviço foi injetado
-    if (useVoice && this.ttsService && this.ttsService.client) { // Adicionado check this.ttsService.client
+    if (useVoice && this.ttsService && (this.ttsService.client || this.ttsService.piperEnabled)) { // Verifica também Piper
       try {
         console.log(`🗣️ Gerando resposta em áudio para ${contactId}...`);
         const audioBuffer = await this.ttsService.generateAudio(textContent);

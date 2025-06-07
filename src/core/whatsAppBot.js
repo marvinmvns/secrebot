@@ -280,24 +280,184 @@ class WhatsAppBot {
       await this.sendResponse(contactId, message, true);
   }
 
-  async handleRecursoCommand(contactId) {
-      try {
-        await this.sendResponse(contactId, '🔍 Coletando informações do sistema...', true);
-        const [cpu, mem, osInfo, load] = await Promise.all([
-          si.cpu(),
-          si.mem(),
-          si.osInfo(),
-          si.currentLoad(),
-        ]);
-        const totalMem = (mem.total / 1024 / 1024 / 1024).toFixed(1);
-        const usedMem = ((mem.total - mem.available) / 1024 / 1024 / 1024).toFixed(1);
-        const message = `💻 *Recursos do Sistema*\n\n🖥️ CPU: ${cpu.manufacturer} ${cpu.brand}\n⚙️ Núcleos: ${cpu.cores}\n📈 Uso CPU: ${load.currentLoad.toFixed(1)}%\n🧠 Memória: ${usedMem}/${totalMem} GB\n🛠️ OS: ${osInfo.distro} ${osInfo.release}`;
-        await this.sendResponse(contactId, message);
-      } catch (err) {
-        console.error('❌ Erro ao obter recursos do sistema:', err);
-        await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+async handleRecursoCommand(contactId) {
+  try {
+    await this.sendResponse(contactId, '🔍 Coletando informações detalhadas do sistema...', true);
+    
+    // Coleta paralela de todas as informações
+    const [
+      cpu,
+      cpuTemp,
+      cpuSpeed,
+      mem,
+      osInfo,
+      load,
+      diskLayout,
+      fsSize,
+      networkInterfaces,
+      networkStats,
+      processes,
+      graphics,
+      system,
+      time,
+      dockerInfo,
+      services
+    ] = await Promise.all([
+      si.cpu(),
+      si.cpuTemperature().catch(() => ({ main: null })),
+      si.cpuCurrentSpeed().catch(() => ({ avg: null })),
+      si.mem(),
+      si.osInfo(),
+      si.currentLoad(),
+      si.diskLayout(),
+      si.fsSize(),
+      si.networkInterfaces(),
+      si.networkStats().catch(() => []),
+      si.processes(),
+      si.graphics().catch(() => ({ controllers: [] })),
+      si.system(),
+      si.time(),
+      si.dockerInfo().catch(() => ({ containers: 0, containersRunning: 0 })),
+      si.services('*').catch(() => [])
+    ]);
+
+    // Formatação de memória
+    const formatBytes = (bytes) => {
+      const gb = bytes / 1024 / 1024 / 1024;
+      return gb >= 1 ? `${gb.toFixed(2)} GB` : `${(bytes / 1024 / 1024).toFixed(0)} MB`;
+    };
+
+    // Formatação de uptime
+    const formatUptime = (seconds) => {
+      const days = Math.floor(seconds / 86400);
+      const hours = Math.floor((seconds % 86400) / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return `${days}d ${hours}h ${minutes}m`;
+    };
+
+    // CPU detalhada
+    const cpuInfo = [
+      `🖥️ *CPU:* ${cpu.manufacturer} ${cpu.brand}`,
+      `⚙️ *Arquitetura:* ${cpu.arch} | *Núcleos:* ${cpu.physicalCores} físicos, ${cpu.cores} lógicos`,
+      `🔢 *Velocidade:* ${cpuSpeed.avg ? `${cpuSpeed.avg.toFixed(2)} GHz` : 'N/A'}`,
+      cpuTemp.main ? `🌡️ *Temperatura:* ${cpuTemp.main.toFixed(1)}°C` : '',
+      `📊 *Uso atual:* ${load.currentLoad.toFixed(1)}%`,
+      `📈 *Carga média:* ${load.avgLoad ? load.avgLoad.toFixed(2) : 'N/A'}`
+    ].filter(Boolean).join('\n');
+
+    // Memória detalhada
+    const memInfo = [
+      `\n💾 *MEMÓRIA*`,
+      `🧠 *RAM:* ${formatBytes(mem.used)} / ${formatBytes(mem.total)} (${((mem.used / mem.total) * 100).toFixed(1)}%)`,
+      `📦 *Disponível:* ${formatBytes(mem.available)}`,
+      `💱 *Swap:* ${formatBytes(mem.swapused)} / ${formatBytes(mem.swaptotal)}`,
+      `🎯 *Cache:* ${formatBytes(mem.cached)}`,
+      `🔄 *Buffer:* ${formatBytes(mem.buffers)}`
+    ].join('\n');
+
+    // Disco detalhado
+    const diskInfo = [];
+    diskInfo.push('\n💿 *ARMAZENAMENTO*');
+    
+    // Informações físicas dos discos
+    diskLayout.forEach(disk => {
+      if (disk.size > 0) {
+        diskInfo.push(`📀 ${disk.name}: ${formatBytes(disk.size)} (${disk.type || 'Unknown'})`);
       }
+    });
+
+    // Uso do sistema de arquivos
+    fsSize.forEach(fs => {
+      if (fs.size > 0 && !fs.mount.includes('docker') && !fs.mount.includes('snap')) {
+        const usePercent = ((fs.used / fs.size) * 100).toFixed(1);
+        diskInfo.push(`  └ ${fs.fs}: ${formatBytes(fs.used)}/${formatBytes(fs.size)} (${usePercent}%) em ${fs.mount}`);
+      }
+    });
+
+    // Rede detalhada
+    const netInfo = ['\n🌐 *REDE*'];
+    const activeInterfaces = networkInterfaces.filter(iface => 
+      iface.ip4 && iface.operstate === 'up' && !iface.internal
+    );
+    
+    activeInterfaces.forEach(iface => {
+      netInfo.push(`🔌 ${iface.iface}: ${iface.ip4} (${iface.mac})`);
+      const stats = networkStats.find(s => s.iface === iface.iface);
+      if (stats) {
+        netInfo.push(`  ↓ RX: ${formatBytes(stats.rx_bytes)} | ↑ TX: ${formatBytes(stats.tx_bytes)}`);
+      }
+    });
+
+    // Sistema e processos
+    const systemInfo = [
+      `\n🖥️ *SISTEMA*`,
+      `🏢 *Host:* ${system.manufacturer} ${system.model}`,
+      `🔧 *OS:* ${osInfo.distro} ${osInfo.release} (${osInfo.arch})`,
+      `🏷️ *Kernel:* ${osInfo.kernel}`,
+      `⏱️ *Uptime:* ${formatUptime(time.uptime)}`,
+      `🚀 *Boot:* ${new Date(Date.now() - time.uptime * 1000).toLocaleString('pt-BR')}`
+    ].join('\n');
+
+    // Processos
+    const processInfo = [
+      `\n📊 *PROCESSOS*`,
+      `🔢 *Total:* ${processes.all}`,
+      `✅ *Rodando:* ${processes.running}`,
+      `😴 *Dormindo:* ${processes.sleeping}`,
+      `🛑 *Parados:* ${processes.stopped}`,
+      `❌ *Zumbis:* ${processes.zombie}`
+    ].join('\n');
+
+    // GPU (se disponível)
+    let gpuInfo = '';
+    if (graphics.controllers && graphics.controllers.length > 0) {
+      gpuInfo = '\n🎮 *GPU*\n';
+      graphics.controllers.forEach((gpu, index) => {
+        gpuInfo += `${index + 1}. ${gpu.vendor} ${gpu.model}`;
+        if (gpu.vram) gpuInfo += ` (${gpu.vram} MB VRAM)`;
+        gpuInfo += '\n';
+      });
+    }
+
+    // Docker (se disponível)
+    let dockerStr = '';
+    if (dockerInfo.containers > 0) {
+      dockerStr = `\n🐳 *Docker:* ${dockerInfo.containersRunning}/${dockerInfo.containers} containers rodando`;
+    }
+
+    // Serviços importantes
+    const importantServices = ['mysql', 'postgresql', 'nginx', 'apache', 'redis', 'mongodb', 'docker'];
+    const runningServices = services.filter(s => 
+      importantServices.some(name => s.name.toLowerCase().includes(name)) && s.running
+    );
+    
+    let servicesStr = '';
+    if (runningServices.length > 0) {
+      servicesStr = '\n🔧 *Serviços Ativos:* ' + runningServices.map(s => s.name).join(', ');
+    }
+
+    // Montagem da mensagem final
+    const message = [
+      '💻 *RECURSOS DETALHADOS DO SISTEMA*\n',
+      cpuInfo,
+      memInfo,
+      diskInfo.join('\n'),
+      netInfo.join('\n'),
+      systemInfo,
+      processInfo,
+      gpuInfo,
+      dockerStr,
+      servicesStr,
+      `\n⏰ *Atualizado em:* ${new Date().toLocaleString('pt-BR')}`
+    ].filter(Boolean).join('\n');
+
+    await this.sendResponse(contactId, message);
+    
+  } catch (err) {
+    console.error('❌ Erro ao obter recursos detalhados do sistema:', err);
+    await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
   }
+}
 
   async handleResumirCommand(msg, contactId) {
       const text = msg.body.substring(COMMANDS.RESUMIR.length).trim();

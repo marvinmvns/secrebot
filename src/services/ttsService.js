@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import { spawn } from 'child_process';
 import path from 'path';
+import ffmpeg from 'fluent-ffmpeg';
 
 class TtsService {
   validatePiperPaths() {
@@ -78,20 +79,43 @@ class TtsService {
       if (!this.validatePiperPaths()) {
         throw new Error('Configuração do Piper inválida');
       }
-      const outputPath = path.join('/tmp', `piper_${Date.now()}.wav`);
+      const wavPath = path.join('/tmp', `piper_${Date.now()}.wav`);
+      const oggPath = wavPath.replace('.wav', '.ogg');
       try {
         await new Promise((resolve, reject) => {
-          const piper = spawn(CONFIG.piper.executable, ['--model', CONFIG.piper.model, '--output_file', outputPath]);
+          const piper = spawn(
+            CONFIG.piper.executable,
+            ['--model', CONFIG.piper.model, '--output_file', wavPath]
+          );
           piper.stdin.write(text);
           piper.stdin.end();
-          piper.on('exit', code => (code === 0 ? resolve() : reject(new Error(`piper exited with code ${code}`))));
+          piper.on('exit', code =>
+            code === 0 ? resolve() : reject(new Error(`piper exited with code ${code}`))
+          );
         });
-        const audioBuffer = await fs.readFile(outputPath);
-        await fs.unlink(outputPath);
+
+        await new Promise((resolve, reject) => {
+          ffmpeg(wavPath)
+            .audioCodec('libopus')
+            .toFormat('ogg')
+            .on('end', resolve)
+            .on('error', err => reject(err))
+            .save(oggPath);
+        }).catch(err => {
+          throw new Error(`Failed to convert TTS audio to OGG: ${err.message}`);
+        });
+
+        const audioBuffer = await fs.readFile(oggPath);
+        await fs.unlink(wavPath);
+        await fs.unlink(oggPath);
         console.log(`✅ Áudio gerado pelo Piper (${(audioBuffer.length / 1024).toFixed(2)} KB)`);
         return audioBuffer;
       } catch (error) {
         console.error('❌ Erro ao executar Piper:', error);
+        try {
+          await fs.unlink(wavPath);
+          await fs.unlink(oggPath);
+        } catch {}
         throw new Error('Falha ao gerar áudio TTS com Piper');
       }
     } else {

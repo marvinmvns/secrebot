@@ -2,8 +2,9 @@
 
 /* Ajustes Gerais */
 body {
-  background-color: #f8f9fa;
+  background-color: #f1f3f4;
   padding-top: 70px;
+  font-family: 'Roboto', Arial, sans-serif;
 }
 
 /* Navbar */
@@ -12,7 +13,17 @@ body {
 }
 
 .navbar {
+  background-color: #4285F4;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.navbar .nav-link,
+.navbar-brand {
+  color: #fff !important;
+}
+
+.navbar .nav-link:hover {
+  color: #e8f0fe !important;
 }
 
 /* Formulários */
@@ -30,6 +41,16 @@ table th, table td {
 .btn-info {
   background-color: #17a2b8;
   border-color: #17a2b8;
+}
+
+.btn-primary {
+  background-color: #1a73e8;
+  border-color: #1a73e8;
+}
+
+.btn-primary:hover {
+  background-color: #1669c1;
+  border-color: #1669c1;
 }
 
 .btn-info:hover {

@@ -1,6 +1,13 @@
 import express from 'express';
-import Utils from '../utils/index.js'; // Ajustar caminho
-import { CONFIG, COMMANDS } from '../config/index.js'; // Ajustar caminho
+import path from 'path';
+import { fileURLToPath } from 'url';
+import expressLayouts from 'express-ejs-layouts';
+import methodOverride from 'method-override';
+import { ObjectId } from 'mongodb';
+import Utils from '../utils/index.js';
+import { CONFIG, COMMANDS } from '../config/index.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ============ API REST ============
 class RestAPI {
@@ -15,7 +22,13 @@ class RestAPI {
   }
 
   setupMiddleware() {
-    this.app.use(express.json()); // Middleware para parsear JSON body
+    this.app.use(express.json());
+    this.app.use(express.urlencoded({ extended: true }));
+    this.app.use(methodOverride('_method'));
+    this.app.use(expressLayouts);
+    this.app.set('view engine', 'ejs');
+    this.app.set('views', path.join(__dirname, '../views'));
+    this.app.use(express.static(path.join(__dirname, '../public')));
     this.app.use((req, res, next) => {
       // Log simples de requisições
       console.log(`🌐 ${req.method} ${req.path} - IP: ${req.ip}`);
@@ -137,6 +150,77 @@ class RestAPI {
         </html>
       `;
       res.send(html);
+    });
+
+    // ===== Scheduler UI Routes =====
+    const schedCollection = this.bot.getScheduler().schedCollection;
+
+    this.app.get('/', async (req, res) => {
+      const messages = await schedCollection.find({}).toArray();
+      res.render('index', { messages });
+    });
+
+    this.app.get('/messages/new', (req, res) => {
+      res.render('new', { message: null });
+    });
+
+    this.app.post('/messages', async (req, res) => {
+      const { recipient, message, scheduledTime, expiryTime, status } = req.body;
+      await schedCollection.insertOne({
+        recipient,
+        message,
+        status: status || 'approved',
+        scheduledTime: new Date(scheduledTime),
+        expiryTime: new Date(expiryTime),
+        sentAt: null,
+        attempts: 0,
+        lastAttemptAt: null
+      });
+      res.redirect('/');
+    });
+
+    this.app.get('/messages/:id/edit', async (req, res) => {
+      const message = await schedCollection.findOne({ _id: new ObjectId(req.params.id) });
+      if (!message) return res.status(404).send('Message not found');
+      res.render('edit', { message });
+    });
+
+    this.app.put('/messages/:id', async (req, res) => {
+      const { recipient, message, scheduledTime, expiryTime, status } = req.body;
+      await schedCollection.updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $set: {
+            recipient,
+            message,
+            scheduledTime: new Date(scheduledTime),
+            expiryTime: new Date(expiryTime),
+            sentAt: null,
+            status
+          } }
+      );
+      res.redirect('/');
+    });
+
+    this.app.delete('/messages/:id', async (req, res) => {
+      await schedCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+      res.redirect('/');
+    });
+
+    this.app.post('/messages/:id/duplicate', async (req, res) => {
+      const original = await schedCollection.findOne({ _id: new ObjectId(req.params.id) });
+      if (!original) return res.status(404).send('Message not found');
+      const newMessage = {
+        recipient: original.recipient,
+        message: original.message,
+        status: 'approved',
+        scheduledTime: original.scheduledTime,
+        expiryTime: original.expiryTime,
+        sentAt: null,
+        attempts: 0,
+        lastAttemptAt: null
+      };
+      await schedCollection.insertOne(newMessage);
+      res.redirect('/');
     });
 
     // Rota catch-all para 404

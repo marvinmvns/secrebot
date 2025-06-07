@@ -106,7 +106,8 @@ Se `PIPER_MODEL` estiver definido e a chave da ElevenLabs não for fornecida, o 
    npm start
    ```
 
-   Um QR Code será exibido no terminal. Escaneie com o WhatsApp para autenticar o bot. A API REST ficará disponível em `http://localhost:3000` (ou na porta configurada).
+  Um QR Code será exibido no terminal. Escaneie com o WhatsApp para autenticar o bot. A API REST ficará disponível em `http://localhost:3000` (ou na porta configurada).
+   O painel web para gerenciar agendamentos também estará acessível no mesmo endereço, em `/`.
 
 ## Utilização
 
@@ -123,6 +124,8 @@ Após iniciar, envie `!menu` ou os atalhos numéricos para ver as opções. Entr
 - `!resumir` com texto ou arquivo (PDF, TXT, DOCX ou CSV) para resumir o conteúdo
 
 O endpoint `/dashboard` oferece uma página simples com as informações do bot e comandos disponíveis.
+
+Além do dashboard, a interface web de agendamento pode ser acessada em `/`. Ela permite listar, criar, editar e duplicar lembretes usando um formulário simples.
 
 
 ## Estrutura da Base (MongoDB)

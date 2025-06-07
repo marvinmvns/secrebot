@@ -342,6 +342,21 @@ function updateConfigFromEnv() {
   CONFIG.linkedin.timeoutMs = parseInt(process.env.LINKEDIN_TIMEOUT_MS || CONFIG.linkedin.timeoutMs, 10);
 }
 
+function applyConfig(obj) {
+  const merge = (t, s) => {
+    for (const k of Object.keys(s)) {
+      const v = s[k];
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        if (!t[k]) t[k] = {};
+        merge(t[k], v);
+      } else {
+        t[k] = v;
+      }
+    }
+  };
+  merge(CONFIG, obj);
+}
+
 export {
   CONFIG,
   COMMANDS,
@@ -355,5 +370,6 @@ export {
   CONFIG_DESCRIPTIONS,
   CONFIG_ENV_MAP,
   __dirname,
-  updateConfigFromEnv
+  updateConfigFromEnv,
+  applyConfig
 };

@@ -4,6 +4,8 @@ import AudioTranscriber from './services/audioTranscriber.js';
 import TtsService from './services/ttsService.js'; // Importar o novo serviço TTS
 import WhatsAppBot from './core/whatsAppBot.js';
 import RestAPI from './api/restApi.js';
+import ConfigService from './services/configService.js';
+import { applyConfig } from './config/index.js';
 
 // ============ Inicialização ============
 async function main() {
@@ -23,6 +25,10 @@ async function main() {
     const scheduler = new Scheduler();
     await scheduler.connect(); // Conectar ao MongoDB
 
+    const configService = new ConfigService(scheduler.db);
+    const dbConfig = await configService.init();
+    applyConfig(dbConfig);
+
     const llmService = new LLMService();
     const transcriber = new AudioTranscriber();
     const ttsService = new TtsService(); // Instanciar o serviço TTS
@@ -34,7 +40,7 @@ async function main() {
 
     // Inicializar API REST
     console.log('🌐 Inicializando API REST...');
-    const api = new RestAPI(bot); // Passar a instância do bot para a API
+    const api = new RestAPI(bot, configService); // Passar a instância do bot e configService para a API
     api.start(); // Iniciar servidor Express
 
     console.log('\n✅ Aplicação iniciada com sucesso!');

@@ -7,19 +7,18 @@ import { ObjectId } from 'mongodb';
 import multer from 'multer';
 import GoogleCalendarService from '../services/googleCalendarService.js';
 import Utils from '../utils/index.js';
-import { CONFIG, COMMANDS, updateConfigFromEnv, CONFIG_DESCRIPTIONS, CONFIG_ENV_MAP } from '../config/index.js';
-import fs from 'fs';
-import dotenv from 'dotenv';
+import { CONFIG, COMMANDS, CONFIG_DESCRIPTIONS, CONFIG_ENV_MAP } from '../config/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ============ API REST ============
 class RestAPI {
-  constructor(bot) {
+  constructor(bot, configService) {
     if (!bot || !bot.getClient) {
         throw new Error('Instância inválida do Bot fornecida para RestAPI.');
     }
     this.bot = bot;
+    this.configService = configService;
     this.app = express();
     this.googleService = new GoogleCalendarService();
     this.setupMiddleware();
@@ -201,11 +200,8 @@ class RestAPI {
       res.redirect('/');
     });
 
-    this.app.get('/config', (req, res) => {
-      const envPath = path.join(__dirname, '../../.env');
-      const examplePath = path.join(__dirname, '../../.env.example');
-      const file = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf-8') : fs.readFileSync(examplePath, 'utf-8');
-      const parsed = dotenv.parse(file);
+    this.app.get('/config', async (req, res) => {
+      const saved = await this.configService.getConfig();
 
       const getNested = (obj, pathStr) =>
         pathStr.split('.').reduce((o, k) => (o || {})[k], obj);
@@ -213,19 +209,40 @@ class RestAPI {
       const env = {};
       const descriptions = {};
       for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
-        env[envVar] = parsed[envVar] ?? getNested(CONFIG, cfgPath);
+        env[envVar] = getNested(saved, cfgPath);
         descriptions[envVar] = CONFIG_DESCRIPTIONS[cfgPath];
       }
 
       res.render('config', { env, descriptions });
     });
 
-    this.app.post('/config', (req, res) => {
-      const envPath = path.join(__dirname, '../../.env');
-      const lines = Object.entries(req.body).map(([k,v]) => `${k}=${v}`).join('\n');
-      fs.writeFileSync(envPath, lines);
-      dotenv.config({ path: envPath, override: true });
-      updateConfigFromEnv();
+    this.app.post('/config', async (req, res) => {
+      const saved = (await this.configService.getConfig()) || {};
+
+      const getNested = (obj, pathStr) =>
+        pathStr.split('.').reduce((o, k) => (o || {})[k], obj);
+      const setNested = (obj, pathStr, value) => {
+        const keys = pathStr.split('.');
+        let curr = obj;
+        for (let i = 0; i < keys.length - 1; i++) {
+          const k = keys[i];
+          curr[k] = curr[k] || {};
+          curr = curr[k];
+        }
+        curr[keys[keys.length - 1]] = value;
+      };
+
+      for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
+        if (req.body[envVar] === undefined) continue;
+        let val = req.body[envVar];
+        const currentVal = getNested(CONFIG, cfgPath);
+        if (typeof currentVal === 'number') val = Number(val);
+        if (typeof currentVal === 'boolean') val = val === 'true';
+        setNested(saved, cfgPath, val);
+      }
+
+      await this.configService.setConfig(saved);
+      this.configService.applyToRuntime(saved);
       res.send('Configurações salvas. Reiniciando...');
       console.log('♻️  Reiniciando aplicação para aplicar novas configurações');
       setTimeout(() => process.exit(0), 500);

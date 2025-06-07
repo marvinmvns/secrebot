@@ -205,9 +205,36 @@ Comandos disponíveis: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias
 function updateConfigFromEnv() {
   CONFIG.mongo.uri = process.env.MONGO_URI || CONFIG.mongo.uri;
   CONFIG.server.port = process.env.PORT || CONFIG.server.port;
+
+  CONFIG.scheduler.dynamic.enabled = process.env.DYNAMIC_CONCURRENCY === 'true' || CONFIG.scheduler.dynamic.enabled;
+  CONFIG.scheduler.dynamic.max = parseInt(process.env.SCHED_MAX_CONCURRENCY || CONFIG.scheduler.dynamic.max, 10);
+  CONFIG.scheduler.dynamic.cpuThreshold = parseFloat(process.env.SCHED_CPU_THRESHOLD || CONFIG.scheduler.dynamic.cpuThreshold);
+  CONFIG.scheduler.dynamic.memThreshold = parseFloat(process.env.SCHED_MEM_THRESHOLD || CONFIG.scheduler.dynamic.memThreshold);
+
   CONFIG.queues.llmConcurrency = parseInt(process.env.LLM_CONCURRENCY || CONFIG.queues.llmConcurrency, 10);
   CONFIG.queues.whisperConcurrency = parseInt(process.env.WHISPER_CONCURRENCY || CONFIG.queues.whisperConcurrency, 10);
+  CONFIG.queues.memoryThresholdGB = parseInt(process.env.QUEUE_MEM_THRESHOLD_GB || CONFIG.queues.memoryThresholdGB, 10);
+  CONFIG.queues.memoryCheckInterval = parseInt(process.env.MEM_CHECK_INTERVAL || CONFIG.queues.memoryCheckInterval, 10);
+
   CONFIG.llm.host = process.env.OLLAMA_HOST || CONFIG.llm.host;
+  if (process.env.OLLAMA_TIMEOUT_MS) {
+    process.env.UNDICI_HEADERS_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
+  }
+
+  CONFIG.elevenlabs.apiKey = process.env.ELEVENLABS_API_KEY || CONFIG.elevenlabs.apiKey;
+  CONFIG.elevenlabs.voiceId = process.env.ELEVENLABS_VOICE_ID || CONFIG.elevenlabs.voiceId;
+
+  CONFIG.piper.enabled = !!process.env.PIPER_MODEL;
+  CONFIG.piper.executable = process.env.PIPER_EXECUTABLE || CONFIG.piper.executable;
+  CONFIG.piper.model = process.env.PIPER_MODEL || CONFIG.piper.model;
+
+  CONFIG.calorieApi.url = process.env.CALORIE_API_URL || CONFIG.calorieApi.url;
+  CONFIG.calorieApi.key = process.env.CALORIE_API_KEY || CONFIG.calorieApi.key;
+
+  CONFIG.google.clientId = process.env.GOOGLE_CLIENT_ID || CONFIG.google.clientId;
+  CONFIG.google.clientSecret = process.env.GOOGLE_CLIENT_SECRET || CONFIG.google.clientSecret;
+  CONFIG.google.redirect = process.env.GOOGLE_REDIRECT || CONFIG.google.redirect;
+
   CONFIG.linkedin.user = process.env.LINKEDIN_USER || CONFIG.linkedin.user;
   CONFIG.linkedin.pass = process.env.LINKEDIN_PASS || CONFIG.linkedin.pass;
   CONFIG.linkedin.liAt = process.env.LINKEDIN_LI_AT || CONFIG.linkedin.liAt;

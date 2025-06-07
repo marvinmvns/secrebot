@@ -1,10 +1,21 @@
 import { ElevenLabsClient, stream } from "elevenlabs";
 import { CONFIG } from "../config/index.js";
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import { spawn } from 'child_process';
 import path from 'path';
 
 class TtsService {
+  validatePiperPaths() {
+    try {
+      fsSync.accessSync(CONFIG.piper.executable, fsSync.constants.X_OK);
+      fsSync.accessSync(CONFIG.piper.model, fsSync.constants.R_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   constructor() {
     this.piperEnabled = false;
     if (CONFIG.elevenlabs.apiKey) {
@@ -18,9 +29,13 @@ class TtsService {
         this.client = null;
       }
     } else if (CONFIG.piper.enabled) {
-      console.log("✅ Uso do TTS local Piper habilitado.");
+      if (this.validatePiperPaths()) {
+        console.log("✅ Uso do TTS local Piper habilitado.");
+        this.piperEnabled = true;
+      } else {
+        console.error("❌ Caminhos do Piper ou modelo inválidos. TTS local desativado.");
+      }
       this.client = null;
-      this.piperEnabled = true;
     } else {
       console.warn("⚠️ Nenhuma configuração de TTS encontrada. Respostas por voz estarão desabilitadas.");
       this.client = null;
@@ -60,6 +75,9 @@ class TtsService {
         throw new Error(`Falha ao gerar áudio TTS: ${errorMessage}`);
       }
     } else if (this.piperEnabled) {
+      if (!this.validatePiperPaths()) {
+        throw new Error('Configuração do Piper inválida');
+      }
       const outputPath = path.join('/tmp', `piper_${Date.now()}.wav`);
       try {
         await new Promise((resolve, reject) => {

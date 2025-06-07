@@ -46,3 +46,22 @@ test('limitContext trims context to maxTokens', () => {
   assert.ok(limited.length < context.length);
   assert.deepEqual(limited[0], context[0]); // keep system message
 });
+
+// Test checkFileExists
+import fs from 'fs/promises';
+import { tmpdir } from 'os';
+import path from 'path';
+
+test('checkFileExists detects existing file', async () => {
+  const tmpPath = path.join(tmpdir(), `file_${Date.now()}`);
+  await fs.writeFile(tmpPath, 'a');
+  const exists = await Utils.checkFileExists(tmpPath);
+  assert.equal(exists, true);
+  await fs.unlink(tmpPath);
+});
+
+test('checkFileExists detects missing file', async () => {
+  const tmpPath = path.join(tmpdir(), `missing_${Date.now()}`);
+  const exists = await Utils.checkFileExists(tmpPath);
+  assert.equal(exists, false);
+});

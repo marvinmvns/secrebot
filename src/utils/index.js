@@ -43,6 +43,16 @@ class Utils {
     return limitedContext;
   }
 
+  static async checkFileExists(filePath) {
+    if (!filePath) return false;
+    try {
+      await fs.access(filePath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   static extractJSON(text) {
     const match = text.match(/\{[\s\S]*\}/);
     return match ? match[0] : text;

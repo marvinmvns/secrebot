@@ -5,6 +5,7 @@ import expressLayouts from 'express-ejs-layouts';
 import methodOverride from 'method-override';
 import { ObjectId } from 'mongodb';
 import multer from 'multer';
+import fs from 'fs/promises';
 import GoogleCalendarService from '../services/googleCalendarService.js';
 import Utils from '../utils/index.js';
 import { CONFIG, COMMANDS, CONFIG_DESCRIPTIONS, CONFIG_ENV_MAP } from '../config/index.js';
@@ -239,6 +240,15 @@ class RestAPI {
         if (typeof currentVal === 'number') val = Number(val);
         if (typeof currentVal === 'boolean') val = val === 'true';
         setNested(saved, cfgPath, val);
+      }
+
+      if (saved.piper?.enabled) {
+        try {
+          await fs.access(saved.piper.executable, fs.constants.X_OK);
+          await fs.access(saved.piper.model, fs.constants.R_OK);
+        } catch {
+          return res.status(400).send('❌ Caminho do Piper ou modelo ONNX inválido');
+        }
       }
 
       await this.configService.setConfig(saved);

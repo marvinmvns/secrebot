@@ -133,17 +133,22 @@ Se `PIPER_MODEL` estiver definido e a chave da ElevenLabs não for fornecida, o 
 
 ## Utilização
 
-Após iniciar, envie `!menu` ou os atalhos numéricos para ver as opções. Entre as funções disponíveis estão:
+Após iniciar, envie `!menu` ou use os atalhos numéricos. As opções são:
 
-- `!agendabot` para criar lembretes
-- `!listaragendamentos` para listar
-- `!deletaragendamento` para remover
-- `!transcrever` para modo de transcrição de áudio
-- `!foto` ou `!calorias` enviados com uma imagem
-- `!voz` para alternar respostas por voz ou texto
-- `!recurso` para exibir detalhes do sistema onde o bot está rodando
-- `!linkedin <URL>` para resumir dados públicos de um perfil
-- `!resumir` com texto ou arquivo (PDF, TXT, DOCX ou CSV) para resumir o conteúdo
+1️⃣ `!ajuda` para mostrar o menu
+2️⃣ `!agendabot` para criar lembretes
+3️⃣ `!listaragendamentos` para listar
+4️⃣ `!deletaragendamento` para remover
+5️⃣ `!deep` para conversar com o chatbot
+6️⃣ `!transcrever` para transcrever áudios
+7️⃣ `!foto` para descrever imagens
+8️⃣ `!calorias` para estimar calorias de uma foto
+9️⃣ `!linkedin <URL>` para analisar um perfil
+🔟 `!voz` para alternar respostas por voz ou texto
+1️⃣1️⃣ `!recurso` para exibir detalhes do sistema
+1️⃣2️⃣ `!resumir` para resumir texto ou arquivo
+1️⃣3️⃣ `!importaragenda` para importar eventos
+0️⃣ `!voltar` para retornar ao menu principal
 
 Ao iniciar o bot você terá acesso a uma pequena interface web. Na página inicial (`/`) há um menu de painéis que inclui o dashboard de agendamentos e a tela de configurações. O dashboard propriamente dito está em `/dashboard` e permite listar, criar, editar e duplicar lembretes, além de exibir estatísticas do bot.
 As configurações da aplicação ficam em `/config`. A tela lista todas as opções de `src/config/index.js` com uma breve descrição do uso de cada uma. Após salvar o formulário todas as variáveis são gravadas no `.env` e a aplicação é reiniciada automaticamente para aplicar os novos valores.

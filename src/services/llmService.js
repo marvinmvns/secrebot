@@ -1,11 +1,7 @@
 import { Ollama } from 'ollama';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, CHAT_MODES, PROMPTS } from '../config/index.js'; // Ajustar caminho se necessário
-import {
-  scrapeProfile,
-  loginAndGetLiAt,
-  scrapeProfileWithAutoLogin
-} from './linkedinScraper.js';
+import { fetchProfileRaw } from './linkedinScraper.js';
 import JobQueue from './jobQueue.js';
 
 // ============ Serviço LLM ============
@@ -70,14 +66,12 @@ class LLMService {
 
   async getAssistantResponseLinkedin(contactId, url, liAt) {
     try {
-      const data = await scrapeProfileWithAutoLogin(url, {
+      const data = await fetchProfileRaw(url, {
         liAt,
-        timeoutMs: CONFIG.linkedin.timeoutMs,
-        user: CONFIG.linkedin.user,
-        pass: CONFIG.linkedin.pass
+        timeoutMs: CONFIG.linkedin.timeoutMs
       });
-      const jsonText = JSON.stringify(data, null, 2);
-      return await this.chat(contactId, jsonText, CHAT_MODES.LINKEDIN, PROMPTS.linkedin);
+      const text = data.success ? data.rawText : data.error;
+      return await this.chat(contactId, text, CHAT_MODES.LINKEDIN, PROMPTS.linkedin);
     } catch (err) {
       console.error('Erro ao raspar LinkedIn:', err);
       return 'Função em construção.';

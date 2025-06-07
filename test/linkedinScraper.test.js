@@ -1,54 +1,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  scrapeProfile,
-  loginAndGetLiAt,
-  scrapeProfileWithAutoLogin
-} from '../src/services/linkedinScraper.js';
+import { fetchProfileRaw, loginAndGetLiAt } from '../src/services/linkedinScraper.js';
 
-// These tests use short timeouts to avoid long waits in CI.
+// Basic test to ensure fetchProfileRaw returns success for a simple data URL
 
-test('scrapeProfile fails for invalid URL', async () => {
-  const res = await scrapeProfile('https://example.com/404', { liAt: 'dummy', timeoutMs: 1000, maxRetries: 1 });
-  assert.equal(res.success, false);
+test('fetchProfileRaw extracts text from data URL', async () => {
+  const html = '<html><body><h1>Title</h1><p>Example</p></body></html>';
+  const url = `data:text/html,${encodeURIComponent(html)}`;
+  const res = await fetchProfileRaw(url, { timeoutMs: 5000 });
+  assert.equal(res.success, true);
+  assert.ok(res.rawText.includes('Title'));
 });
+
+// loginAndGetLiAt should return null when credentials are invalid
 
 test('loginAndGetLiAt returns null for bad credentials', async () => {
-  const cookie = await loginAndGetLiAt('fake', 'fake', 1000).catch(() => null);
+  const cookie = await loginAndGetLiAt('invalid', 'invalid', 1000);
   assert.equal(cookie, null);
-});
-
-test('scrapeProfileWithAutoLogin triggers login on invalid cookie', async () => {
-  let loginCalled = false;
-  const stubScrape = async (url, opts) => {
-    if (!loginCalled) {
-      return { success: false, error: 'Too Many Redirects' };
-    }
-    return { success: true };
-  };
-  const stubLogin = async () => {
-    loginCalled = true;
-    return 'newCookie';
-  };
-  const res = await scrapeProfileWithAutoLogin('https://linkedin.com', {
-    liAt: 'bad',
-    user: 'user',
-    pass: 'pass',
-    scrapeFn: stubScrape,
-    loginFn: stubLogin,
-    timeoutMs: 1000
-  });
-  assert.equal(loginCalled, true);
-  assert.equal(res.success, true);
-  assert.equal(res.newLiAt, 'newCookie');
-});
-
-test('scrapeProfileWithAutoLogin returns result when no credentials', async () => {
-  const stubScrape = async () => ({ success: false, error: 'Too Many Requests' });
-  const res = await scrapeProfileWithAutoLogin('https://linkedin.com', {
-    liAt: 'bad',
-    scrapeFn: stubScrape,
-    timeoutMs: 1000
-  });
-  assert.equal(res.success, false);
 });

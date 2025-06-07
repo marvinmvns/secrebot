@@ -192,16 +192,16 @@ const COMMANDS = {
 // Atalhos numéricos para menu principal
 const NUMERIC_SHORTCUTS = {
   '1': COMMANDS.AJUDA,
-  '2': COMMANDS.DEEP,
-  '3': COMMANDS.AGENDA,
-  '4': COMMANDS.TRANSCREVER,
-  '5': COMMANDS.FOTO,
-  '6': COMMANDS.CALORIAS,
-  '7': COMMANDS.LISTAR,
-  '8': COMMANDS.DELETAR,
+  '2': COMMANDS.AGENDA,
+  '3': COMMANDS.LISTAR,
+  '4': COMMANDS.DELETAR,
+  '5': COMMANDS.DEEP,
+  '6': COMMANDS.TRANSCREVER,
+  '7': COMMANDS.FOTO,
+  '8': COMMANDS.CALORIAS,
   '9': COMMANDS.LINKEDIN,
-  '10': COMMANDS.VOZ, // Novo atalho para alternar voz
- '11': COMMANDS.RECURSO,
+  '10': COMMANDS.VOZ,
+  '11': COMMANDS.RECURSO,
   '12': COMMANDS.RESUMIR,
   '13': COMMANDS.IMPORTAR_AGENDA,
   '0': COMMANDS.VOLTAR
@@ -217,22 +217,20 @@ const CHAT_MODES = {
 };
 
 // Atualizar mensagem do menu para incluir a opção de voz
-const MENU_MESSAGE = `🤖 *Bem-vindo ao Assistente WhatsApp!* 🤖\n\n📋 *Menu Principal - Digite o número ou comando:*\n\n1️⃣ ${COMMANDS.AJUDA} – 📖 Exibe este menu
-2️⃣ ${COMMANDS.DEEP} – 🤖 Modo assistente (chatbot)
-3️⃣ ${COMMANDS.AGENDA} – 📅 Agendar compromissos
-4️⃣ ${COMMANDS.TRANSCREVER} – 🎤 Transcrever áudio
-5️⃣ ${COMMANDS.FOTO} – 📸 Descrever imagem (envie junto)
-6️⃣ ${COMMANDS.CALORIAS} – 🍎 Estimar calorias (envie foto)
-7️⃣ ${COMMANDS.LISTAR} – 📋 Ver seus agendamentos
-8️⃣ ${COMMANDS.DELETAR} – 🗑️ Deletar agendamentos
-9️⃣ ${COMMANDS.LINKEDIN} – 💼 Analisar perfil LinkedIn
-🔟 ${COMMANDS.VOZ} – 🗣️ Alternar resposta por voz/texto
-1️⃣1️⃣ ${COMMANDS.RECURSO} – 💻 Mostrar recursos do sistema
-1️⃣2️⃣ ${COMMANDS.RESUMIR} – 📑 Resumir texto ou arquivo (PDF, TXT, DOCX, CSV)
-1️⃣3️⃣ ${COMMANDS.IMPORTAR_AGENDA} – 📂 Importar eventos (.ics ou Google)
-
-💡 *Dica:* Você pode digitar apenas o número ou enviar um áudio com o nome da opção!
-🔙 *Voltar:* Digite ${COMMANDS.VOLTAR} ou 0 a qualquer momento`;
+const MENU_MESSAGE = `🤖 *Bem-vindo!* Escolha uma opção:\n\n1️⃣ ${COMMANDS.AJUDA} - Ajuda
+2️⃣ ${COMMANDS.AGENDA} - Agendar lembrete
+3️⃣ ${COMMANDS.LISTAR} - Listar lembretes
+4️⃣ ${COMMANDS.DELETAR} - Remover lembrete
+5️⃣ ${COMMANDS.DEEP} - Chatbot
+6️⃣ ${COMMANDS.TRANSCREVER} - Transcrever áudio
+7️⃣ ${COMMANDS.FOTO} - Descrever imagem
+8️⃣ ${COMMANDS.CALORIAS} - Estimar calorias
+9️⃣ ${COMMANDS.LINKEDIN} - Analisar LinkedIn
+🔟 ${COMMANDS.VOZ} - Alternar voz/texto
+1️⃣1️⃣ ${COMMANDS.RECURSO} - Recursos do sistema
+1️⃣2️⃣ ${COMMANDS.RESUMIR} - Resumir texto/arquivo
+1️⃣3️⃣ ${COMMANDS.IMPORTAR_AGENDA} - Importar eventos
+0️⃣ ${COMMANDS.VOLTAR} - Voltar`;
 
 const MODE_MESSAGES = {
   [CHAT_MODES.ASSISTANT]: `🤖 *Modo Assistente Ativado!*\n\n✨ Agora posso ajudá-lo com qualquer pergunta ou tarefa.\n💬 Digite sua mensagem ou envie um áudio!\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,

@@ -1,5 +1,6 @@
 import { chromium } from 'playwright';
 import crypto from 'crypto';
+import { execSync } from 'child_process';
 
 // ==================== CONFIGURAÇÕES E CONSTANTES ====================
 const SELECTORS = {
@@ -79,7 +80,7 @@ const rateLimiter = new RateLimiter();
 
 // ==================== CRIAÇÃO DE NAVEGADOR STEALTH ====================
 export async function createStealthBrowser(options = {}) {
-  const browser = await chromium.launch({
+  const launchOptions = {
     headless: options.headless !== false,
     args: [
       '--no-sandbox',
@@ -95,8 +96,20 @@ export async function createStealthBrowser(options = {}) {
       '--disable-notifications',
       '--disable-popup-blocking'
     ]
-  });
-  return browser;
+  };
+  try {
+    return await chromium.launch(launchOptions);
+  } catch (err) {
+    if (/executable .*doesn\'t exist/i.test(err.message || '')) {
+      try {
+        execSync('npx playwright install chromium', { stdio: 'inherit' });
+        return await chromium.launch(launchOptions);
+      } catch (installErr) {
+        console.error('Failed to install Playwright browsers:', installErr);
+      }
+    }
+    throw err;
+  }
 }
 
 // ==================== CONTEXTO STEALTH ====================
@@ -200,6 +213,22 @@ async function robustExtract(page, selectorArray, options = {}) {
         return text ? text.trim() : null;
       }
     } catch (e) {
+      continue;
+    }
+  }
+  return options.defaultValue || null;
+}
+
+// ==================== EXTRAÇÃO ROBUSTA DE ATRIBUTOS ====================
+async function robustExtractAttr(page, selectorArray, attr, options = {}) {
+  for (const selector of selectorArray) {
+    try {
+      const element = await page.locator(selector).first();
+      if (await element.isVisible({ timeout: options.timeout || 1000 })) {
+        const value = await element.getAttribute(attr);
+        if (value) return value;
+      }
+    } catch {
       continue;
     }
   }
@@ -480,7 +509,7 @@ export async function scrapeProfile(url, options = {}) {
           headline: await robustExtract(page, SELECTORS.headline),
           location: await robustExtract(page, SELECTORS.location),
           connections: await robustExtract(page, SELECTORS.connections),
-          profileImage: await page.locator(SELECTORS.profileImage[0]).getAttribute('src').catch(() => null)
+          profileImage: await robustExtractAttr(page, SELECTORS.profileImage, 'src')
         },
         about: await robustExtract(page, SELECTORS.about.content),
         contact_info: await extractContactInfo(page),

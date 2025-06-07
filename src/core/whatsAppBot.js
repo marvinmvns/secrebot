@@ -31,6 +31,7 @@ const ollamaClient = new Ollama({ host: CONFIG.llm.host });
 // Importar o serviço TTS
 import TtsService from '../services/ttsService.js';
 import CalorieService from '../services/calorieService.js';
+import { loginAndGetLiAt } from '../services/linkedinScraper.js';
 
 // ============ Bot do WhatsApp ============
 class WhatsAppBot {
@@ -42,6 +43,8 @@ class WhatsAppBot {
     this.ttsService = ttsService; // CORREÇÃO: Atribuir o serviço TTS
     this.chatModes = new Map();
     this.userPreferences = new Map(); // Para armazenar preferências (ex: { voiceResponse: true/false })
+    this.linkedinSessions = new Map(); // contato -> li_at
+    this.awaitingLinkedinCreds = new Map();
     this.client = new Client({
       authStrategy: new LocalAuth(),
       puppeteer: {
@@ -194,6 +197,23 @@ class WhatsAppBot {
     const lowerText = text.toLowerCase();
 
     console.log(`💬 Mensagem de ${contactId}: ${text || '[Mídia]'}`);
+
+    if (this.awaitingLinkedinCreds.get(contactId)) {
+      const [user, pass] = text.split(/[:\s]+/);
+      try {
+        const cookie = await loginAndGetLiAt(user, pass, CONFIG.linkedin.timeoutMs);
+        if (cookie) {
+          this.linkedinSessions.set(contactId, cookie);
+          await this.sendResponse(contactId, '✅ Login do LinkedIn salvo!');
+        } else {
+          await this.sendResponse(contactId, '❌ Falha ao obter cookie li_at');
+        }
+      } catch (err) {
+        await this.sendResponse(contactId, '❌ Erro no login: ' + err.message);
+      }
+      this.awaitingLinkedinCreds.delete(contactId);
+      return;
+    }
 
     if (Utils.isVoltarCommand(text)) {
       this.setMode(contactId, null);
@@ -629,13 +649,23 @@ async handleRecursoCommand(contactId) {
   }
 
   async handleLinkedinCommand(contactId, text) {
-    const url = text.substring(COMMANDS.LINKEDIN.length).trim();
-    if (!url) {
+    const arg = text.substring(COMMANDS.LINKEDIN.length).trim();
+    if (arg.toLowerCase() === 'login') {
+      this.awaitingLinkedinCreds.set(contactId, true);
+      await this.sendResponse(contactId, '🔑 Envie usuario e senha separados por ":"');
+      return;
+    }
+    if (!arg) {
       await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.LINKEDIN]);
       return;
     }
+    const liAt = this.linkedinSessions.get(contactId) || CONFIG.linkedin.liAt;
+    if (!liAt) {
+      await this.sendResponse(contactId, '❌ Nenhum login encontrado. Use !linkedin login');
+      return;
+    }
     await this.sendResponse(contactId, '💼 Analisando perfil...', true);
-    const response = await this.llmService.getAssistantResponseLinkedin(contactId, url);
+    const response = await this.llmService.getAssistantResponseLinkedin(contactId, arg, liAt);
     await this.sendResponse(contactId, response);
   }
 
@@ -716,8 +746,13 @@ async handleRecursoCommand(contactId) {
         await this.sendResponse(contactId, ERROR_MESSAGES.AUDIO_REQUIRED);
         break;
       case CHAT_MODES.LINKEDIN:
+        const liAtCookie = this.linkedinSessions.get(contactId) || CONFIG.linkedin.liAt;
+        if (!liAtCookie) {
+          await this.sendResponse(contactId, '❌ Nenhum login encontrado. Use !linkedin login');
+          break;
+        }
         await this.sendResponse(contactId, '💼 Analisando perfil...', true);
-        const linkedinResponse = await this.llmService.getAssistantResponseLinkedin(contactId, `Analisar perfil: ${text}`);
+        const linkedinResponse = await this.llmService.getAssistantResponseLinkedin(contactId, `Analisar perfil: ${text}`, liAtCookie);
         await this.sendResponse(contactId, linkedinResponse);
         this.setMode(contactId, null);
         break;

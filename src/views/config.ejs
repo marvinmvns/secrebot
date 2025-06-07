@@ -1,0 +1,10 @@
+<h2>Configurações (.env)</h2>
+<form action="/config" method="POST">
+  <% for(const key in env){ %>
+    <div class="form-group">
+      <label><%= key %></label>
+      <input type="text" class="form-control" name="<%= key %>" value="<%= env[key] %>">
+    </div>
+  <% } %>
+  <button type="submit" class="btn btn-primary">Salvar</button>
+</form>

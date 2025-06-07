@@ -75,6 +75,13 @@ const CONFIG = {
     clientId: process.env.GOOGLE_CLIENT_ID || '',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     redirect: process.env.GOOGLE_REDIRECT || 'http://localhost:3000/oauth2callback'
+  },
+  // Configurações para login no LinkedIn
+  linkedin: {
+    user: process.env.LINKEDIN_USER || '',
+    pass: process.env.LINKEDIN_PASS || '',
+    liAt: process.env.LINKEDIN_LI_AT || '',
+    timeoutMs: parseInt(process.env.LINKEDIN_TIMEOUT_MS || '30000', 10)
   }
 };
 
@@ -195,6 +202,18 @@ const PROMPTS = {
 Comandos disponíveis: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias, !listaragendamentos, !menu, !linkedin, !deletaragendamento, !voz, !recurso, !voltar`
 };
 
+function updateConfigFromEnv() {
+  CONFIG.mongo.uri = process.env.MONGO_URI || CONFIG.mongo.uri;
+  CONFIG.server.port = process.env.PORT || CONFIG.server.port;
+  CONFIG.queues.llmConcurrency = parseInt(process.env.LLM_CONCURRENCY || CONFIG.queues.llmConcurrency, 10);
+  CONFIG.queues.whisperConcurrency = parseInt(process.env.WHISPER_CONCURRENCY || CONFIG.queues.whisperConcurrency, 10);
+  CONFIG.llm.host = process.env.OLLAMA_HOST || CONFIG.llm.host;
+  CONFIG.linkedin.user = process.env.LINKEDIN_USER || CONFIG.linkedin.user;
+  CONFIG.linkedin.pass = process.env.LINKEDIN_PASS || CONFIG.linkedin.pass;
+  CONFIG.linkedin.liAt = process.env.LINKEDIN_LI_AT || CONFIG.linkedin.liAt;
+  CONFIG.linkedin.timeoutMs = parseInt(process.env.LINKEDIN_TIMEOUT_MS || CONFIG.linkedin.timeoutMs, 10);
+}
+
 export {
   CONFIG,
   COMMANDS,
@@ -205,5 +224,6 @@ export {
   SUCCESS_MESSAGES,
   ERROR_MESSAGES,
   PROMPTS,
-  __dirname
+  __dirname,
+  updateConfigFromEnv
 };

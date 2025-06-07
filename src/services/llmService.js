@@ -1,4 +1,4 @@
-import ollama from 'ollama';
+import { Ollama } from 'ollama';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, CHAT_MODES, PROMPTS } from '../config/index.js'; // Ajustar caminho se necessário
 import { scrapeProfile } from './linkedinScraper.js';
@@ -8,6 +8,7 @@ import JobQueue from './jobQueue.js';
 class LLMService {
   constructor() {
     this.contexts = new Map();
+    this.ollama = new Ollama({ host: CONFIG.llm.host });
     this.queue = new JobQueue(
       CONFIG.queues.llmConcurrency,
       CONFIG.queues.memoryThresholdGB
@@ -32,7 +33,7 @@ class LLMService {
     
     try {
       const response = await this.queue.add(() =>
-        ollama.chat({
+        this.ollama.chat({
           model: CONFIG.llm.model,
           messages
         })

@@ -92,6 +92,17 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando o das
    PIPER_EXECUTABLE=/usr/local/bin/piper
    # Limite de memória em GB para processar tarefas pesadas
    QUEUE_MEM_THRESHOLD_GB=4
+   LLM_CONCURRENCY=2
+   WHISPER_CONCURRENCY=1
+   MEM_CHECK_INTERVAL=1000
+   DYNAMIC_CONCURRENCY=false
+   SCHED_MAX_CONCURRENCY=10
+   SCHED_CPU_THRESHOLD=0.7
+   SCHED_MEM_THRESHOLD=0.8
+   OLLAMA_HOST=http://127.0.0.1:11434
+   OLLAMA_TIMEOUT_MS=60000
+   CALORIE_API_URL=https://api.api-ninjas.com/v1/nutrition?query=
+   CALORIE_API_KEY=
    ```
 
 ### TTS local com Piper

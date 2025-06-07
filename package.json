@@ -34,6 +34,9 @@
     "systeminformation": "^5.27.1",
     "whatsapp-web.js": "^1.23.0",
     "express-ejs-layouts": "^2.5.1",
-    "method-override": "^3.0.0"
+    "method-override": "^3.0.0",
+    "googleapis": "^131.0.0",
+    "node-ical": "^0.16.0",
+    "multer": "^1.4.5-lts.1"
   }
 }

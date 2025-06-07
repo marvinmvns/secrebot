@@ -12,9 +12,9 @@ Secrebot é um assistente para WhatsApp construído em Node.js com uma estrutura
 - **Descrição de Imagens**: analisa imagens recebidas e fornece descrições ou estimativas de calorias.
 - **Agendamento de Lembretes**: armazena lembretes em MongoDB e envia as mensagens programadas no horário marcado.
 - **Respostas em Áudio (TTS)**: opcionalmente gera áudio com a ElevenLabs para respostas por voz.
-- **API REST**: integração externa pelos endpoints `/send-message`, `/health` e `/dashboard`.
+- **API REST**: integração externa pelos endpoints `/send-message` e `/health`.
 
-Os principais comandos podem ser vistos no menu do aplicativo ou acessando o dashboard.
+Os principais comandos podem ser vistos no menu do aplicativo ou acessando a interface web em `/`.
 
 ## Requisitos
 
@@ -103,7 +103,13 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando o das
    OLLAMA_TIMEOUT_MS=60000
    CALORIE_API_URL=https://api.api-ninjas.com/v1/nutrition?query=
    CALORIE_API_KEY=
-   ```
+   # Integração com Google Calendar
+   GOOGLE_CLIENT_ID=
+   GOOGLE_CLIENT_SECRET=
+  GOOGLE_REDIRECT=http://localhost:3000/oauth2callback
+  ```
+
+Para habilitar a importação de eventos do Google Calendar é necessário criar um projeto no Google Cloud Console, habilitar a API Calendar e configurar uma tela de consentimento OAuth. Informe as credenciais acima no arquivo `.env`.
 
 ### TTS local com Piper
 
@@ -134,9 +140,7 @@ Após iniciar, envie `!menu` ou os atalhos numéricos para ver as opções. Entr
 - `!linkedin <URL>` para resumir dados públicos de um perfil
 - `!resumir` com texto ou arquivo (PDF, TXT, DOCX ou CSV) para resumir o conteúdo
 
-O endpoint `/dashboard` oferece uma página simples com as informações do bot e comandos disponíveis.
-
-Além do dashboard, a interface web de agendamento pode ser acessada em `/`. Ela permite listar, criar, editar e duplicar lembretes usando um formulário simples.
+A interface web de agendamento pode ser acessada em `/`. Ela permite listar, criar, editar e duplicar lembretes usando um formulário simples e exibe estatísticas do bot.
 
 
 ## Estrutura da Base (MongoDB)

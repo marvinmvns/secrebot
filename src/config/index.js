@@ -70,6 +70,11 @@ const CONFIG = {
   calorieApi: {
     url: process.env.CALORIE_API_URL || 'https://api.api-ninjas.com/v1/nutrition?query=',
     key: process.env.CALORIE_API_KEY || ''
+  },
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID || '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+    redirect: process.env.GOOGLE_REDIRECT || 'http://localhost:3000/oauth2callback'
   }
 };
 
@@ -88,6 +93,7 @@ const COMMANDS = {
   VOZ: '!voz', // Novo comando para alternar resposta por voz
   RECURSO: "!recurso",
   RESUMIR: '!resumir',
+  IMPORTAR_AGENDA: '!importaragenda',
   VOLTAR: '!voltar'
 };
 
@@ -105,6 +111,7 @@ const NUMERIC_SHORTCUTS = {
   '10': COMMANDS.VOZ, // Novo atalho para alternar voz
  '11': COMMANDS.RECURSO,
   '12': COMMANDS.RESUMIR,
+  '13': COMMANDS.IMPORTAR_AGENDA,
   '0': COMMANDS.VOLTAR
 };
 
@@ -130,6 +137,7 @@ const MENU_MESSAGE = `🤖 *Bem-vindo ao Assistente WhatsApp!* 🤖\n\n📋 *Men
 🔟 ${COMMANDS.VOZ} – 🗣️ Alternar resposta por voz/texto
 1️⃣1️⃣ ${COMMANDS.RECURSO} – 💻 Mostrar recursos do sistema
 1️⃣2️⃣ ${COMMANDS.RESUMIR} – 📑 Resumir texto ou arquivo (PDF, TXT, DOCX, CSV)
+1️⃣3️⃣ ${COMMANDS.IMPORTAR_AGENDA} – 📂 Importar eventos (.ics ou Google)
 
 💡 *Dica:* Você pode digitar apenas o número ou enviar um áudio com o nome da opção!
 🔙 *Voltar:* Digite ${COMMANDS.VOLTAR} ou 0 a qualquer momento`;

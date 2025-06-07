@@ -1,8 +1,20 @@
 <!-- views/index.ejs -->
 
+<%- include('dashboard', { stats }) %>
+
 <div class="mb-3">
   <a href="/messages/new" class="btn btn-primary">Adicionar Nova Mensagem</a>
+  <a href="/auth/google" class="btn btn-outline-primary ml-2">Importar do Google</a>
 </div>
+
+<form action="/import-ics" method="POST" enctype="multipart/form-data" class="mb-4">
+  <div class="input-group">
+    <input type="file" name="icsfile" accept=".ics" class="form-control" required>
+    <div class="input-group-append">
+      <button class="btn btn-secondary" type="submit">Importar .ics</button>
+    </div>
+  </div>
+</form>
 
 <div class="table-responsive">
   <table class="table table-striped table-bordered">

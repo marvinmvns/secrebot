@@ -253,6 +253,7 @@ class WhatsAppBot {
           [COMMANDS.VOZ]: () => this.handleVozCommand(contactId),
           [COMMANDS.RECURSO]: () => this.handleRecursoCommand(contactId),
           [COMMANDS.RESUMIR]: () => this.handleResumirCommand(msg, contactId),
+          [COMMANDS.IMPORTAR_AGENDA]: () => this.handleImportarAgendaCommand(msg, contactId),
           [COMMANDS.FOTO]: async () => {
               await this.sendResponse(contactId, ERROR_MESSAGES.IMAGE_REQUIRED);
           },
@@ -813,6 +814,27 @@ async handleRecursoCommand(contactId) {
     if (!data.scheduledTime || isNaN(data.scheduledTime.getTime())) errors.push('Data/Hora agendada (scheduledTime) é inválida.');
     if (!data.expiryTime || isNaN(data.expiryTime.getTime())) errors.push('Data de expiração (expiryTime) é inválida.');
     return errors;
+  }
+
+  async handleImportarAgendaCommand(msg, contactId) {
+    if (!msg.hasMedia) {
+      await this.sendResponse(contactId, '📎 Envie um arquivo .ics junto com o comando.');
+      return;
+    }
+    const media = await Utils.downloadMediaWithRetry(msg);
+    if (!media) {
+      await this.sendResponse(contactId, ERROR_MESSAGES.GENERIC);
+      return;
+    }
+    const buffer = Buffer.from(media.data, 'base64');
+    try {
+      const icsService = new (await import('../services/icsImportService.js')).default(this.scheduler);
+      await icsService.importFromBuffer(buffer, contactId.replace(/\D/g, ''));
+      await this.sendResponse(contactId, '✅ Eventos importados com sucesso!');
+    } catch (err) {
+      console.error('Erro ao importar agenda:', err);
+      await this.sendResponse(contactId, ERROR_MESSAGES.GENERIC);
+    }
   }
 }
 

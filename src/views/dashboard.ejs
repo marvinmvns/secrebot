@@ -1,0 +1,41 @@
+<div class="row mb-4">
+  <div class="col-12">
+    <h2>Estatísticas de Agendamentos</h2>
+    <div class="row text-center">
+      <div class="col-sm-3">
+        <div class="p-2 bg-light rounded">
+          <strong>Total</strong>
+          <div><%= stats.total %></div>
+        </div>
+      </div>
+      <div class="col-sm-3">
+        <div class="p-2 bg-light rounded">
+          <strong>Pendentes</strong>
+          <div><%= stats.pending %></div>
+        </div>
+      </div>
+      <div class="col-sm-3">
+        <div class="p-2 bg-light rounded">
+          <strong>Enviados</strong>
+          <div><%= stats.sent %></div>
+        </div>
+      </div>
+      <div class="col-sm-3">
+        <div class="p-2 bg-light rounded">
+          <strong>Falhos</strong>
+          <div><%= stats.failed %></div>
+        </div>
+      </div>
+    </div>
+    <h3 class="mt-4">Próximos Agendamentos</h3>
+    <ul class="list-group">
+      <% if (stats.upcoming.length === 0) { %>
+        <li class="list-group-item">Nenhum agendamento</li>
+      <% } else { %>
+        <% stats.upcoming.forEach(function(item){ %>
+          <li class="list-group-item"><%= new Date(item.scheduledTime).toLocaleString('pt-BR') %> - <%= item.message %></li>
+        <% }) %>
+      <% } %>
+    </ul>
+  </div>
+</div>

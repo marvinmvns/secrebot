@@ -3,11 +3,16 @@
 /* Ajustes Gerais */
 body {
   background-color: #f8f9fa;
+  padding-top: 70px;
 }
 
 /* Navbar */
 .navbar-brand {
   font-weight: bold;
+}
+
+.navbar {
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 /* Formulários */
@@ -18,6 +23,7 @@ form h2 {
 /* Tabelas */
 table th, table td {
   vertical-align: middle !important;
+  padding: 0.75rem;
 }
 
 /* Botões */
@@ -34,6 +40,11 @@ table th, table td {
 /* Responsividade das Badges */
 .badge {
   font-size: 100%;
+}
+
+.list-group-item {
+  border: none;
+  padding-left: 0;
 }
 
 /* Ajustes para Pequenas Telas */

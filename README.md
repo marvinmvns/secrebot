@@ -98,15 +98,16 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando a int
    DYNAMIC_CONCURRENCY=false
    SCHED_MAX_CONCURRENCY=10
    SCHED_CPU_THRESHOLD=0.7
-   SCHED_MEM_THRESHOLD=0.8
-   OLLAMA_HOST=http://127.0.0.1:11434
-   OLLAMA_TIMEOUT_MS=60000
+  SCHED_MEM_THRESHOLD=0.8
+  OLLAMA_HOST=http://127.0.0.1:11434
+  OLLAMA_TIMEOUT_MS=60000  # tempo máximo para resposta inicial do modelo
   CALORIE_API_URL=https://api.api-ninjas.com/v1/nutrition?query=
   CALORIE_API_KEY=
   LINKEDIN_USER=
   LINKEDIN_PASS=
   LINKEDIN_LI_AT=
   LINKEDIN_TIMEOUT_MS=30000
+  # aumente OLLAMA_TIMEOUT_MS caso ocorra "Headers Timeout" ao contactar o LLM
   # Integração com Google Calendar
    GOOGLE_CLIENT_ID=
    GOOGLE_CLIENT_SECRET=

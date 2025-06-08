@@ -7,6 +7,7 @@ import { CONFIG, ERROR_MESSAGES, SUCCESS_MESSAGES, COMMANDS } from '../config/in
 // ============ Scheduler ============
 class Scheduler {
   constructor() {
+    this.client = null;
     this.db = null;
     this.schedCollection = null;
     this.userSchedules = new Map(); // Cache para deleção
@@ -57,12 +58,10 @@ class Scheduler {
 
   async connect() {
     try {
-      const client = await MongoClient.connect(CONFIG.mongo.uri, {
-        // As opções useNewUrlParser e useUnifiedTopology são depreciadas
-        // O driver moderno as habilita por padrão quando necessário
-      });
+      this.client = new MongoClient(CONFIG.mongo.uri);
+      await this.client.connect();
       console.log('✅ Conectado ao MongoDB.');
-      this.db = client.db(CONFIG.mongo.dbName);
+      this.db = this.client.db(CONFIG.mongo.dbName);
       this.schedCollection = this.db.collection(CONFIG.mongo.collectionName);
 
       // Garantir índices (pode ser feito uma vez na inicialização)
@@ -73,6 +72,14 @@ class Scheduler {
     } catch (err) {
       console.error('❌ Erro ao conectar ao MongoDB:', err);
       throw err;
+    }
+  }
+
+  async disconnect() {
+    if (this.client) {
+      await this.client.close();
+      this.client = null;
+      console.log('🔌 Conexão com MongoDB encerrada.');
     }
   }
 

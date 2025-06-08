@@ -10,7 +10,7 @@ class Utils {
     return new Date();
   }
 
-  static toGMTMinus3(date) {
+  static toLocalTime(date) {
     // Converte a data recebida para o fuso horário local da máquina
     const offsetMinutes = new Date().getTimezoneOffset();
     return new Date(date.getTime() + offsetMinutes * 60 * 1000);

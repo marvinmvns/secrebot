@@ -824,11 +824,11 @@ async handleRecursoCommand(contactId) {
             throw new Error('Formato de data inválido em scheduledTime.$date.');
         }
         console.log('🔧 Passo1:', scheduledUTC);
-        scheduleData.scheduledTime = Utils.toGMTMinus3(scheduledUTC);
+        scheduleData.scheduledTime = Utils.toLocalTime(scheduledUTC);
         console.log('🔧 Passo2:', scheduleData.scheduledTime);
         const expiryUTC = new Date(scheduledUTC);
         expiryUTC.setMonth(expiryUTC.getMonth() + 1);
-        scheduleData.expiryTime = Utils.toGMTMinus3(expiryUTC);
+        scheduleData.expiryTime = Utils.toLocalTime(expiryUTC);
     } catch (dateError) {
         console.error('Erro ao processar datas do agendamento:', dateError);
         throw new Error(`Erro ao processar data do agendamento: ${dateError.message}`);

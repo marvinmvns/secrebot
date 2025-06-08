@@ -7,6 +7,8 @@ import RestAPI from './api/restApi.js';
 import ConfigService from './services/configService.js';
 import { applyConfig } from './config/index.js';
 
+let scheduler;
+
 // ============ Inicialização ============
 async function main() {
   try {
@@ -22,7 +24,7 @@ async function main() {
 
     // Inicializar serviços
     console.log('📦 Inicializando serviços...');
-    const scheduler = new Scheduler();
+    scheduler = new Scheduler();
     await scheduler.connect(); // Conectar ao MongoDB
 
     const configService = new ConfigService(scheduler.db);
@@ -63,9 +65,11 @@ process.on('uncaughtException', (err) => {
 });
 
 // Tratamento de sinais do sistema para encerramento gracioso
-const gracefulShutdown = (signal) => {
+const gracefulShutdown = async (signal) => {
   console.log(`\n👋 Recebido sinal ${signal}. Encerrando aplicação...`);
-  // Adicionar lógica de encerramento gracioso aqui
+  if (scheduler) {
+    await scheduler.disconnect();
+  }
   console.log('🏁 Aplicação encerrada.');
   process.exit(0);
 };

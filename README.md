@@ -120,7 +120,23 @@ Para habilitar a importação de eventos do Google Calendar é necessário criar
 
 Se `PIPER_MODEL` estiver definido e a chave da ElevenLabs não for fornecida, o bot utilizará o [Piper](https://github.com/rhasspy/piper) para gerar as respostas em áudio de forma totalmente local. Instale o Piper e baixe um modelo compatível (por exemplo, `pt-br-...`). Em seguida, configure as variáveis acima informando o caminho do modelo e, opcionalmente, do executável.
 
-   Esses valores são lidos em `src/config/index.js` e permitem personalizar a conexão com o banco, a porta do servidor e o uso de TTS.
+Para evitar compilar o binário é possível executar o Piper via Docker. A imagem oficial está disponível no mesmo repositório. Um exemplo de script (`piper-docker.sh`) que o bot pode chamar é:
+
+```bash
+#!/bin/bash
+docker run --rm -i -v /caminho/para/modelos:/data ghcr.io/rhasspy/piper:latest \
+  "$@"
+```
+
+Com o script acima defina as variáveis no `.env`:
+
+```bash
+PIPER_ENABLED=true
+PIPER_EXECUTABLE=/caminho/para/piper-docker.sh
+PIPER_MODEL=/caminho/para/modelos/pt-br-voce.onnx
+```
+
+Esses valores são lidos em `src/config/index.js` e permitem personalizar a conexão com o banco, a porta do servidor e o uso de TTS.
 
 7. **Inicie o bot**
 

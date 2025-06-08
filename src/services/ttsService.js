@@ -1,4 +1,4 @@
-import { ElevenLabsClient, stream } from "elevenlabs";
+import { ElevenLabsClient } from "elevenlabs";
 import { CONFIG } from "../config/index.js";
 import fs from 'fs/promises';
 import fsSync from 'fs';

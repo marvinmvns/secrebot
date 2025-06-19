@@ -42,7 +42,13 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando a int
    npx playwright install
    ```
 
-3. **Compile o Whisper**
+3. **Instale o `yt-dlp`** (requer Python)
+
+   ```bash
+   pip install -U yt-dlp
+   ```
+   Ou siga as instruções oficiais para o seu sistema operacional.
+4. **Compile o Whisper**
 
    Após a instalação das dependências, execute o comando abaixo para baixar o modelo e compilar o `nodejs-whisper`. Certifique-se de que ferramentas como `make` e `g++` estejam instaladas (`sudo apt install build-essential`).
 

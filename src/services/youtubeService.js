@@ -41,11 +41,16 @@ async function downloadAudioBuffer(youtubeUrl) {
       '-o', outputPath,
       youtubeUrl
     ]);
+    let stderr = '';
+    proc.stderr.on('data', (d) => {
+      stderr += d.toString();
+    });
     proc.on('error', reject);
     proc.on('close', async (code) => {
       if (code !== 0) {
         await fs.unlink(outputPath).catch(() => {});
-        reject(new Error(`yt-dlp exited with code ${code}`));
+        const msg = stderr.trim() || `yt-dlp exited with code ${code}`;
+        reject(new Error(msg));
         return;
       }
       try {

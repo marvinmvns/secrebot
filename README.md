@@ -24,6 +24,7 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando a int
 - Conta e chave da [ElevenLabs](https://elevenlabs.io/) para recursos de voz (opcional)
 - [Ollama](https://ollama.ai/) instalado para executar o modelo local de LLM
 - [`Playwright`](https://playwright.dev/) instalado (após `npm install` execute `npx playwright install` para baixar os navegadores)
+- [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) para download de áudio do YouTube (utilizado como fallback quando `ytdl-core` falha)
 
 ## Instalação
 

@@ -51,7 +51,10 @@ async function downloadAudioBuffer(youtubeUrl) {
     proc.on('close', async (code) => {
       if (code !== 0) {
         await fs.unlink(outputPath).catch(() => {});
-        const msg = stderr.trim() || `yt-dlp exited with code ${code}`;
+        const errText = stderr.trim();
+        const msg = errText
+          ? `yt-dlp exited with code ${code}: ${errText}`
+          : `yt-dlp exited with code ${code}`;
         reject(new Error(msg));
         return;
       }

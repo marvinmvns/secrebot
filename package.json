@@ -41,6 +41,7 @@
     "googleapis": "^131.0.0",
     "node-ical": "^0.16.0",
     "multer": "^1.4.5-lts.1",
-    "youtube-transcript": "^1.2.1"
+    "youtube-transcript": "^1.2.1",
+    "ytdl-core": "^4.11.5"
   }
 }

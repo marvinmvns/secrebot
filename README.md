@@ -165,7 +165,7 @@ Após iniciar, envie `!menu` ou use os atalhos numéricos. As opções são:
 1️⃣1️⃣ `!recurso` para exibir detalhes do sistema
 1️⃣2️⃣ `!resumir` para resumir texto ou arquivo
 1️⃣3️⃣ `!importaragenda` para importar eventos
-1️⃣4️⃣ `!resumirvideo <URL>` para resumir vídeos do YouTube
+1️⃣4️⃣ `!resumirvideo <URL>` para resumir vídeos do YouTube (transcrição via Whisper)
 0️⃣ `!voltar` para retornar ao menu principal
 
 Ao iniciar o bot você terá acesso a uma pequena interface web. Na página inicial (`/`) há um menu de painéis que inclui o dashboard de agendamentos e a tela de configurações. O dashboard propriamente dito está em `/dashboard` e permite listar, criar, editar e duplicar lembretes, além de exibir estatísticas do bot.

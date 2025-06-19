@@ -5,11 +5,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import AudioTranscriber from './audioTranscriber.js';
+import YouTubeTranscriptExtractor from './youtubeTranscriptExtractor.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const transcriber = new AudioTranscriber();
+const transcriptExtractor = new YouTubeTranscriptExtractor();
 
 async function downloadAudioBuffer(youtubeUrl) {
   const outputPath = path.join(__dirname, `audio_${Date.now()}.ogg`);
@@ -80,6 +82,14 @@ async function downloadAudioBuffer(youtubeUrl) {
 }
 
 async function fetchTranscript(url) {
+  try {
+    const result = await transcriptExtractor.extract(url);
+    if (result && result.transcriptData?.length) {
+      return result.transcriptData.map(seg => seg.text).join(' ');
+    }
+  } catch (err) {
+    console.warn('Transcrição via legendas falhou, utilizando Whisper:', err.message);
+  }
   const audioBuffer = await downloadAudioBuffer(url);
   const transcript = await transcriber.transcribe(audioBuffer);
   return transcript;

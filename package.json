@@ -43,6 +43,9 @@
     "multer": "^1.4.5-lts.1",
     "youtube-transcript": "^1.2.1",
     "ytdl-core": "^4.11.5",
-    "ejs": "^3.1.9"
+    "ejs": "^3.1.9",
+    "axios": "^1.6.8",
+    "puppeteer": "^22.8.0",
+    "youtube-transcript-plus": "^1.0.4"
   }
 }

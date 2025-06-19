@@ -77,6 +77,9 @@ const CONFIG = {
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     redirect: process.env.GOOGLE_REDIRECT || 'http://localhost:3000/oauth2callback'
   },
+  youtube: {
+    apiKey: process.env.YOUTUBE_API_KEY || ''
+  },
   // Configurações para login no LinkedIn
   linkedin: {
     user: process.env.LINKEDIN_USER || '',
@@ -124,6 +127,7 @@ const CONFIG_DESCRIPTIONS = {
   'google.clientId': 'Client ID do Google',
   'google.clientSecret': 'Client Secret do Google',
   'google.redirect': 'URL de redirecionamento OAuth',
+  'youtube.apiKey': 'Chave da API do YouTube',
   'linkedin.user': 'Usuário do LinkedIn',
   'linkedin.pass': 'Senha do LinkedIn',
   'linkedin.liAt': 'Cookie li_at',
@@ -166,6 +170,7 @@ const CONFIG_ENV_MAP = {
   'google.clientId': 'GOOGLE_CLIENT_ID',
   'google.clientSecret': 'GOOGLE_CLIENT_SECRET',
   'google.redirect': 'GOOGLE_REDIRECT',
+  'youtube.apiKey': 'YOUTUBE_API_KEY',
   'linkedin.user': 'LINKEDIN_USER',
   'linkedin.pass': 'LINKEDIN_PASS',
   'linkedin.liAt': 'LINKEDIN_LI_AT',
@@ -187,6 +192,8 @@ const COMMANDS = {
   VOZ: '!voz', // Novo comando para alternar resposta por voz
   RECURSO: "!recurso",
   RESUMIR: '!resumir',
+  YOUTUBE: '!resumoyoutube',
+  CANCEL_YOUTUBE: '!cancelaryoutube',
   IMPORTAR_AGENDA: '!importaragenda',
   VOLTAR: '!voltar'
 };
@@ -206,6 +213,7 @@ const NUMERIC_SHORTCUTS = {
   '11': COMMANDS.RECURSO,
   '12': COMMANDS.RESUMIR,
   '13': COMMANDS.IMPORTAR_AGENDA,
+  '14': COMMANDS.YOUTUBE,
   '0': COMMANDS.VOLTAR
 };
 
@@ -215,7 +223,8 @@ const CHAT_MODES = {
   TRANSCRICAO: 'transcricao',
   LINKEDIN: 'linkedin',
   DELETAR: 'deletar',
-  RESUMIR: 'resumir'
+  RESUMIR: 'resumir',
+  YOUTUBE: 'youtube'
 };
 
 // Atualizar mensagem do menu para incluir a opção de voz
@@ -232,6 +241,7 @@ const MENU_MESSAGE = `🤖 *Bem-vindo!* Escolha uma opção:\n\n1️⃣ ${COMMAN
 1️⃣1️⃣ ${COMMANDS.RECURSO} - Recursos do sistema
 1️⃣2️⃣ ${COMMANDS.RESUMIR} - Resumir texto/arquivo
 1️⃣3️⃣ ${COMMANDS.IMPORTAR_AGENDA} - Importar eventos
+1️⃣4️⃣ ${COMMANDS.YOUTUBE} - Resumo de YouTube
 0️⃣ ${COMMANDS.VOLTAR} - Voltar`;
 
 const MODE_MESSAGES = {
@@ -244,6 +254,7 @@ const MODE_MESSAGES = {
   [CHAT_MODES.LINKEDIN]: `💼 *Modo LinkedIn Ativado!*\n\n🔗 Envie o link do perfil que deseja analisar.\n📊 Vou estruturar as informações para você!\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
   [CHAT_MODES.DELETAR]: `🗑️ *Modo Deletar Agendamento*\n\nAguarde enquanto busco seus agendamentos...`,
   [CHAT_MODES.RESUMIR]: `📑 *Modo Resumo Ativado!*\n\nEnvie o texto ou arquivo que deseja resumir.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
+  [CHAT_MODES.YOUTUBE]: `🎥 *Modo YouTube Ativado!*\n\nEnvie um link de vídeo para resumir ou o link do canal para agendar resumos.\nPara cancelar: ${COMMANDS.CANCEL_YOUTUBE}`,
 };
 
 const SUCCESS_MESSAGES = {
@@ -252,6 +263,7 @@ const SUCCESS_MESSAGES = {
   SCHEDULE_DELETED: (message, dateTime) => `✅ *Agendamento Deletado com Sucesso!*\n\n🗑️ Removido: ${message}\n📅 Data/Hora: ${dateTime}\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
 
   TRANSCRIPTION_COMPLETE: `✅ *Transcrição Concluída!*\n\n📝 O texto acima é a transcrição do seu áudio.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
+  YT_SCHEDULE_CREATED: `✅ Monitoramento do canal configurado! Enviarei resumos automaticamente.`,
   // Novas mensagens para o toggle de voz
   VOICE_ENABLED: `🗣️ Respostas por voz *ativadas*! Usarei áudio para responder sempre que possível.
 🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
@@ -273,7 +285,8 @@ const ERROR_MESSAGES = {
   UNSUPPORTED_FILE: `📎 *Tipo de arquivo não suportado!*\n\nUse apenas PDF, TXT, DOCX ou CSV.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
   // Novo erro para falha no TTS
   TTS_FAILED: `🔇 Desculpe, não consegui gerar a resposta em áudio. Enviando em texto.
-🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`
+🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
+  YT_INVALID_TIME: '❌ Horário inválido. Use HH:mm separado por vírgulas.'
 };
 
 const PROMPTS = {
@@ -336,6 +349,8 @@ function updateConfigFromEnv() {
   CONFIG.google.clientId = process.env.GOOGLE_CLIENT_ID || CONFIG.google.clientId;
   CONFIG.google.clientSecret = process.env.GOOGLE_CLIENT_SECRET || CONFIG.google.clientSecret;
   CONFIG.google.redirect = process.env.GOOGLE_REDIRECT || CONFIG.google.redirect;
+
+  CONFIG.youtube.apiKey = process.env.YOUTUBE_API_KEY || CONFIG.youtube.apiKey;
 
   CONFIG.linkedin.user = process.env.LINKEDIN_USER || CONFIG.linkedin.user;
   CONFIG.linkedin.pass = process.env.LINKEDIN_PASS || CONFIG.linkedin.pass;

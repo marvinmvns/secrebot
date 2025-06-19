@@ -4,14 +4,22 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
+import { Innertube } from 'youtubei.js';
 import AudioTranscriber from './audioTranscriber.js';
-import YouTubeTranscriptExtractor from './youtubeTranscriptExtractor.js';
+import Utils from '../utils/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const transcriber = new AudioTranscriber();
-const transcriptExtractor = new YouTubeTranscriptExtractor();
+let ytClientPromise;
+
+async function initClient() {
+  if (!ytClientPromise) {
+    ytClientPromise = Innertube.create({ generate_session_locally: true });
+  }
+  return ytClientPromise;
+}
 
 async function downloadAudioBuffer(youtubeUrl) {
   const outputPath = path.join(__dirname, `audio_${Date.now()}.ogg`);
@@ -82,13 +90,17 @@ async function downloadAudioBuffer(youtubeUrl) {
 }
 
 async function fetchTranscript(url) {
+  const yt = await initClient();
+  const id = Utils.extractYouTubeId(url) || url;
   try {
-    const result = await transcriptExtractor.extract(url);
-    if (result && result.transcriptData?.length) {
-      return result.transcriptData.map(seg => seg.text).join(' ');
+    const info = await yt.getInfo(id);
+    const transcriptInfo = await info.getTranscript();
+    const segments = transcriptInfo?.transcript?.content?.body?.initial_segments || [];
+    if (segments.length) {
+      return segments.map((s) => s.text).join(' ');
     }
   } catch (err) {
-    console.warn('Transcrição via legendas falhou, utilizando Whisper:', err.message);
+    console.warn('Transcrição via YouTube.js falhou, utilizando Whisper:', err.message);
   }
   const audioBuffer = await downloadAudioBuffer(url);
   const transcript = await transcriber.transcribe(audioBuffer);

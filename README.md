@@ -16,6 +16,20 @@ Secrebot é um assistente para WhatsApp construído em Node.js com uma estrutura
 
 Os principais comandos podem ser vistos no menu do aplicativo ou acessando a interface web em `/`.
 
+### Endpoints da Interface Web
+
+Além do dashboard e das configurações, cada funcionalidade do bot possui uma rota própria:
+
+- `GET /chat` e `POST /chat` – conversar com o assistente.
+- `GET /transcribe` e `POST /transcribe` – enviar áudio para transcrição.
+- `GET /describe` e `POST /describe` – descrição de imagens.
+- `GET /calories` e `POST /calories` – estimativa de calorias de uma foto.
+- `GET /linkedin` e `POST /linkedin` – análise de um perfil do LinkedIn.
+- `GET /summarize` e `POST /summarize` – resumo de texto ou arquivo.
+- `GET /video` e `POST /video` – transcrever vídeos do YouTube.
+- `GET /resources` – mostrar informações do sistema.
+- `POST /toggle-voice` – alternar respostas em voz na interface.
+
 ## Requisitos
 
 - Node.js 18 ou superior

@@ -103,3 +103,9 @@ table th, table td {
     text-align: left;
   }
 }
+
+pre.result {
+  background-color: #f8f9fa;
+  padding: 1rem;
+  white-space: pre-wrap;
+}

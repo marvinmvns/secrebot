@@ -1,0 +1,12 @@
+<h2>Análise de Perfil LinkedIn</h2>
+<form action="/linkedin" method="POST">
+  <div class="mb-3">
+    <input type="text" name="url" class="form-control" placeholder="URL do perfil" value="<%= url %>" required>
+  </div>
+  <button type="submit" class="btn btn-primary">Enviar</button>
+</form>
+<% if (result) { %>
+  <h3 class="mt-4">Resultado</h3>
+  <pre class="result"><%= result %></pre>
+<% } %>
+

@@ -1,0 +1,12 @@
+<h2>Estimativa de Calorias</h2>
+<form action="/calories" method="POST" enctype="multipart/form-data">
+  <div class="mb-3">
+    <input type="file" name="image" accept="image/*" class="form-control" required>
+  </div>
+  <button type="submit" class="btn btn-primary">Enviar</button>
+</form>
+<% if (result) { %>
+  <h3 class="mt-4">Resultado</h3>
+  <pre class="result"><%= result %></pre>
+<% } %>
+

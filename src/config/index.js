@@ -12,7 +12,7 @@ if (process.env.OLLAMA_TIMEOUT_MS) {
   process.env.UNDICI_BODY_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
 }
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
+const OLLAMA_HOST = process.env.OLLAMA_HOST;
 
 // ===================== CONFIGURAÇÕES =====================
 const CONFIG = {

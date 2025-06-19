@@ -87,6 +87,26 @@ class Utils {
     const lower = text.toLowerCase().trim();
     return lower === COMMANDS.VOLTAR || lower === '0' || lower === 'voltar';
   }
+
+  static extractYouTubeId(url) {
+    if (!url) return null;
+    try {
+      const u = new URL(url.trim());
+      if (u.hostname.includes('youtu.be')) {
+        return u.pathname.split('/')[1];
+      }
+      if (u.searchParams.get('v')) {
+        return u.searchParams.get('v');
+      }
+      const shorts = u.pathname.match(/\/shorts\/([\w-]+)/);
+      if (shorts) {
+        return shorts[1];
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
 }
 
 export default Utils;

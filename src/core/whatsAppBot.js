@@ -32,6 +32,7 @@ const ollamaClient = new Ollama({ host: CONFIG.llm.host });
 import TtsService from '../services/ttsService.js';
 import CalorieService from '../services/calorieService.js';
 import { loginAndGetLiAt } from '../services/linkedinScraper.js';
+import YouTubeService from '../services/youtubeService.js';
 
 // ============ Bot do WhatsApp ============
 class WhatsAppBot {
@@ -273,6 +274,7 @@ class WhatsAppBot {
           [COMMANDS.VOZ]: () => this.handleVozCommand(contactId),
           [COMMANDS.RECURSO]: () => this.handleRecursoCommand(contactId),
           [COMMANDS.RESUMIR]: () => this.handleResumirCommand(msg, contactId),
+          [COMMANDS.RESUMIRVIDEO]: () => this.handleResumirVideoCommand(msg, contactId),
           [COMMANDS.IMPORTAR_AGENDA]: () => this.handleImportarAgendaCommand(msg, contactId),
           [COMMANDS.FOTO]: async () => {
               await this.sendResponse(contactId, ERROR_MESSAGES.IMAGE_REQUIRED);
@@ -541,6 +543,24 @@ async handleRecursoCommand(contactId) {
           await this.sendResponse(contactId, summary);
       } catch (err) {
           console.error(`❌ Erro ao resumir texto para ${contactId}:`, err);
+      await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+      }
+  }
+
+  async handleResumirVideoCommand(msg, contactId) {
+      const link = msg.body.substring(COMMANDS.RESUMIRVIDEO.length).trim();
+      if (!link) {
+          await this.sendResponse(contactId, '📺 Envie o comando seguido do link do vídeo.');
+          return;
+      }
+      try {
+          await this.sendResponse(contactId, '⏳ Obtendo transcrição...', true);
+          const transcript = await YouTubeService.fetchTranscript(link);
+          await this.sendResponse(contactId, '📝 Resumindo...', true);
+          const summary = await this.llmService.getAssistantResponse(contactId, `Resuma em português o conteúdo do vídeo:\n\n${transcript}`);
+          await this.sendResponse(contactId, summary);
+      } catch (err) {
+          console.error(`❌ Erro ao resumir vídeo para ${contactId}:`, err);
           await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
       }
   }

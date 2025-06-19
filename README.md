@@ -25,6 +25,7 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando a int
 - [Ollama](https://ollama.ai/) instalado para executar o modelo local de LLM
 - [`Playwright`](https://playwright.dev/) instalado (após `npm install` execute `npx playwright install` para baixar os navegadores)
 - [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) para download de áudio do YouTube (utilizado como fallback quando `ytdl-core` falha)
+- Python 3 com o pacote [`youtube-transcript-api`](https://pypi.org/project/youtube-transcript-api/)
 
 ## Instalação
 
@@ -40,6 +41,7 @@ Os principais comandos podem ser vistos no menu do aplicativo ou acessando a int
    ```bash
    npm install
    npx playwright install
+   pip install youtube-transcript-api
    ```
 
 3. **Compile o Whisper**

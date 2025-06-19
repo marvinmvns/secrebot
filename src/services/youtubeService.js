@@ -14,6 +14,30 @@ const __dirname = path.dirname(__filename);
 const transcriber = new AudioTranscriber();
 let ytClientPromise;
 
+function fetchTranscriptPython(url) {
+  return new Promise((resolve, reject) => {
+    const script = path.resolve(__dirname, '../../scripts/get_transcript.py');
+    const proc = spawn('python3', [script, url]);
+    let stdout = '';
+    let stderr = '';
+    proc.stdout.on('data', (d) => { stdout += d.toString(); });
+    proc.stderr.on('data', (d) => { stderr += d.toString(); });
+    proc.on('error', reject);
+    proc.on('close', (code) => {
+      if (code !== 0) {
+        return reject(new Error(stderr.trim() || stdout.trim() || `python exited with code ${code}`));
+      }
+      try {
+        const data = JSON.parse(stdout.trim());
+        if (data.error) return reject(new Error(data.error));
+        resolve(data.text);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
 async function initClient() {
   if (!ytClientPromise) {
     ytClientPromise = Innertube.create({ generate_session_locally: true });
@@ -90,6 +114,11 @@ async function downloadAudioBuffer(youtubeUrl) {
 }
 
 async function fetchTranscript(url) {
+  try {
+    return await fetchTranscriptPython(url);
+  } catch (err) {
+    console.warn('Transcrição via Python falhou:', err.message);
+  }
   const yt = await initClient();
   const id = Utils.extractYouTubeId(url) || url;
   try {

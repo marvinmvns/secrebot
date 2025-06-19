@@ -139,7 +139,8 @@ class WhatsAppBot {
 
   isMainCommand(text) {
     const lower = text.toLowerCase();
-    return Object.values(COMMANDS).some(cmd => lower.startsWith(cmd));
+    const commands = Object.values(COMMANDS).sort((a, b) => b.length - a.length);
+    return commands.some(cmd => lower.startsWith(cmd));
   }
 
   getCurrentMode(contactId) {
@@ -284,7 +285,8 @@ class WhatsAppBot {
           }
       };
 
-      for (const [command, handler] of Object.entries(commandHandlers)) {
+      const sortedHandlers = Object.entries(commandHandlers).sort((a, b) => b[0].length - a[0].length);
+      for (const [command, handler] of sortedHandlers) {
           if (lowerText.startsWith(command)) {
               console.log(`⚙️ Executando comando ${command} para ${contactId}`);
               await handler();

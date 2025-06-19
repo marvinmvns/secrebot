@@ -550,17 +550,15 @@ async handleRecursoCommand(contactId) {
   async handleResumirVideoCommand(msg, contactId) {
       const link = msg.body.substring(COMMANDS.RESUMIRVIDEO.length).trim();
       if (!link) {
-          await this.sendResponse(contactId, '📺 Envie o comando seguido do link do vídeo.');
+          await this.sendResponse(contactId, '📺 Por favor, envie o link do vídeo do YouTube que deseja transcrever.');
           return;
       }
       try {
-          await this.sendResponse(contactId, '⏳ Obtendo transcrição...', true);
+          await this.sendResponse(contactId, '⏳ Transcrevendo vídeo...', true);
           const transcript = await YouTubeService.fetchTranscript(link);
-          await this.sendResponse(contactId, '📝 Resumindo...', true);
-          const summary = await this.llmService.getAssistantResponse(contactId, `Resuma em português o conteúdo do vídeo:\n\n${transcript}`);
-          await this.sendResponse(contactId, summary);
+          await this.sendResponse(contactId, `📝 *Transcrição:*\n\n${transcript}`);
       } catch (err) {
-          console.error(`❌ Erro ao resumir vídeo para ${contactId}:`, err);
+          console.error(`❌ Erro ao transcrever vídeo para ${contactId}:`, err);
           await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
       }
   }

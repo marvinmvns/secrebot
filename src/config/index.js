@@ -187,6 +187,7 @@ const COMMANDS = {
   VOZ: '!voz', // Novo comando para alternar resposta por voz
   RECURSO: "!recurso",
   RESUMIR: '!resumir',
+  RESUMIRVIDEO: '!resumirvideo',
   IMPORTAR_AGENDA: '!importaragenda',
   VOLTAR: '!voltar'
 };
@@ -206,6 +207,7 @@ const NUMERIC_SHORTCUTS = {
   '11': COMMANDS.RECURSO,
   '12': COMMANDS.RESUMIR,
   '13': COMMANDS.IMPORTAR_AGENDA,
+  '14': COMMANDS.RESUMIRVIDEO,
   '0': COMMANDS.VOLTAR
 };
 
@@ -232,6 +234,7 @@ const MENU_MESSAGE = `🤖 *Bem-vindo!* Escolha uma opção:\n\n1️⃣ ${COMMAN
 1️⃣1️⃣ ${COMMANDS.RECURSO} - Recursos do sistema
 1️⃣2️⃣ ${COMMANDS.RESUMIR} - Resumir texto/arquivo
 1️⃣3️⃣ ${COMMANDS.IMPORTAR_AGENDA} - Importar eventos
+1️⃣4️⃣ ${COMMANDS.RESUMIRVIDEO} - Resumir vídeo do YouTube
 0️⃣ ${COMMANDS.VOLTAR} - Voltar`;
 
 const MODE_MESSAGES = {
@@ -243,7 +246,7 @@ const MODE_MESSAGES = {
 
   [CHAT_MODES.LINKEDIN]: `💼 *Modo LinkedIn Ativado!*\n\n🔗 Envie o link do perfil que deseja analisar.\n📊 Vou estruturar as informações para você!\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
   [CHAT_MODES.DELETAR]: `🗑️ *Modo Deletar Agendamento*\n\nAguarde enquanto busco seus agendamentos...`,
-  [CHAT_MODES.RESUMIR]: `📑 *Modo Resumo Ativado!*\n\nEnvie o texto ou arquivo que deseja resumir.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
+  [CHAT_MODES.RESUMIR]: `📑 *Modo Resumo Ativado!*\n\nEnvie o texto ou arquivo que deseja resumir.\nUse !resumirvideo <link> para vídeos do YouTube.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
 };
 
 const SUCCESS_MESSAGES = {

@@ -65,3 +65,12 @@ test('checkFileExists detects missing file', async () => {
   const exists = await Utils.checkFileExists(tmpPath);
   assert.equal(exists, false);
 });
+
+// Test extractYouTubeId
+test('extractYouTubeId parses common formats', () => {
+  assert.equal(Utils.extractYouTubeId('https://youtu.be/abc123'), 'abc123');
+  assert.equal(Utils.extractYouTubeId('https://www.youtube.com/watch?v=xyz789'), 'xyz789');
+  assert.equal(Utils.extractYouTubeId('https://youtube.com/watch?v=xyz789&t=1s'), 'xyz789');
+  assert.equal(Utils.extractYouTubeId('https://www.youtube.com/shorts/id456'), 'id456');
+  assert.equal(Utils.extractYouTubeId('invalid'), null);
+});

@@ -32,15 +32,17 @@ const ollamaClient = new Ollama({ host: CONFIG.llm.host });
 import TtsService from '../services/ttsService.js';
 import CalorieService from '../services/calorieService.js';
 import { loginAndGetLiAt } from '../services/linkedinScraper.js';
+import YoutubeService from '../services/youtubeService.js';
 
 // ============ Bot do WhatsApp ============
 class WhatsAppBot {
   // CORREÇÃO: Adicionar ttsService ao construtor e atribuí-lo
-  constructor(scheduler, llmService, transcriber, ttsService) {
+  constructor(scheduler, llmService, transcriber, ttsService, youtubeService) {
     this.scheduler = scheduler;
     this.llmService = llmService;
     this.transcriber = transcriber;
     this.ttsService = ttsService; // CORREÇÃO: Atribuir o serviço TTS
+    this.youtubeService = youtubeService;
     this.chatModes = new Map();
     this.userPreferences = new Map(); // Para armazenar preferências (ex: { voiceResponse: true/false })
     this.linkedinSessions = new Map(); // contato -> li_at
@@ -273,6 +275,7 @@ class WhatsAppBot {
           [COMMANDS.VOZ]: () => this.handleVozCommand(contactId),
           [COMMANDS.RECURSO]: () => this.handleRecursoCommand(contactId),
           [COMMANDS.RESUMIR]: () => this.handleResumirCommand(msg, contactId),
+          [COMMANDS.YOUTUBE]: () => this.handleYoutubeCommand(msg, contactId),
           [COMMANDS.IMPORTAR_AGENDA]: () => this.handleImportarAgendaCommand(msg, contactId),
           [COMMANDS.FOTO]: async () => {
               await this.sendResponse(contactId, ERROR_MESSAGES.IMAGE_REQUIRED);
@@ -541,8 +544,24 @@ async handleRecursoCommand(contactId) {
           await this.sendResponse(contactId, summary);
       } catch (err) {
           console.error(`❌ Erro ao resumir texto para ${contactId}:`, err);
-          await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+      await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
       }
+  }
+
+  async handleYoutubeCommand(msg, contactId) {
+      const arg = msg.body.substring(COMMANDS.YOUTUBE.length).trim();
+      if (!arg) {
+          this.setMode(contactId, CHAT_MODES.YOUTUBE);
+          await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.YOUTUBE]);
+          return;
+      }
+      await this.processYoutubeMessage(contactId, arg);
+  }
+
+  async processYoutubeMessage(contactId, text) {
+      await this.sendResponse(contactId, '🎥 Resumindo vídeo...', true);
+      await this.youtubeService.sendVideoSummary(contactId, text.trim());
+      this.setMode(contactId, null);
   }
 
   async handleImageMessage(msg, contactId, lowerText) {
@@ -767,6 +786,9 @@ async handleRecursoCommand(contactId) {
       case CHAT_MODES.RESUMIR:
         await this.performResumir(msg, contactId, text);
         this.setMode(contactId, null);
+        break;
+      case CHAT_MODES.YOUTUBE:
+        await this.processYoutubeMessage(contactId, text);
         break;
       default:
           console.warn(`⚠️ Modo desconhecido encontrado: ${currentMode}`);

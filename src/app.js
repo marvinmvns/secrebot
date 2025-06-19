@@ -2,6 +2,7 @@ import Scheduler from './services/scheduler.js';
 import LLMService from './services/llmService.js';
 import AudioTranscriber from './services/audioTranscriber.js';
 import TtsService from './services/ttsService.js'; // Importar o novo serviço TTS
+import YoutubeService from './services/youtubeService.js';
 import WhatsAppBot from './core/whatsAppBot.js';
 import RestAPI from './api/restApi.js';
 import ConfigService from './services/configService.js';
@@ -34,10 +35,12 @@ async function main() {
     const llmService = new LLMService();
     const transcriber = new AudioTranscriber();
     const ttsService = new TtsService(); // Instanciar o serviço TTS
+    const youtubeService = new YoutubeService(llmService, null);
 
     // Inicializar bot, passando todos os serviços
     console.log('🤖 Inicializando WhatsApp Bot...');
-    const bot = new WhatsAppBot(scheduler, llmService, transcriber, ttsService);
+    const bot = new WhatsAppBot(scheduler, llmService, transcriber, ttsService, youtubeService);
+    youtubeService.bot = bot;
     await bot.initialize(); // Inicializar cliente WhatsApp
 
     // Inicializar API REST

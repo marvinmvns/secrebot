@@ -1,254 +1,414 @@
-# Secrebot
+# 🤖 Secrebot
 
+> Um assistente inteligente para WhatsApp construído em Node.js com arquitetura modular e recursos avançados de IA
 
-Secrebot é um assistente para WhatsApp construído em Node.js com uma estrutura modular. O projeto integra serviços de transcrição de áudio (Whisper), modelos LLM locais via Ollama para respostas automáticas, agendamento de mensagens e geração de voz usando a API da ElevenLabs.
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-6.0+-brightgreen.svg)](https://www.mongodb.com/)
+[![License](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
 
-## Funcionalidades
+## 📋 Índice
 
-- **Envio de Mensagens e Chatbot**: conversas alimentadas por LLM local (Ollama), respondendo a comandos e perguntas.
-- **Transcrição de Áudio**: converte mensagens de voz em texto utilizando o Whisper.
-- **Comandos por Áudio**: o LLM interpreta gravações e mapeia para os comandos do bot.
-- **Descrição de Imagens**: analisa imagens recebidas e fornece descrições ou estimativas de calorias.
-- **Agendamento de Lembretes**: armazena lembretes em MongoDB e envia as mensagens programadas no horário marcado.
-- **Respostas em Áudio (TTS)**: opcionalmente gera áudio com a ElevenLabs para respostas por voz.
-- **API REST**: integração externa pelos endpoints /send-message e /health.
+- [Funcionalidades](#-funcionalidades)
+- [Requisitos](#-requisitos)
+- [Instalação](#-instalação)
+- [Configuração](#-configuração)
+- [Utilização](#-utilização)
+- [API REST](#-api-rest)
+- [Interface Web](#-interface-web)
+- [Estrutura do Banco](#-estrutura-do-banco)
+- [Estrutura do Projeto](#-estrutura-do-projeto)
+- [Docker](#-docker)
+- [Licença](#-licença)
 
-Os principais comandos podem ser vistos no menu do aplicativo ou acessando a interface web em /.
+## 🚀 Funcionalidades
+
+### 💬 **Chatbot Inteligente**
+- Conversas alimentadas por LLM local (Ollama)
+- Respostas contextuais e personalizadas
+- Suporte a múltiplos modelos de linguagem
+
+### 🎤 **Processamento de Áudio**
+- **Transcrição**: Converte mensagens de voz em texto usando Whisper
+- **Comandos por voz**: Interpreta gravações e mapeia para comandos do bot
+- **TTS**: Gera respostas em áudio via ElevenLabs ou Piper (local)
+
+### 🖼️ **Análise Visual**
+- **Descrição de imagens**: Análise detalhada de fotos enviadas
+- **Contador de calorias**: Estimativa nutricional baseada em imagens de alimentos
+
+### ⏰ **Sistema de Agendamentos**
+- Criação de lembretes personalizados
+- Armazenamento seguro em MongoDB
+- Envio automático no horário programado
+- Interface web para gerenciamento
+
+### 🔗 **Integrações Externas**
+- **LinkedIn**: Análise de perfis profissionais
+- **YouTube**: Transcrição de vídeos
+- **Google Calendar**: Importação de eventos
+- **API REST**: Endpoints para integração externa
+
+### 📊 **Monitoramento**
+- Dashboard web com estatísticas
+- Informações de recursos do sistema
+- Logs detalhados de operações
+
+## 📋 Requisitos
+
+### Obrigatórios
+- **Node.js** 18 ou superior
+- **MongoDB** 6.0 ou superior
+- **ffmpeg** (para processamento de áudio)
+- **Ollama** (para modelos LLM locais)
+
+### Opcionais
+- **ElevenLabs API** (para TTS premium)
+- **Piper** (para TTS local)
+- **yt-dlp** (fallback para YouTube)
+- **Google Cloud Console** (integração Calendar)
+
+## 🛠️ Instalação
+
+### 1. Clone o repositório
+```bash
+git clone <repo-url>
+cd secrebot
+```
+
+### 2. Instale as dependências
+```bash
+npm install
+npx playwright install
+```
+
+### 3. Configure o Whisper
+```bash
+# Certifique-se de ter build-essential instalado
+sudo apt install build-essential
+
+# Baixe e compile o Whisper
+npx nodejs-whisper download
+```
+
+### 4. Configure o MongoDB
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install -y mongodb-org
+sudo systemctl start mongod
+sudo systemctl enable mongod
+
+# Crie o banco e usuário
+mongosh
+> use sched
+> db.createUser({user: "bot", pwd: "senha", roles:["readWrite"]})
+> exit
+```
+
+### 5. Instale e configure o Ollama
+```bash
+# Linux/macOS
+curl -L https://ollama.com/install.sh | sh
+
+# Baixe um modelo
+ollama run llama3
+
+# Ou mantenha em segundo plano
+ollama serve
+```
+
+## ⚙️ Configuração
+
+### Variáveis de Ambiente
+Crie um arquivo `.env` na raiz do projeto:
+
+```bash
+# 🔧 Configurações Básicas
+PORT=3000
+MONGO_URI=mongodb://bot:senha@localhost:27017/sched
+
+# 🤖 Ollama/LLM
+OLLAMA_HOST=http://127.0.0.1:11434
+OLLAMA_TIMEOUT_MS=60000
+LLM_CONCURRENCY=2
+
+# 🎤 Audio/TTS
+ELEVENLABS_API_KEY=<sua_chave_elevenlabs>
+ELEVENLABS_VOICE_ID=<voice_id>
+
+# 🎯 TTS Local (Piper) - Opcional
+PIPER_MODEL=/caminho/para/modelo.onnx
+PIPER_EXECUTABLE=/usr/local/bin/piper
+
+# 🧠 Processamento
+WHISPER_CONCURRENCY=1
+QUEUE_MEM_THRESHOLD_GB=4
+DYNAMIC_CONCURRENCY=false
+
+# 📅 Agendamentos
+SCHED_MAX_CONCURRENCY=10
+SCHED_CPU_THRESHOLD=0.7
+SCHED_MEM_THRESHOLD=0.8
+
+# 🔗 Integrações Externas
+CALORIE_API_URL=https://api.api-ninjas.com/v1/nutrition?query=
+CALORIE_API_KEY=<sua_chave_ninjas>
+LINKEDIN_USER=<seu_usuario>
+LINKEDIN_PASS=<sua_senha>
+LINKEDIN_LI_AT=<cookie_li_at>
+LINKEDIN_TIMEOUT_MS=30000
+
+# 📅 Google Calendar
+GOOGLE_CLIENT_ID=<client_id>
+GOOGLE_CLIENT_SECRET=<client_secret>
+GOOGLE_REDIRECT=http://localhost:3000/oauth2callback
+```
+
+### 🗣️ TTS Local com Piper
+
+Para usar TTS local sem depender da ElevenLabs:
+
+```bash
+# Instale o Piper
+# Baixe um modelo pt-br de https://github.com/rhasspy/piper
+
+# Configure no .env
+PIPER_ENABLED=true
+PIPER_MODEL=/caminho/para/pt-br-voce.onnx
+PIPER_EXECUTABLE=/usr/local/bin/piper
+```
+
+**Alternativa com Docker:**
+```bash
+#!/bin/bash
+# piper-docker.sh
+docker run --rm -i -v /caminho/para/modelos:/data ghcr.io/rhasspy/piper:latest "$@"
+```
+
+### 6. Inicie o bot
+```bash
+npm start
+```
+
+🔗 **Autenticação**: Escaneie o QR Code exibido no terminal com o WhatsApp
+
+🌐 **Interface Web**: Acesse `http://localhost:3000`
+
+## 📱 Utilização
+
+### Comandos Disponíveis
+
+Envie `!menu` ou use os atalhos numéricos:
+
+| Comando | Atalho | Descrição |
+|---------|--------|-----------|
+| `!ajuda` | 1️⃣ | Exibir menu de comandos |
+| `!agendabot` | 2️⃣ | Criar lembretes personalizados |
+| `!listaragendamentos` | 3️⃣ | Listar agendamentos ativos |
+| `!deletaragendamento` | 4️⃣ | Remover agendamentos |
+| `!deep` | 5️⃣ | Conversar com o chatbot IA |
+| `!transcrever` | 6️⃣ | Transcrever mensagens de áudio |
+| `!foto` | 7️⃣ | Descrever imagens enviadas |
+| `!calorias` | 8️⃣ | Estimar calorias de alimentos |
+| `!linkedin <URL>` | 9️⃣ | Analisar perfil do LinkedIn |
+| `!voz` | 🔟 | Alternar respostas voz/texto |
+| `!recurso` | 1️⃣1️⃣ | Informações do sistema |
+| `!resumir` | 1️⃣2️⃣ | Resumir textos ou arquivos |
+| `!importaragenda` | 1️⃣3️⃣ | Importar eventos do Calendar |
+| `!resumirvideo <URL>` | 1️⃣4️⃣ | Transcrever vídeos do YouTube |
+| `!voltar` | 0️⃣ | Retornar ao menu principal |
+
+### Exemplos de Uso
+
+```
+# Criar um lembrete
+!agendabot
+> Reunião importante amanhã às 14:00
+
+# Transcrever áudio
+!transcrever
+> [Envie um áudio]
+
+# Analisar foto de comida
+!calorias
+> [Envie uma foto da refeição]
+
+# Conversar com IA
+!deep Como melhorar minha produtividade?
+```
+
+## 🌐 API REST
+
+### Endpoints Principais
+
+```http
+POST /send-message
+Content-Type: application/json
+
+{
+  "to": "5511999999999",
+  "message": "Hello World"
+}
+```
+
+```http
+GET /health
+# Retorna status da aplicação
+```
 
 ### Endpoints da Interface Web
 
-Além do dashboard e das configurações, cada funcionalidade do bot possui uma rota própria:
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET/POST` | `/chat` | Interface de chat |
+| `GET/POST` | `/transcribe` | Upload de áudio para transcrição |
+| `GET/POST` | `/describe` | Análise de imagens |
+| `GET/POST` | `/calories` | Contador de calorias |
+| `GET/POST` | `/linkedin` | Análise de perfil LinkedIn |
+| `GET/POST` | `/summarize` | Resumo de textos |
+| `GET/POST` | `/video` | Transcrição de vídeos |
+| `GET` | `/resources` | Informações do sistema |
+| `POST` | `/toggle-voice` | Alternar modo de voz |
 
-- GET /chat e POST /chat – conversar com o assistente.
-- GET /transcribe e POST /transcribe – enviar áudio para transcrição.
-- GET /describe e POST /describe – descrição de imagens.
-- GET /calories e POST /calories – estimativa de calorias de uma foto.
-- GET /linkedin e POST /linkedin – análise de um perfil do LinkedIn.
-- GET /summarize e POST /summarize – resumo de texto ou arquivo.
-- GET /video e POST /video – transcrever vídeos do YouTube.
-- GET /resources – mostrar informações do sistema.
-- POST /toggle-voice – alternar respostas em voz na interface.
+## 🖥️ Interface Web
 
-## Requisitos
+### 📊 Dashboard
+- **Rota**: `/` ou `/dashboard`
+- **Recursos**: 
+  - Listagem de agendamentos
+  - Criação/edição de lembretes
+  - Estatísticas do bot
+  - Duplicação de agendamentos
 
-- Node.js 18 ou superior
-- MongoDB acessível para armazenar agendamentos
-- ffmpeg instalado no sistema (necessário para transcrição de áudio)
-- Conta e chave da [ElevenLabs](https://elevenlabs.io/) para recursos de voz (opcional)
-- [Ollama](https://ollama.ai/) instalado para executar o modelo local de LLM
-- [Playwright](https://playwright.dev/) instalado (após npm install execute npx playwright install para baixar os navegadores)
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) para download de áudio do YouTube (utilizado como fallback quando ytdl-core falha)
+### ⚙️ Configurações
+- **Rota**: `/config`
+- **Recursos**:
+  - Edição de variáveis do `.env`
+  - Reinicialização automática
+  - Validação de configurações
 
-## Instalação
+## 🗄️ Estrutura do Banco
 
-1. **Clone o repositório**
-
-   
-bash
-   git clone <repo-url>
-   cd secrebot
-
-
-2. **Instale as dependências**
-
-   
-bash
-   npm install
-   npx playwright install
-
-
-3. **Compile o Whisper**
-
-   Após a instalação das dependências, execute o comando abaixo para baixar o modelo e compilar o nodejs-whisper. Certifique-se de que ferramentas como make e g++ estejam instaladas (sudo apt install build-essential).
-
-   
-bash
-   npx nodejs-whisper download
-
-
-4. **Instale o MongoDB** (Ubuntu/Debian)
-
-   
-bash
-   sudo apt update
-   sudo apt install -y mongodb-org
-   sudo systemctl start mongod
-   sudo systemctl enable mongod
-
-
-   Depois, crie a base e o usuário:
-
-   
-bash
-   mongosh
-   > use sched
-   > db.createUser({user: "bot", pwd: "senha", roles:["readWrite"]})
-   > exit
-
-
-5. **Instale o Ollama** (Linux/macOS)
-
-   
-bash
-   curl -L https://ollama.com/install.sh | sh
-
-   Após instalado, baixe um modelo (ex.: llama3) e inicie o servidor:
-   
-bash
-   ollama run llama3
-   # ou apenas "ollama serve" para manter em segundo plano
-
-
-6. **Configure as variáveis de ambiente** (crie um arquivo .env ou exporte no shell):
-
-
-   
-bash
-   MONGO_URI=mongodb://<usuario>:<senha>@<host>:<porta>/
-   PORT=3000
-   ELEVENLABS_API_KEY=<sua_chave>
-   ELEVENLABS_VOICE_ID=<voice_id>
-   # Para usar TTS local com Piper, defina o modelo (opcional)
-   PIPER_MODEL=/caminho/para/modelo.onnx
-   # Caso o executável não esteja no PATH, informe também:
-   PIPER_EXECUTABLE=/usr/local/bin/piper
-   # Limite de memória em GB para processar tarefas pesadas
-   QUEUE_MEM_THRESHOLD_GB=4
-   LLM_CONCURRENCY=2
-   WHISPER_CONCURRENCY=1
-   MEM_CHECK_INTERVAL=1000
-   DYNAMIC_CONCURRENCY=false
-   SCHED_MAX_CONCURRENCY=10
-   SCHED_CPU_THRESHOLD=0.7
-  SCHED_MEM_THRESHOLD=0.8
-  OLLAMA_HOST=http://127.0.0.1:11434
-  OLLAMA_TIMEOUT_MS=60000  # tempo máximo para resposta inicial do modelo
-  CALORIE_API_URL=https://api.api-ninjas.com/v1/nutrition?query=
-  CALORIE_API_KEY=
-  LINKEDIN_USER=
-  LINKEDIN_PASS=
-  LINKEDIN_LI_AT=
-  LINKEDIN_TIMEOUT_MS=30000
-  # aumente OLLAMA_TIMEOUT_MS caso ocorra "Headers Timeout" ao contactar o LLM
-  # Integração com Google Calendar
-   GOOGLE_CLIENT_ID=
-   GOOGLE_CLIENT_SECRET=
-  GOOGLE_REDIRECT=http://localhost:3000/oauth2callback
-
-
-Para habilitar a importação de eventos do Google Calendar é necessário criar um projeto no Google Cloud Console, habilitar a API Calendar e configurar uma tela de consentimento OAuth. Informe as credenciais acima no arquivo .env.
-
-### TTS local com Piper
-
-Se PIPER_MODEL estiver definido e a chave da ElevenLabs não for fornecida, o bot utilizará o [Piper](https://github.com/rhasspy/piper) para gerar as respostas em áudio de forma totalmente local. Instale o Piper e baixe um modelo compatível (por exemplo, pt-br-...). Em seguida, configure as variáveis acima informando o caminho do modelo e, opcionalmente, do executável.
-
-Para evitar compilar o binário é possível executar o Piper via Docker. A imagem oficial está disponível no mesmo repositório. Um exemplo de script (piper-docker.sh) que o bot pode chamar é:
-
-bash
-#!/bin/bash
-docker run --rm -i -v /caminho/para/modelos:/data ghcr.io/rhasspy/piper:latest \
-  "$@"
-
-
-Com o script acima defina as variáveis no .env:
-
-bash
-PIPER_ENABLED=true
-PIPER_EXECUTABLE=/caminho/para/piper-docker.sh
-PIPER_MODEL=/caminho/para/modelos/pt-br-voce.onnx
-
-
-Esses valores são lidos em src/config/index.js e permitem personalizar a conexão com o banco, a porta do servidor e o uso de TTS.
-
-7. **Inicie o bot**
-
-   
-bash
-   npm start
-
-
-  Um QR Code será exibido no terminal. Escaneie com o WhatsApp para autenticar o bot. A API REST ficará disponível em http://localhost:3000 (ou na porta configurada).
-  O painel web para gerenciar agendamentos também estará acessível no mesmo endereço, em /.
-  Para editar as configurações do arquivo .env utilize a rota /config na interface web.
-
-## Utilização
-
-Após iniciar, envie !menu ou use os atalhos numéricos. As opções são:
-
-1️⃣ !ajuda para mostrar o menu
-2️⃣ !agendabot para criar lembretes
-3️⃣ !listaragendamentos para listar
-4️⃣ !deletaragendamento para remover
-5️⃣ !deep para conversar com o chatbot
-6️⃣ !transcrever para transcrever áudios
-7️⃣ !foto para descrever imagens
-8️⃣ !calorias para estimar calorias de uma foto
-9️⃣ !linkedin <URL> para analisar um perfil (se o cookie li_at não estiver configurado o bot solicitará suas credenciais)
-🔟 !voz para alternar respostas por voz ou texto
-1️⃣1️⃣ !recurso para exibir detalhes do sistema
-1️⃣2️⃣ !resumir para resumir texto ou arquivo
-1️⃣3️⃣ !importaragenda para importar eventos
-1️⃣4️⃣ !resumirvideo <URL> para transcrever vídeos do YouTube com Whisper
-0️⃣ !voltar para retornar ao menu principal
-
-Ao iniciar o bot você terá acesso a uma pequena interface web. Na página inicial (/) há um menu de painéis que inclui o dashboard de agendamentos e a tela de configurações. O dashboard propriamente dito está em /dashboard e permite listar, criar, editar e duplicar lembretes, além de exibir estatísticas do bot.
-As configurações da aplicação ficam em /config. A tela lista todas as opções de src/config/index.js com uma breve descrição do uso de cada uma. Após salvar o formulário todas as variáveis são gravadas no .env e a aplicação é reiniciada automaticamente para aplicar os novos valores.
-
-
-## Estrutura da Base (MongoDB)
-
-Cada lembrete é armazenado em uma coleção definida em CONFIG.mongo com o seguinte formato:
-
-json
+### Coleção de Agendamentos
+```json
 {
-  "_id": ObjectId,
-  "recipient": "<numero>",
-  "message": "<texto>",
-  "status": "approved" | "sent" | "failed",
-  "scheduledTime": ISODate,
-  "expiryTime": ISODate,
-  "sentAt": ISODate | null,
-  "attempts": Number,
-  "lastAttemptAt": ISODate | null,
-  "error": "<mensagem de erro>"
+  "_id": "ObjectId",
+  "recipient": "5511999999999",
+  "message": "Texto do lembrete",
+  "status": "approved|sent|failed",
+  "scheduledTime": "2024-01-01T10:00:00Z",
+  "expiryTime": "2024-01-01T11:00:00Z",
+  "sentAt": "2024-01-01T10:00:05Z",
+  "attempts": 1,
+  "lastAttemptAt": "2024-01-01T10:00:05Z",
+  "error": "Mensagem de erro (se houver)"
 }
+```
 
+### Índices Automáticos
+```javascript
+// Criados automaticamente na inicialização
+{ recipient: 1, status: 1 }
+{ scheduledTime: 1, status: 1, sentAt: 1 }
+```
 
-Ao conectar, o bot cria índices para buscas rápidas por destinatário e horário programado:
+## 📁 Estrutura do Projeto
 
-javascript
-await this.schedCollection.createIndex({ recipient: 1, status: 1 });
-await this.schedCollection.createIndex({ scheduledTime: 1, status: 1, sentAt: 1 });
+```
+secrebot/
+├── 📂 src/
+│   ├── 📄 app.js                 # Ponto de entrada principal
+│   ├── 📂 core/
+│   │   └── 📄 whatsAppBot.js     # Lógica do bot WhatsApp
+│   ├── 📂 services/              # Serviços auxiliares
+│   │   ├── 📄 llmService.js      # Integração com Ollama
+│   │   ├── 📄 transcription.js   # Whisper/transcrição
+│   │   ├── 📄 ttsService.js      # Text-to-Speech
+│   │   └── 📄 scheduler.js       # Agendamentos
+│   ├── 📂 api/
+│   │   └── 📄 restApi.js         # API Express
+│   ├── 📂 config/                # Configurações
+│   │   ├── 📄 index.js           # Config principal
+│   │   └── 📄 messages.js        # Mensagens padrão
+│   └── 📂 utils/                 # Utilitários
+├── 📂 public/                    # Assets da interface web
+├── 📂 views/                     # Templates HTML
+├── 📄 package.json
+├── 📄 Dockerfile
+├── 📄 docker-compose.yml
+└── 📄 README.md
+```
 
+## 🐳 Docker
 
-## Estrutura do Projeto
-
-- src/app.js – ponto de entrada que inicializa os serviços, o bot e a API REST
-- src/core/whatsAppBot.js – lógica principal do bot e dos comandos
-- src/services/ – serviços auxiliares (LLM, transcrição, TTS, scheduler)
-- src/api/restApi.js – implementação da API Express
-- src/config/ – definições de configuração e mensagens padrão
-- src/utils/ – funções utilitárias
-
-## Licença
-
-Distribuído sob a licença ISC conforme definido no package.json.
-
-## Docker
-
-Para criar uma imagem Docker do projeto execute:
-
-bash
+### Build da Imagem
+```bash
 docker build -t secrebot .
+```
 
-
-Os testes unitários são executados durante a fase de build. Após a conclusão, inicie o container com:
-
-bash
+### Executar Container
+```bash
 docker run -p 3000:3000 secrebot
+```
 
-
-Para facilitar a execução com todas as dependências (MongoDB e Ollama) utilize o docker-compose.yml incluido no repositório:
-
-bash
+### Docker Compose (Recomendado)
+```bash
+# Inicia todos os serviços (MongoDB + Ollama + Secrebot)
 docker compose up --build
+```
+
+O `docker-compose.yml` inclui:
+- **MongoDB** com persistência de dados
+- **Ollama** com modelo pré-carregado
+- **Secrebot** com todas as dependências
+
+### Configuração de Produção
+```yaml
+# docker-compose.prod.yml
+version: '3.8'
+services:
+  secrebot:
+    build: .
+    environment:
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongo:27017/sched
+    depends_on:
+      - mongo
+      - ollama
+    restart: unless-stopped
+```
+
+## 🧪 Testes
+
+```bash
+# Executar testes unitários
+npm test
+
+# Executar com coverage
+npm run test:coverage
+
+# Testes de integração
+npm run test:integration
+```
+
+## 🤝 Contribuindo
+
+1. Fork o projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
+3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
+4. Push para a branch (`git push origin feature/AmazingFeature`)
+5. Abra um Pull Request
+
+## 📄 Licença
+
+Distribuído sob a licença ISC. Veja `LICENSE` para mais informações.
+
+---
+
+<div align="center">
+
+**[⬆ Voltar ao topo](#-secrebot)**
+
+Feito com ❤️ para automatizar seu WhatsApp
+
+</div>

@@ -1,4 +1,3 @@
-import ytdl from 'ytdl-core';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs/promises';
 import path from 'path';
@@ -23,27 +22,6 @@ async function initClient() {
 
 async function downloadAudioBuffer(youtubeUrl) {
   const outputPath = path.join(__dirname, `audio_${Date.now()}.ogg`);
-  const attemptYtdl = () => new Promise((resolve, reject) => {
-    const stream = ytdl(youtubeUrl, { quality: 'highestaudio' });
-    ffmpeg(stream)
-      .audioBitrate(128)
-      .toFormat('ogg')
-      .save(outputPath)
-      .on('end', async () => {
-        try {
-          const data = await fs.readFile(outputPath);
-          await fs.unlink(outputPath);
-          resolve(data);
-        } catch (err) {
-          reject(err);
-        }
-      })
-      .on('error', async (err) => {
-        await fs.unlink(outputPath).catch(() => {});
-        reject(err);
-      });
-  });
-
   const attemptYtDlp = () => new Promise((resolve, reject) => {
     const proc = spawn('yt-dlp', [
       '-f', 'bestaudio[ext=webm]/bestaudio/best',
@@ -75,18 +53,57 @@ async function downloadAudioBuffer(youtubeUrl) {
     });
   });
 
-  try {
-    return await attemptYtdl();
-  } catch (err) {
-    if (/Could not extract functions/.test(String(err))) {
-      try {
-        return await attemptYtDlp();
-      } catch (e) {
-        throw e;
+  return await attemptYtDlp();
+}
+
+async function downloadTranscriptWithYtDlp(youtubeUrl) {
+  const tempDir = path.join(__dirname, `subs_${Date.now()}`);
+  await fs.mkdir(tempDir, { recursive: true });
+  const outputTemplate = path.join(tempDir, 'subs.%(ext)s');
+  return new Promise((resolve, reject) => {
+    const proc = spawn('yt-dlp', [
+      '--skip-download',
+      '--write-auto-sub',
+      '--sub-format', 'vtt',
+      '--sub-langs', 'pt-BR,pt,en',
+      '-o', outputTemplate,
+      youtubeUrl
+    ]);
+
+    let stderr = '';
+    proc.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    proc.on('error', reject);
+    proc.on('close', async (code) => {
+      if (code !== 0) {
+        await fs.rm(tempDir, { recursive: true, force: true });
+        const msg = stderr.trim() || `yt-dlp exited with code ${code}`;
+        reject(new Error(msg));
+        return;
       }
-    }
-    throw err;
-  }
+      try {
+        const files = await fs.readdir(tempDir);
+        const file = files.find((f) => f.endsWith('.vtt'));
+        if (!file) throw new Error('Transcript not found');
+        const text = await fs.readFile(path.join(tempDir, file), 'utf8');
+        await fs.rm(tempDir, { recursive: true, force: true });
+        const plain = text
+          .replace(/^WEBVTT.*\n/gm, '')
+          .replace(/\d+:\d+:\d+\.\d+ --> .*\n/g, '')
+          .replace(/<[^>]+>/g, '')
+          .split(/\n+/)
+          .map((l) => l.trim())
+          .filter(Boolean)
+          .join(' ');
+        resolve(plain);
+      } catch (err) {
+        await fs.rm(tempDir, { recursive: true, force: true });
+        reject(err);
+      }
+    });
+  });
 }
 
 async function fetchTranscript(url) {
@@ -100,7 +117,12 @@ async function fetchTranscript(url) {
       return segments.map((s) => s.text).join(' ');
     }
   } catch (err) {
-    console.warn('Transcrição via YouTube.js falhou, utilizando Whisper:', err.message);
+    console.warn('Transcrição via YouTube.js falhou, tentando yt-dlp:', err.message);
+  }
+  try {
+    return await downloadTranscriptWithYtDlp(url);
+  } catch (err) {
+    console.warn('Transcrição via yt-dlp falhou, utilizando Whisper:', err.message);
   }
   const audioBuffer = await downloadAudioBuffer(url);
   const transcript = await transcriber.transcribe(audioBuffer);

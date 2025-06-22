@@ -80,8 +80,15 @@ cd secrebot
 npm install
 npx playwright install
 ```
+### 3. Instale o yt-dlp (aarch64)
+```bash
+sudo apt update
+sudo apt install -y python3-pip
+pip3 install yt-dlp --break-system-packages
+```
 
-### 3. Configure o Whisper
+
+### 4. Configure o Whisper
 ```bash
 # Certifique-se de ter build-essential instalado
 sudo apt install build-essential
@@ -90,7 +97,7 @@ sudo apt install build-essential
 npx nodejs-whisper download
 ```
 
-### 4. Configure o MongoDB
+### 5. Configure o MongoDB
 ```bash
 # Ubuntu/Debian
 sudo apt update
@@ -105,7 +112,7 @@ mongosh
 > exit
 ```
 
-### 5. Instale e configure o Ollama
+### 6. Instale e configure o Ollama
 ```bash
 # Linux/macOS
 curl -L https://ollama.com/install.sh | sh
@@ -185,7 +192,7 @@ PIPER_EXECUTABLE=/usr/local/bin/piper
 docker run --rm -i -v /caminho/para/modelos:/data ghcr.io/rhasspy/piper:latest "$@"
 ```
 
-### 6. Inicie o bot
+### 7. Inicie o bot
 ```bash
 npm start
 ```

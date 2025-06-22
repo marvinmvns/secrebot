@@ -10,7 +10,7 @@ import { Ollama } from 'ollama';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import mammoth from 'mammoth';
 import si from 'systeminformation';
-import YouTubeService from '../services/youtubeService.js';
+import VideoProcessor from '../services/video/VideoProcessor.js';
 import CalorieService from '../services/calorieService.js';
 import GoogleCalendarService from '../services/googleCalendarService.js';
 import Utils from '../utils/index.js';
@@ -28,6 +28,7 @@ class RestAPI {
     this.configService = configService;
     this.app = express();
     this.googleService = new GoogleCalendarService();
+    this.videoProcessor = new VideoProcessor({ transcriber: bot.transcriber });
     this.setupMiddleware();
     this.setupRoutes();
   }
@@ -363,8 +364,8 @@ class RestAPI {
       const url = req.body.url || '';
       if (!url.trim()) return res.render('video', { result: 'Informe o link do vídeo.', url });
       try {
-        const transcript = await YouTubeService.fetchTranscript(url);
-        res.render('video', { result: transcript, url });
+        const result = await this.videoProcessor.processVideo(url, { summaryLength: 4 });
+        res.render('video', { result: result.summary, url });
       } catch (err) {
         console.error('Erro em /video:', err);
         res.render('video', { result: 'Erro ao processar vídeo.', url });

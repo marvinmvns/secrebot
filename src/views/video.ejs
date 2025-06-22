@@ -1,4 +1,4 @@
-<h2>Transcrever Vídeo do YouTube</h2>
+<h2>Resumir Vídeo do YouTube</h2>
 <form action="/video" method="POST">
   <div class="mb-3">
     <input type="text" name="url" class="form-control" placeholder="Link do vídeo" value="<%= url %>" required>
@@ -6,7 +6,7 @@
   <button type="submit" class="btn btn-primary">Enviar</button>
 </form>
 <% if (result) { %>
-  <h3 class="mt-4">Transcrição</h3>
+  <h3 class="mt-4">Resumo</h3>
   <pre class="result"><%= result %></pre>
 <% } %>
 

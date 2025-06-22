@@ -44,7 +44,7 @@
 
 ### 🔗 **Integrações Externas**
 - **LinkedIn**: Análise de perfis profissionais
-- **YouTube**: Transcrição de vídeos
+- **Processamento de Vídeos**: Transcrição e resumo de links do YouTube
 - **Google Calendar**: Importação de eventos
 - **API REST**: Endpoints para integração externa
 
@@ -64,7 +64,7 @@
 ### Opcionais
 - **ElevenLabs API** (para TTS premium)
 - **Piper** (para TTS local)
-- **yt-dlp** (fallback para YouTube)
+- **yt-dlp** (extração de áudio/legendas de vídeos)
 - **Google Cloud Console** (integração Calendar)
 
 ## 🛠️ Instalação
@@ -222,7 +222,7 @@ Envie `!menu` ou use os atalhos numéricos:
 | `!recurso` | 1️⃣1️⃣ | Informações do sistema |
 | `!resumir` | 1️⃣2️⃣ | Resumir textos ou arquivos |
 | `!importaragenda` | 1️⃣3️⃣ | Importar eventos do Calendar |
-| `!resumirvideo <URL>` | 1️⃣4️⃣ | Transcrever vídeos do YouTube |
+| `!resumirvideo <URL>` | 1️⃣4️⃣ | Resumir vídeos do YouTube |
 | `!voltar` | 0️⃣ | Retornar ao menu principal |
 
 ### Exemplos de Uso

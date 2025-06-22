@@ -32,7 +32,7 @@ const ollamaClient = new Ollama({ host: CONFIG.llm.host });
 import TtsService from '../services/ttsService.js';
 import CalorieService from '../services/calorieService.js';
 import { loginAndGetLiAt } from '../services/linkedinScraper.js';
-import YouTubeService from '../services/youtubeService.js';
+import VideoProcessor from '../services/video/VideoProcessor.js';
 
 // ============ Bot do WhatsApp ============
 class WhatsAppBot {
@@ -46,6 +46,7 @@ class WhatsAppBot {
     this.userPreferences = new Map(); // Para armazenar preferências (ex: { voiceResponse: true/false })
     this.linkedinSessions = new Map(); // contato -> li_at
     this.awaitingLinkedinCreds = new Map();
+    this.videoProcessor = new VideoProcessor({ transcriber });
     this.client = new Client({
       authStrategy: new LocalAuth(),
       puppeteer: {
@@ -552,15 +553,15 @@ async handleRecursoCommand(contactId) {
   async handleResumirVideoCommand(msg, contactId) {
       const link = msg.body.substring(COMMANDS.RESUMIRVIDEO.length).trim();
       if (!link) {
-          await this.sendResponse(contactId, '📺 Por favor, envie o link do vídeo do YouTube que deseja transcrever.');
+          await this.sendResponse(contactId, '📺 Por favor, envie o link do vídeo que deseja processar.');
           return;
       }
       try {
-          await this.sendResponse(contactId, '⏳ Transcrevendo vídeo...', true);
-          const transcript = await YouTubeService.fetchTranscript(link);
-          await this.sendResponse(contactId, `📝 *Transcrição:*\n\n${transcript}`);
+          await this.sendResponse(contactId, '⏳ Processando vídeo...', true);
+          const result = await this.videoProcessor.processVideo(link, { summaryLength: 4 });
+          await this.sendResponse(contactId, `📝 *Resumo:*\n${result.summary}`);
       } catch (err) {
-          console.error(`❌ Erro ao transcrever vídeo para ${contactId}:`, err);
+          console.error(`❌ Erro ao processar vídeo para ${contactId}:`, err);
           await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
       }
   }

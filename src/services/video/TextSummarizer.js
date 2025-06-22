@@ -1,5 +1,4 @@
 import { SummarizerManager } from 'node-summarizer';
-import SummaryTool from 'node-summary';
 
 export default class TextSummarizer {
   constructor(options = {}) {
@@ -55,12 +54,4 @@ export default class TextSummarizer {
     return combined.slice(0, sentences).join('. ') + '.';
   }
 
-  summarizeWithNodeSummary(title, text) {
-    return new Promise((resolve, reject) => {
-      SummaryTool.summarize(title, text, (err, summary) => {
-        if (err) return reject(err);
-        resolve(summary);
-      });
-    });
-  }
 }

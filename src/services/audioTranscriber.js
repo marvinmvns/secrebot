@@ -1,11 +1,17 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { Readable } from 'stream';
+import os from 'os';
 import { nodewhisper } from 'nodejs-whisper';
 import ffmpeg from 'fluent-ffmpeg';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, __dirname } from '../config/index.js'; // Ajustar caminho se necessário
 import JobQueue from './jobQueue.js';
+
+// Ajuste automático de threads para o Whisper
+const cpuCount = os.cpus().length || 1;
+process.env.OMP_NUM_THREADS = String(cpuCount);
+process.env.MKL_NUM_THREADS = String(cpuCount);
 
 // ============ Transcritor de Áudio ============
 class AudioTranscriber {
@@ -27,6 +33,7 @@ class AudioTranscriber {
 
   async transcribe(audioBuffer, mimeType = null) {
     return this.queue.add(async () => {
+      const start = Date.now();
       console.log('🎤 Iniciando transcrição de áudio...');
       const timestamp = Date.now();
       const tempOutputPath = path.join(__dirname, `audio_${timestamp}.wav`);
@@ -67,12 +74,13 @@ class AudioTranscriber {
       
       const transcriptionPath = `${tempOutputPath}.txt`;
       const transcription = await fs.readFile(transcriptionPath, 'utf8');
+      const duration = ((Date.now() - start) / 1000).toFixed(2);
       
       // Usa o método estático de Utils para limpar arquivos
       await Utils.cleanupFile(tempOutputPath);
       await Utils.cleanupFile(transcriptionPath);
       
-      console.log('✅ Transcrição concluída.');
+      console.log(`✅ Transcrição concluída em ${duration}s`);
       return transcription.trim();
     } catch (err) {
       console.error('❌ Erro na transcrição de áudio:', err);

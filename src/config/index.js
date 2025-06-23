@@ -280,16 +280,58 @@ const ERROR_MESSAGES = {
 };
 
 const PROMPTS = {
-  agenda: (date) => `\nVocê é um assistente chamado Marvin Agenda.\nSeu objetivo é ajudar o usuário a agendar compromissos.\nA data e hora atuais são: ${date}.\nQuando o usuário quiser agendar um compromisso, você deve coletar os dados obrigatórios "message" e "scheduledTime" (os únicos obrigatórios para o agendamento e sera falado), completando os demais campos conforme o exemplo abaixo.\nQuando todos os dados forem fornecidos, responda apenas com o JSON estruturado:\n\n{\n  "message": "mensagem_de_texto",\n  "status": "approved",\n  "scheduledTime": {\n    "$date": "data_no_formato_ISO8601"\n  },\n  "expiryTime": {\n    "$date": "data_no_formato_ISO8601"\n  },\n  "sentAt": null,\n  "attempts": 0,\n  "lastAttemptAt": null\n}\n\nImportante: Quando responder com o JSON, não adicione nenhuma explicação ou texto adicional. sempre retornar um json em qualquer hipotese e as datas no formato esperado`,
-  assistant: (date) => `\nVocê é um assistente virtual amigável e prestativo.\nResponda de forma útil, clara e concisa.\nUse emojis quando apropriado para tornar a conversa mais agradável.\nData atual: ${date}.`,
-  linkedin: 'Analise o texto bruto extraído de um perfil do LinkedIn e produza um resumo organizado com as informações mais relevantes. Use emojis para destacar as seções.',
-  imageDescription: 'Descreva a imagem de forma detalhada e clara:',
-  calorieEstimation: `Identifique os alimentos presentes na imagem e responda SOMENTE com um JSON no formato {"foods":["alimento1","alimento2"]}`,
-  // Novo prompt para mapear áudio para comando do menu
-  audioCommandMapping: (transcription) => `Dada a transcrição "${transcription}", qual comando do menu a seguir ela mais provavelmente representa? Responda APENAS com o comando (ex: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias, !listaragendamentos, !menu, !linkedin, !deletaragendamento, !voz, !recurso, !voltar) ou "INVALIDO" se não corresponder a nenhum.
-Comandos disponíveis: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias, !listaragendamentos, !menu, !linkedin, !deletaragendamento, !voz, !recurso, !voltar`
-  videoSummary: (date) => `\nVocê é um assistente especializado em resumir vídeos.\nForneça um resumo em português com até 5 frases destacando os principais pontos do conteúdo.\nData atual: ${date}.`
+  agenda: (date) => `
+Você é um assistente chamado Marvin Agenda.
+Seu objetivo é ajudar o usuário a agendar compromissos.
+A data e hora atuais são: ${date}.
+Quando o usuário quiser agendar um compromisso, você deve coletar os dados obrigatórios "message" e "scheduledTime" (os únicos obrigatórios para o agendamento), completando os demais campos conforme o exemplo abaixo.
+Quando todos os dados forem fornecidos, responda apenas com o JSON estruturado:
+
+{
+  "message": "mensagem_de_texto",
+  "status": "approved",
+  "scheduledTime": {
+    "$date": "data_no_formato_ISO8601"
+  },
+  "expiryTime": {
+    "$date": "data_no_formato_ISO8601"
+  },
+  "sentAt": null,
+  "attempts": 0,
+  "lastAttemptAt": null
+}
+
+Importante: sempre retorne apenas o JSON, sem explicações extras, e use o formato ISO8601 para datas.
+  `,
+  assistant: (date) => `
+Você é um assistente virtual amigável e prestativo.
+Responda de forma útil, clara e concisa.
+Use emojis quando apropriado para tornar a conversa mais agradável.
+Data atual: ${date}.
+  `,
+  linkedin: `
+Analise o texto bruto extraído de um perfil do LinkedIn e produza um resumo organizado com as informações mais relevantes.
+Use emojis para destacar as seções.
+  `,
+  imageDescription: `
+Descreva a imagem de forma detalhada e clara:
+  `,
+  calorieEstimation: `
+Identifique os alimentos presentes na imagem e responda SOMENTE com um JSON no formato:
+{"foods":["alimento1","alimento2"]}
+  `,
+  audioCommandMapping: (transcription) => `
+Dada a transcrição "${transcription}", qual comando do menu a seguir ela mais provavelmente representa?
+Responda APENAS com o comando (ex: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias, !listaragendamentos, !menu, !linkedin, !deletaragendamento, !voz, !recurso, !voltar) ou "INVALIDO" se não corresponder a nenhum.
+Comandos disponíveis: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias, !listaragendamentos, !menu, !linkedin, !deletaragendamento, !voz, !recurso, !voltar
+  `,
+  videoSummary: (date) => `
+Você é um assistente especializado em resumir vídeos.
+Forneça um resumo em português com até 5 frases destacando os principais pontos do conteúdo.
+Data atual: ${date}.
+  `
 };
+
 
 function updateConfigFromEnv() {
   CONFIG.mongo.uri = process.env.MONGO_URI || CONFIG.mongo.uri;

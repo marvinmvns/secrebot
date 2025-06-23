@@ -223,6 +223,7 @@ Envie `!menu` ou use os atalhos numéricos:
 | `!resumir` | 1️⃣2️⃣ | Resumir textos ou arquivos |
 | `!importaragenda` | 1️⃣3️⃣ | Importar eventos do Calendar |
 | `!resumirvideo <URL>` | 1️⃣4️⃣ | Resumir vídeos do YouTube |
+| `!acompanharfeedresumido <link>` | 1️⃣5️⃣ | Seguir canal e resumir vídeos |
 | `!voltar` | 0️⃣ | Retornar ao menu principal |
 
 ### Exemplos de Uso

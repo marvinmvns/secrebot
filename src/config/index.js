@@ -188,6 +188,7 @@ const COMMANDS = {
   RECURSO: "!recurso",
   RESUMIR: '!resumir',
   RESUMIRVIDEO: '!resumirvideo',
+  ACOMPANHAR_FEED: '!acompanharfeedresumido',
   IMPORTAR_AGENDA: '!importaragenda',
   VOLTAR: '!voltar'
 };
@@ -208,6 +209,7 @@ const NUMERIC_SHORTCUTS = {
   '12': COMMANDS.RESUMIR,
   '13': COMMANDS.IMPORTAR_AGENDA,
   '14': COMMANDS.RESUMIRVIDEO,
+  '15': COMMANDS.ACOMPANHAR_FEED,
   '0': COMMANDS.VOLTAR
 };
 
@@ -235,6 +237,7 @@ const MENU_MESSAGE = `🤖 *Bem-vindo!* Escolha uma opção:\n\n1️⃣ ${COMMAN
 1️⃣2️⃣ ${COMMANDS.RESUMIR} - Resumir texto/arquivo
 1️⃣3️⃣ ${COMMANDS.IMPORTAR_AGENDA} - Importar eventos
 1️⃣4️⃣ ${COMMANDS.RESUMIRVIDEO} - Resumir vídeo do YouTube
+1️⃣5️⃣ ${COMMANDS.ACOMPANHAR_FEED} - Seguir canal do YouTube
 0️⃣ ${COMMANDS.VOLTAR} - Voltar`;
 
 const MODE_MESSAGES = {

@@ -52,6 +52,21 @@ export default class VideoProcessor {
     };
   }
 
+  async transcribeVideo(url, options = {}) {
+    const config = { ...this.defaultOptions, ...options };
+    await this.ensureTempDir();
+    const metadata = await this.getVideoMetadata(url);
+    const text = await this.transcribeWithWhisper(url, config);
+    return {
+      metadata: {
+        title: metadata.title,
+        duration: metadata.duration,
+        url
+      },
+      transcription: this.cleanText(text)
+    };
+  }
+
   async ensureTempDir() {
     await fs.mkdir(this.tempDir, { recursive: true });
   }

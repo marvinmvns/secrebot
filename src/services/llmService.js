@@ -64,6 +64,11 @@ class LLMService {
     return this.chat(contactId, text, CHAT_MODES.ASSISTANT, PROMPTS.assistant(date));
   }
 
+  async getVideoSummary(contactId, text) {
+    const date = Utils.getCurrentDateInGMTMinus3().toISOString();
+    return this.chat(contactId, text, CHAT_MODES.ASSISTANT, PROMPTS.videoSummary(date));
+  }
+
   async getAssistantResponseLinkedin(contactId, url, liAt) {
     try {
       const data = await fetchProfileRaw(url, {

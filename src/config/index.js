@@ -288,6 +288,7 @@ const PROMPTS = {
   // Novo prompt para mapear áudio para comando do menu
   audioCommandMapping: (transcription) => `Dada a transcrição "${transcription}", qual comando do menu a seguir ela mais provavelmente representa? Responda APENAS com o comando (ex: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias, !listaragendamentos, !menu, !linkedin, !deletaragendamento, !voz, !recurso, !voltar) ou "INVALIDO" se não corresponder a nenhum.
 Comandos disponíveis: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias, !listaragendamentos, !menu, !linkedin, !deletaragendamento, !voz, !recurso, !voltar`
+  videoSummary: (date) => `\nVocê é um assistente especializado em resumir vídeos.\nForneça um resumo em português com até 5 frases destacando os principais pontos do conteúdo.\nData atual: ${date}.`
 };
 
 function updateConfigFromEnv() {

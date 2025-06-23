@@ -224,6 +224,8 @@ Envie `!menu` ou use os atalhos numéricos:
 | `!importaragenda` | 1️⃣3️⃣ | Importar eventos do Calendar |
 | `!resumirvideo <URL>` | 1️⃣4️⃣ | Resumir vídeos do YouTube |
 | `!acompanharfeedresumido <link>` | 1️⃣5️⃣ | Seguir canal e resumir vídeos |
+| `!listaracompanhamentofeed` | 1️⃣6️⃣ | Listar canais seguidos |
+| `!removeracompanhamentofeed <id>` | 1️⃣7️⃣ | Cancelar acompanhamento |
 | `!voltar` | 0️⃣ | Retornar ao menu principal |
 
 ### Exemplos de Uso
@@ -262,6 +264,20 @@ Content-Type: application/json
 ```http
 GET /health
 # Retorna status da aplicação
+```
+
+#### Feeds
+
+```http
+POST /api/feeds
+```
+
+```http
+GET /api/feeds?phone=5511999999999
+```
+
+```http
+DELETE /api/feeds/UCxxxx?phone=5511999999999
 ```
 
 ### Endpoints da Interface Web
@@ -318,6 +334,28 @@ GET /health
 // Criados automaticamente na inicialização
 { recipient: 1, status: 1 }
 { scheduledTime: 1, status: 1, sentAt: 1 }
+```
+
+### Coleção feedSubscriptions
+```json
+{
+  "_id": "ObjectId",
+  "phone": "5511999999999",
+  "channelId": "UCxxxx",
+  "addedAt": "2024-01-01T00:00:00Z",
+  "lastChecked": "2024-01-01T01:00:00Z",
+  "queueKey": null
+}
+```
+
+### Coleção feedItems
+```json
+{
+  "_id": "videoId",
+  "channelId": "UCxxxx",
+  "published": "2024-01-01T02:00:00Z",
+  "summaryStatus": "pending"
+}
 ```
 
 ## 📁 Estrutura do Projeto

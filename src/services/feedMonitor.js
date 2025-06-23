@@ -55,6 +55,18 @@ export default class FeedMonitor {
     return channelId;
   }
 
+  async listSubscriptions(contactId) {
+    const phone = contactId.replace(/\D/g, '');
+    const subs = await this.subs.find({ phone }).toArray();
+    return subs.map(s => s.channelId);
+  }
+
+  async removeSubscription(contactId, channelId) {
+    const phone = contactId.replace(/\D/g, '');
+    const res = await this.subs.deleteOne({ phone, channelId });
+    return res.deletedCount > 0;
+  }
+
   async checkFeeds() {
     const threshold = new Date(Date.now() - 60 * 60 * 1000);
     const subs = await this.subs.find({

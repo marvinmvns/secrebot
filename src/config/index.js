@@ -189,6 +189,8 @@ const COMMANDS = {
   RESUMIR: '!resumir',
   RESUMIRVIDEO: '!resumirvideo',
   ACOMPANHAR_FEED: '!acompanharfeedresumido',
+  LISTAR_FEEDS: '!listaracompanhamentofeed',
+  REMOVER_FEED: '!removeracompanhamentofeed',
   IMPORTAR_AGENDA: '!importaragenda',
   VOLTAR: '!voltar'
 };
@@ -210,6 +212,8 @@ const NUMERIC_SHORTCUTS = {
   '13': COMMANDS.IMPORTAR_AGENDA,
   '14': COMMANDS.RESUMIRVIDEO,
   '15': COMMANDS.ACOMPANHAR_FEED,
+  '16': COMMANDS.LISTAR_FEEDS,
+  '17': COMMANDS.REMOVER_FEED,
   '0': COMMANDS.VOLTAR
 };
 
@@ -238,6 +242,8 @@ const MENU_MESSAGE = `🤖 *Bem-vindo!* Escolha uma opção:\n\n1️⃣ ${COMMAN
 1️⃣3️⃣ ${COMMANDS.IMPORTAR_AGENDA} - Importar eventos
 1️⃣4️⃣ ${COMMANDS.RESUMIRVIDEO} - Resumir vídeo do YouTube
 1️⃣5️⃣ ${COMMANDS.ACOMPANHAR_FEED} - Seguir canal do YouTube
+1️⃣6️⃣ ${COMMANDS.LISTAR_FEEDS} - Listar canais acompanhados
+1️⃣7️⃣ ${COMMANDS.REMOVER_FEED} <id> - Parar de acompanhar
 0️⃣ ${COMMANDS.VOLTAR} - Voltar`;
 
 const MODE_MESSAGES = {
@@ -262,7 +268,9 @@ const SUCCESS_MESSAGES = {
   VOICE_ENABLED: `🗣️ Respostas por voz *ativadas*! Usarei áudio para responder sempre que possível.
 🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
   VOICE_DISABLED: `💬 Respostas por voz *desativadas*! Usarei apenas texto para responder.
-🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`
+🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
+  FEED_ADDED: (id) => `✅ Canal ${id} adicionado com sucesso.`,
+  FEED_REMOVED: (id) => `✅ Canal ${id} removido com sucesso.`
 };
 
 const ERROR_MESSAGES = {
@@ -279,7 +287,9 @@ const ERROR_MESSAGES = {
   UNSUPPORTED_FILE: `📎 *Tipo de arquivo não suportado!*\n\nUse apenas PDF, TXT, DOCX ou CSV.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
   // Novo erro para falha no TTS
   TTS_FAILED: `🔇 Desculpe, não consegui gerar a resposta em áudio. Enviando em texto.
-🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`
+🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
+  NO_FEEDS: `📭 Você não acompanha nenhum canal.`,
+  FEED_NOT_FOUND: `❌ Canal não encontrado.`
 };
 
 const PROMPTS = {

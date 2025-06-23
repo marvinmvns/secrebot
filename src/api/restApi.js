@@ -91,6 +91,45 @@ class RestAPI {
       });
     });
 
+    // ----- Feed subscription endpoints -----
+    this.app.post('/api/feeds', async (req, res) => {
+      const { phone, link } = req.body;
+      if (!phone || !link) return res.status(400).json({ error: 'phone e link obrigatórios' });
+      try {
+        const channelId = await this.bot.feedMonitor.addSubscription(Utils.formatRecipientId(phone), link);
+        res.json({ success: true, channelId });
+      } catch (err) {
+        console.error('API feed add erro:', err);
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    this.app.get('/api/feeds', async (req, res) => {
+      const { phone } = req.query;
+      if (!phone) return res.status(400).json({ error: 'phone obrigatório' });
+      try {
+        const list = await this.bot.feedMonitor.listSubscriptions(Utils.formatRecipientId(phone));
+        res.json({ feeds: list });
+      } catch (err) {
+        console.error('API feed list erro:', err);
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    this.app.delete('/api/feeds/:channelId', async (req, res) => {
+      const { phone } = req.query;
+      const { channelId } = req.params;
+      if (!phone || !channelId) return res.status(400).json({ error: 'phone e channelId obrigatórios' });
+      try {
+        const ok = await this.bot.feedMonitor.removeSubscription(Utils.formatRecipientId(phone), channelId);
+        if (ok) res.json({ success: true });
+        else res.status(404).json({ error: 'not found' });
+      } catch (err) {
+        console.error('API feed delete erro:', err);
+        res.status(500).json({ error: err.message });
+      }
+    });
+
 
     // ===== Scheduler UI Routes =====
     const schedCollection = this.bot.getScheduler().schedCollection;

@@ -283,6 +283,8 @@ class WhatsAppBot {
           [COMMANDS.RESUMIR]: () => this.handleResumirCommand(msg, contactId),
           [COMMANDS.RESUMIRVIDEO]: () => this.handleResumirVideoCommand(msg, contactId),
           [COMMANDS.ACOMPANHAR_FEED]: () => this.handleAcompanharFeedCommand(msg, contactId),
+          [COMMANDS.LISTAR_FEEDS]: () => this.handleListarFeedsCommand(contactId),
+          [COMMANDS.REMOVER_FEED]: () => this.handleRemoverFeedCommand(msg, contactId),
           [COMMANDS.IMPORTAR_AGENDA]: () => this.handleImportarAgendaCommand(msg, contactId),
           [COMMANDS.FOTO]: async () => {
               await this.sendResponse(contactId, ERROR_MESSAGES.IMAGE_REQUIRED);
@@ -589,6 +591,48 @@ async handleRecursoCommand(contactId) {
           await this.sendResponse(contactId, `✅ Canal ${channelId} adicionado com sucesso.`);
       } catch (err) {
           console.error('Erro ao adicionar feed:', err);
+          await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+      }
+  }
+
+  async handleListarFeedsCommand(contactId) {
+      if (!this.feedMonitor) {
+          await this.sendErrorMessage(contactId, 'Função indisponível.');
+          return;
+      }
+      try {
+          const channels = await this.feedMonitor.listSubscriptions(contactId);
+          if (!channels.length) {
+              await this.sendResponse(contactId, ERROR_MESSAGES.NO_FEEDS);
+          } else {
+              const list = channels.map(c => `🔔 ${c}`).join('\n');
+              await this.sendResponse(contactId, `📋 Canais acompanhados:\n${list}`);
+          }
+      } catch (err) {
+          console.error('Erro ao listar feeds:', err);
+          await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+      }
+  }
+
+  async handleRemoverFeedCommand(msg, contactId) {
+      if (!this.feedMonitor) {
+          await this.sendErrorMessage(contactId, 'Função indisponível.');
+          return;
+      }
+      const channelId = msg.body.substring(COMMANDS.REMOVER_FEED.length).trim();
+      if (!channelId) {
+          await this.sendResponse(contactId, '❌ Informe o channelId que deseja remover.');
+          return;
+      }
+      try {
+          const removed = await this.feedMonitor.removeSubscription(contactId, channelId);
+          if (removed) {
+              await this.sendResponse(contactId, SUCCESS_MESSAGES.FEED_REMOVED(channelId));
+          } else {
+              await this.sendResponse(contactId, ERROR_MESSAGES.FEED_NOT_FOUND);
+          }
+      } catch (err) {
+          console.error('Erro ao remover feed:', err);
           await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
       }
   }

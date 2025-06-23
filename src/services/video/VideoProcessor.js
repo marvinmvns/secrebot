@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import {YTDlpWrap} from 'yt-dlp-wrap';
+import YTDlpWrap from 'yt-dlp-wrap';
 import SubtitleProcessor from './SubtitleProcessor.js';
 import TextSummarizer from './TextSummarizer.js';
 import AudioTranscriber from '../audioTranscriber.js';

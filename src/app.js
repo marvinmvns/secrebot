@@ -41,6 +41,7 @@ async function main() {
     const bot = new WhatsAppBot(scheduler, llmService, transcriber, ttsService);
     const feedMonitor = new FeedMonitor(scheduler.db, bot, llmService);
     bot.setFeedMonitor(feedMonitor);
+    await feedMonitor.init();
     await bot.initialize(); // Inicializar cliente WhatsApp
     feedMonitor.start();
 

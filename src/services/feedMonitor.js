@@ -7,6 +7,7 @@ import { CONFIG } from '../config/index.js';
 
 export default class FeedMonitor {
   constructor(db, bot, llmService) {
+    this.db = db;
     this.subs = db.collection('feedSubscriptions');
     this.items = db.collection('feedItems');
     this.bot = bot;
@@ -14,6 +15,26 @@ export default class FeedMonitor {
     this.videoProcessor = bot.videoProcessor || new VideoProcessor({ transcriber: bot.transcriber });
     this.ytdlp = new YTDlpWrap();
     this.queue = new JobQueue(CONFIG.queues.whisperConcurrency, CONFIG.queues.memoryThresholdGB);
+  }
+
+  async collectionExists(name) {
+    const cols = await this.db.listCollections({ name }).toArray();
+    return cols.length > 0;
+  }
+
+  async ensureCollections() {
+    if (!(await this.collectionExists('feedSubscriptions'))) {
+      await this.db.createCollection('feedSubscriptions');
+    }
+    if (!(await this.collectionExists('feedItems'))) {
+      await this.db.createCollection('feedItems');
+    }
+  }
+
+  async init() {
+    await this.ensureCollections();
+    await this.subs.createIndex({ phone: 1, channelId: 1 }, { unique: true });
+    await this.items.createIndex({ channelId: 1, published: 1 });
   }
 
   start() {
@@ -27,6 +48,17 @@ export default class FeedMonitor {
       return info.channel_id || info.uploader_id || null;
     } catch (err) {
       console.error('FeedMonitor: erro ao obter channel_id', err);
+      return this.parseChannelIdFromUrl(url);
+    }
+  }
+
+  parseChannelIdFromUrl(url) {
+    try {
+      const u = new URL(url);
+      const channelMatch = u.pathname.match(/\/channel\/([\w-]+)/);
+      if (channelMatch) return channelMatch[1];
+      return null;
+    } catch {
       return null;
     }
   }

@@ -334,6 +334,11 @@ DELETE /api/feeds/UCxxxx?phone=5511999999999
 // Criados automaticamente na inicialização
 { recipient: 1, status: 1 }
 { scheduledTime: 1, status: 1, sentAt: 1 }
+// Índices do acompanhamento de feeds
+{ phone: 1, channelId: 1 } // feedSubscriptions
+{ channelId: 1, published: 1 } // feedItems
+// As coleções feedSubscriptions e feedItems são criadas automaticamente
+// na primeira execução do monitor de feeds
 ```
 
 ### Coleção feedSubscriptions

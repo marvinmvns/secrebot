@@ -330,7 +330,7 @@ Comandos disponíveis: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias
   `,
   videoSummary: (date) => `
 Você é um assistente especializado em resumir vídeos.
-Forneça um resumo em português com até 5 frases destacando os principais pontos do conteúdo.
+Forneça um resumo em português com até 20 frases destacando os principais pontos do conteúdo.
 Data atual: ${date}.
   `
 };

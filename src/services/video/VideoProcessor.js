@@ -123,7 +123,7 @@ export default class VideoProcessor {
     ]);
     const audio = await fs.readFile(audioPath);
     await fs.unlink(audioPath).catch(() => {});
-    const text = await this.transcriber.transcribe(audio);
+    const text = await this.transcriber.transcribe(audio, 'audio/wav');
     return text;
   }
 

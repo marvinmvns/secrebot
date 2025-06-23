@@ -720,7 +720,8 @@ async handleRecursoCommand(contactId) {
     try {
       await this.sendResponse(contactId, '🎤 Transcrevendo áudio...', true);
       const transcription = await this.transcriber.transcribe(
-        Buffer.from(media.data, 'base64')
+        Buffer.from(media.data, 'base64'),
+        media.mimetype
       );
       console.log(`📝 Transcrição para ${contactId}: ${transcription}`);
       if (currentMode === CHAT_MODES.TRANSCRICAO) {

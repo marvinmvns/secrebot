@@ -235,7 +235,10 @@ class RestAPI {
     this.app.post('/transcribe', upload.single('audio'), async (req, res) => {
       if (!req.file) return res.render('transcribe', { result: 'Nenhum arquivo enviado.' });
       try {
-        const text = await this.bot.transcriber.transcribe(req.file.buffer);
+        const text = await this.bot.transcriber.transcribe(
+          req.file.buffer,
+          req.file.mimetype
+        );
         res.render('transcribe', { result: text });
       } catch (err) {
         console.error('Erro em /transcribe:', err);

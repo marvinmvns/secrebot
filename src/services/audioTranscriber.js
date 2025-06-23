@@ -16,7 +16,16 @@ class AudioTranscriber {
     );
   }
 
-  async transcribe(audioBuffer) {
+  #formatFromMime(mime) {
+    if (!mime) return null;
+    if (mime.includes('ogg')) return 'ogg';
+    if (mime.includes('wav')) return 'wav';
+    if (mime.includes('mpeg')) return 'mp3';
+    if (mime.includes('mp4')) return 'mp4';
+    return null;
+  }
+
+  async transcribe(audioBuffer, mimeType = null) {
     return this.queue.add(async () => {
       console.log('🎤 Iniciando transcrição de áudio...');
       const timestamp = Date.now();
@@ -25,8 +34,12 @@ class AudioTranscriber {
       try {
         await new Promise((resolve, reject) => {
           const inputStream = Readable.from(audioBuffer);
-          ffmpeg(inputStream)
-            .inputFormat('ogg')
+          let command = ffmpeg(inputStream);
+          const format = this.#formatFromMime(mimeType);
+          if (format) {
+            command = command.inputFormat(format);
+          }
+          command
             .outputOptions(`-ar ${CONFIG.audio.sampleRate}`)
             .toFormat('wav')
             .on('error', (err) => {

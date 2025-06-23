@@ -47,6 +47,7 @@ class WhatsAppBot {
     this.linkedinSessions = new Map(); // contato -> li_at
     this.awaitingLinkedinCreds = new Map();
     this.videoProcessor = new VideoProcessor({ transcriber });
+    this.feedMonitor = null;
     this.client = new Client({
       authStrategy: new LocalAuth(),
       puppeteer: {
@@ -63,6 +64,10 @@ class WhatsAppBot {
 
   getScheduler() {
     return this.scheduler;
+  }
+
+  setFeedMonitor(feedMonitor) {
+    this.feedMonitor = feedMonitor;
   }
 
   // --- Métodos de Preferência do Usuário ---
@@ -277,6 +282,7 @@ class WhatsAppBot {
           [COMMANDS.RECURSO]: () => this.handleRecursoCommand(contactId),
           [COMMANDS.RESUMIR]: () => this.handleResumirCommand(msg, contactId),
           [COMMANDS.RESUMIRVIDEO]: () => this.handleResumirVideoCommand(msg, contactId),
+          [COMMANDS.ACOMPANHAR_FEED]: () => this.handleAcompanharFeedCommand(msg, contactId),
           [COMMANDS.IMPORTAR_AGENDA]: () => this.handleImportarAgendaCommand(msg, contactId),
           [COMMANDS.FOTO]: async () => {
               await this.sendResponse(contactId, ERROR_MESSAGES.IMAGE_REQUIRED);
@@ -564,6 +570,25 @@ async handleRecursoCommand(contactId) {
           await this.sendResponse(contactId, `📝 *Resumo:*\n${summary}`);
       } catch (err) {
           console.error(`❌ Erro ao processar vídeo para ${contactId}:`, err);
+          await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+      }
+  }
+
+  async handleAcompanharFeedCommand(msg, contactId) {
+      if (!this.feedMonitor) {
+          await this.sendErrorMessage(contactId, 'Função indisponível.');
+          return;
+      }
+      const link = msg.body.substring(COMMANDS.ACOMPANHAR_FEED.length).trim();
+      if (!link) {
+          await this.sendResponse(contactId, '🔗 Envie o link do canal do YouTube.');
+          return;
+      }
+      try {
+          const channelId = await this.feedMonitor.addSubscription(contactId, link);
+          await this.sendResponse(contactId, `✅ Canal ${channelId} adicionado com sucesso.`);
+      } catch (err) {
+          console.error('Erro ao adicionar feed:', err);
           await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
       }
   }

@@ -5,6 +5,7 @@ import TtsService from './services/ttsService.js'; // Importar o novo serviço T
 import WhatsAppBot from './core/whatsAppBot.js';
 import RestAPI from './api/restApi.js';
 import ConfigService from './services/configService.js';
+import FeedMonitor from './services/feedMonitor.js';
 import { applyConfig } from './config/index.js';
 
 let scheduler;
@@ -38,7 +39,10 @@ async function main() {
     // Inicializar bot, passando todos os serviços
     console.log('🤖 Inicializando WhatsApp Bot...');
     const bot = new WhatsAppBot(scheduler, llmService, transcriber, ttsService);
+    const feedMonitor = new FeedMonitor(scheduler.db, bot, llmService);
+    bot.setFeedMonitor(feedMonitor);
     await bot.initialize(); // Inicializar cliente WhatsApp
+    feedMonitor.start();
 
     // Inicializar API REST
     console.log('🌐 Inicializando API REST...');

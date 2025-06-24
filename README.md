@@ -87,6 +87,7 @@ pip3 install yt-dlp --break-system-packages
 ```
 O caminho padrão utilizado pelo bot é `/usr/bin/yt-dlp`. Caso o executável esteja
 em outro local, defina a variável de ambiente `YTDLP_PATH` com o caminho correto.
+Para saídas muito grandes, é possível ajustar o buffer padrão definindo `YTDLP_MAX_BUFFER_MB` (padrão 10).
 
 
 ### 4. Configure o Whisper

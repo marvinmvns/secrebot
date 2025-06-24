@@ -17,6 +17,9 @@ export async function getVideoInfoCli(url, binaryPath = '/usr/bin/yt-dlp') {
     throw new Error('yt-dlp not found');
   }
 
-  const { stdout } = await execFileAsync(binaryPath, [url, '--dump-json']);
+  const maxBufferMb = parseInt(process.env.YTDLP_MAX_BUFFER_MB || '10', 10);
+  const { stdout } = await execFileAsync(binaryPath, [url, '--dump-json'], {
+    maxBuffer: maxBufferMb * 1024 * 1024
+  });
   return JSON.parse(stdout);
 }

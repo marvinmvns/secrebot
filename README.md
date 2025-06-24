@@ -125,8 +125,21 @@ ollama serve
 
 ## ⚙️ Configuração
 
-### Variáveis de Ambiente
-Crie um arquivo `.env` na raiz do projeto:
+### 1. Inicialize o banco
+Execute o script de criação das coleções:
+
+```bash
+npm run setup
+```
+
+### 2. (Opcional) Importe um `.env`
+Edite o arquivo `.env` (use `.env.example` como modelo) e depois rode:
+
+```bash
+npm run migrate
+```
+
+As variáveis serão gravadas na coleção `config`. O aplicativo não lê o `.env` em tempo de execução.
 
 ```bash
 # 🔧 Configurações Básicas
@@ -308,7 +321,7 @@ DELETE /api/feeds/UCxxxx?phone=5511999999999
 ### ⚙️ Configurações
 - **Rota**: `/config`
 - **Recursos**:
-  - Edição de variáveis do `.env`
+  - Edição das configurações salvas
   - Reinicialização automática
   - Validação de configurações
 

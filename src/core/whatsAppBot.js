@@ -578,18 +578,22 @@ async handleRecursoCommand(contactId) {
 
   async handleAcompanharFeedCommand(msg, contactId) {
       if (!this.feedMonitor) {
+          console.error(`❌ entrou 1  ${contactId}:`, err);
           await this.sendErrorMessage(contactId, 'Função indisponível.');
           return;
       }
       const link = msg.body.substring(COMMANDS.ACOMPANHAR_FEED.length).trim();
       if (!link) {
+         console.error(`❌ entrou 2  ${contactId}:`, err);
           await this.sendResponse(contactId, '🔗 Envie o link do canal do YouTube.');
           return;
       }
       try {
+          console.error(`❌ entrou 3  ${contactId}:`, err);
           const channelId = await this.feedMonitor.addSubscription(contactId, link);
           await this.sendResponse(contactId, `✅ Canal ${channelId} adicionado com sucesso.`);
       } catch (err) {
+          console.error(`❌ entrou 4  ${contactId}:`, err);
           console.error('Erro ao adicionar feed:', err);
           await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
       }

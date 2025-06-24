@@ -127,7 +127,6 @@ const CONFIG_DESCRIPTIONS = {
 };
 
 const CONFIG_ENV_MAP = {
-  'mongo.uri': 'MONGO_URI',
   'server.port': 'PORT',
   'scheduler.interval': 'SCHED_INTERVAL',
   'scheduler.maxAttempts': 'SCHED_MAX_ATTEMPTS',
@@ -344,7 +343,6 @@ Data atual: ${date}.
 
 
 function updateConfigFromEnv() {
-  CONFIG.mongo.uri = process.env.MONGO_URI || CONFIG.mongo.uri;
   CONFIG.server.port = process.env.PORT || CONFIG.server.port;
 
   CONFIG.scheduler.interval = parseInt(process.env.SCHED_INTERVAL || CONFIG.scheduler.interval, 10);

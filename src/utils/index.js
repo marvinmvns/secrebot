@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { encode } from 'gpt-3-encoder';
 import { CONFIG, COMMANDS } from '../config/index.js'; // Ajustar caminho se necessário
+import { debugGetVideoInfo } from './debugYtdlp.js';
 
 // ============ Classe de Utilitários ============
 class Utils {
@@ -88,6 +89,11 @@ class Utils {
     return lower === COMMANDS.VOLTAR || lower === '0' || lower === 'voltar';
   }
 
+  static async debugGetVideoInfo(url, binaryPath = 'yt-dlp') {
+    return debugGetVideoInfo(url, binaryPath);
+  }
+
 }
 
 export default Utils;
+export { debugGetVideoInfo } from './debugYtdlp.js';

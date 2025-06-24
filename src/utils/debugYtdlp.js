@@ -7,7 +7,7 @@ import { access } from 'fs/promises';
  * @param {string} url - Video URL to query.
  * @param {string} [binaryPath='/usr/bin/yt-dlp'] - Path to the yt-dlp executable.
  */
-export async function debugGetVideoInfo(url, binaryPath = 'yt-dlp') {
+export async function debugGetVideoInfo(url, binaryPath = '/usr/bin/yt-dlp') {
   try {
     await access(binaryPath);
   } catch {

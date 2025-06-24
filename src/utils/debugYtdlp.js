@@ -5,7 +5,7 @@ import { access } from 'fs/promises';
  * Execute yt-dlp with verbose output and return stdout as string.
  * Logs executed command and any stderr output for easier debugging.
  * @param {string} url - Video URL to query.
- * @param {string} [binaryPath='yt-dlp'] - Path to the yt-dlp executable.
+ * @param {string} [binaryPath='/usr/bin/yt-dlp'] - Path to the yt-dlp executable.
  */
 export async function debugGetVideoInfo(url, binaryPath = 'yt-dlp') {
   try {

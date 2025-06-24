@@ -1,6 +1,7 @@
 import { execFile } from 'child_process';
 import { access } from 'fs/promises';
 import { promisify } from 'util';
+import { CONFIG } from '../config/index.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -17,7 +18,7 @@ export async function getVideoInfoCli(url, binaryPath = '/usr/bin/yt-dlp') {
     throw new Error('yt-dlp not found');
   }
 
-  const maxBufferMb = parseInt(process.env.YTDLP_MAX_BUFFER_MB || '10', 10);
+  const maxBufferMb = CONFIG.video.maxBufferMb;
   const { stdout } = await execFileAsync(binaryPath, [url, '--dump-json'], {
     maxBuffer: maxBufferMb * 1024 * 1024
   });

@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { encode } from 'gpt-3-encoder';
 import { CONFIG, COMMANDS } from '../config/index.js'; // Ajustar caminho se necessário
-import { debugGetVideoInfo } from './debugYtdlp.js';
+import { getVideoInfoCli } from './ytdlp.js';
 
 // ============ Classe de Utilitários ============
 class Utils {
@@ -89,11 +89,11 @@ class Utils {
     return lower === COMMANDS.VOLTAR || lower === '0' || lower === 'voltar';
   }
 
-  static async debugGetVideoInfo(url, binaryPath = CONFIG.video.ytdlpPath) {
-    return debugGetVideoInfo(url, binaryPath);
+  static async getVideoInfo(url, binaryPath = CONFIG.video.ytdlpPath) {
+    return getVideoInfoCli(url, binaryPath);
   }
 
 }
 
 export default Utils;
-export { debugGetVideoInfo } from './debugYtdlp.js';
+export { getVideoInfoCli } from './ytdlp.js';

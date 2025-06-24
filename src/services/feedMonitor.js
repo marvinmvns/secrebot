@@ -18,7 +18,7 @@ export default class FeedMonitor {
   }
 
   async collectionExists(name) {
-     console.error(`❌ entrou 4  ${contactId}:`, err);
+     console.error(`❌ entrou 4  `, err);
     const cols = await this.db.listCollections({ name }).toArray();
     return cols.length > 0;
   }

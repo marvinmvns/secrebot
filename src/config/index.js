@@ -3,8 +3,6 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Valor padrão do host do Ollama
-const OLLAMA_HOST = 'http://127.0.0.1:11434';
 
 // ===================== CONFIGURAÇÕES =====================
 const CONFIG = {
@@ -369,7 +367,7 @@ function updateConfigFromEnv() {
   CONFIG.llm.model = process.env.LLM_MODEL || CONFIG.llm.model;
   CONFIG.llm.imageModel = process.env.LLM_IMAGE_MODEL || CONFIG.llm.imageModel;
   CONFIG.llm.maxTokens = parseInt(process.env.LLM_MAX_TOKENS || CONFIG.llm.maxTokens, 10);
-  CONFIG.llm.host = process.env.OLLAMA_HOST || CONFIG.llm.host;
+  CONFIG.llm.host =  CONFIG.llm.host;
   if (process.env.OLLAMA_TIMEOUT_MS) {
     process.env.UNDICI_HEADERS_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
     process.env.UNDICI_BODY_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;

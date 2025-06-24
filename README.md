@@ -128,52 +128,11 @@ ollama serve
 
 ## ⚙️ Configuração
 
-### Variáveis de Ambiente
-Crie um arquivo `.env` na raiz do projeto:
-
-```bash
-# 🔧 Configurações Básicas
-PORT=3000
-MONGO_URI=mongodb://bot:senha@localhost:27017/sched
-
-# 🤖 Ollama/LLM
-OLLAMA_HOST=http://127.0.0.1:11434
-OLLAMA_TIMEOUT_MS=60000
-LLM_CONCURRENCY=2
-
-# 🎤 Audio/TTS
-ELEVENLABS_API_KEY=<sua_chave_elevenlabs>
-ELEVENLABS_VOICE_ID=<voice_id>
-
-# 🎯 TTS Local (Piper) - Opcional
-PIPER_MODEL=/caminho/para/modelo.onnx
-PIPER_EXECUTABLE=/usr/local/bin/piper
-
-# 🧠 Processamento
-WHISPER_CONCURRENCY=1
-QUEUE_MEM_THRESHOLD_GB=4
-DYNAMIC_CONCURRENCY=false
-# Intervalo para checar novos vídeos (ms)
-FEED_CHECK_INTERVAL=1800000
-
-# 📅 Agendamentos
-SCHED_MAX_CONCURRENCY=10
-SCHED_CPU_THRESHOLD=0.7
-SCHED_MEM_THRESHOLD=0.8
-
-# 🔗 Integrações Externas
-CALORIE_API_URL=https://api.api-ninjas.com/v1/nutrition?query=
-CALORIE_API_KEY=<sua_chave_ninjas>
-LINKEDIN_USER=<seu_usuario>
-LINKEDIN_PASS=<sua_senha>
-LINKEDIN_LI_AT=<cookie_li_at>
-LINKEDIN_TIMEOUT_MS=30000
-
-# 📅 Google Calendar
-GOOGLE_CLIENT_ID=<client_id>
-GOOGLE_CLIENT_SECRET=<client_secret>
-GOOGLE_REDIRECT=http://localhost:3000/oauth2callback
-```
+### Armazenamento de Configurações
+Todas as opções de funcionamento são persistidas na coleção `config` do MongoDB.
+Ao iniciar o bot pela primeira vez, esse documento é criado com valores padrão.
+Acesse a rota `/config` na interface web para ajustar as preferências de acordo
+com o seu ambiente.
 
 ### 🗣️ TTS Local com Piper
 
@@ -183,7 +142,7 @@ Para usar TTS local sem depender da ElevenLabs:
 # Instale o Piper
 # Baixe um modelo pt-br de https://github.com/rhasspy/piper
 
-# Configure no .env
+# Defina estes caminhos em `/config`
 PIPER_ENABLED=true
 PIPER_MODEL=/caminho/para/pt-br-voce.onnx
 PIPER_EXECUTABLE=/usr/local/bin/piper
@@ -311,7 +270,7 @@ DELETE /api/feeds/UCxxxx?phone=5511999999999
 ### ⚙️ Configurações
 - **Rota**: `/config`
 - **Recursos**:
-  - Edição de variáveis do `.env`
+  - Edição das configurações salvas no MongoDB
   - Reinicialização automática
   - Validação de configurações
 

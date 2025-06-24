@@ -3,87 +3,81 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Aumenta o tempo limite do Undici caso especificado
-// Ajusta os timeouts do Undici se OLLAMA_TIMEOUT_MS estiver definido
-if (process.env.OLLAMA_TIMEOUT_MS) {
-  process.env.UNDICI_HEADERS_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
-  process.env.UNDICI_BODY_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
-}
-
-const OLLAMA_HOST = process.env.OLLAMA_HOST;
+// Valor padrão do host do Ollama
+const OLLAMA_HOST = 'http://127.0.0.1:11434';
 
 // ===================== CONFIGURAÇÕES =====================
 const CONFIG = {
   mongo: {
-    uri: process.env.MONGO_URI || 'mongodb://admin:admin@127.0.0.1:27017/',
+    uri: 'mongodb://admin:admin@127.0.0.1:27017/',
     dbName: 'sched',
     collectionName: 'schedv2'
   },
   server: {
-    port: process.env.PORT || 3000
+    port: 3000
   },
   scheduler: {
-    interval: parseInt(process.env.SCHED_INTERVAL || '30000', 10),
-    maxAttempts: parseInt(process.env.SCHED_MAX_ATTEMPTS || '3', 10),
-    retryDelay: parseInt(process.env.SCHED_RETRY_DELAY || String(2 * 60 * 60 * 1000), 10),
-    concurrency: parseInt(process.env.SCHED_CONCURRENCY || '5', 10),
+    interval: 30000,
+    maxAttempts: 3,
+    retryDelay: 2 * 60 * 60 * 1000,
+    concurrency: 5,
     dynamic: {
-      enabled: process.env.DYNAMIC_CONCURRENCY === 'true',
-      min: parseInt(process.env.SCHED_DYNAMIC_MIN || '1', 10),
-      max: parseInt(process.env.SCHED_MAX_CONCURRENCY || '10', 10),
-      cpuThreshold: parseFloat(process.env.SCHED_CPU_THRESHOLD || '0.7'),
-      memThreshold: parseFloat(process.env.SCHED_MEM_THRESHOLD || '0.8')
+      enabled: false,
+      min: 1,
+      max: 10,
+      cpuThreshold: 0.7,
+      memThreshold: 0.8
     }
   },
   queues: {
-    llmConcurrency: parseInt(process.env.LLM_CONCURRENCY || '2', 10),
-    whisperConcurrency: parseInt(process.env.WHISPER_CONCURRENCY || '1', 10),
-    memoryThresholdGB: parseInt(process.env.QUEUE_MEM_THRESHOLD_GB || '4', 10),
-    memoryCheckInterval: parseInt(process.env.MEM_CHECK_INTERVAL || '1000', 10)
+    llmConcurrency: 2,
+    whisperConcurrency: 1,
+    memoryThresholdGB: 4,
+    memoryCheckInterval: 1000
   },
   feeds: {
-    checkInterval: parseInt(process.env.FEED_CHECK_INTERVAL || String(30 * 60 * 1000), 10)
+    checkInterval: 30 * 60 * 1000
   },
   llm: {
-    model: process.env.LLM_MODEL || 'granite3.2:latest',
-    imageModel: process.env.LLM_IMAGE_MODEL || 'llava:7b',
-    maxTokens: parseInt(process.env.LLM_MAX_TOKENS || '3000', 10),
+    model: 'granite3.2:latest',
+    imageModel: 'llava:7b',
+    maxTokens: 3000,
     host: OLLAMA_HOST
   },
   audio: {
-    sampleRate: parseInt(process.env.AUDIO_SAMPLE_RATE || '16000', 10),
-    model: process.env.WHISPER_MODEL || 'medium',
-    language: process.env.AUDIO_LANGUAGE || 'pt'
+    sampleRate: 16000,
+    model: 'medium',
+    language: 'pt'
   },
   // Novas configurações para ElevenLabs
   elevenlabs: {
-    apiKey: process.env.ELEVENLABS_API_KEY,
-    voiceId: process.env.ELEVENLABS_VOICE_ID,
-    modelId: process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2',
-    stability: parseFloat(process.env.ELEVENLABS_STABILITY || '0.5'),
-    similarityBoost: parseFloat(process.env.ELEVENLABS_SIMILARITY || '0.75')
+    apiKey: '',
+    voiceId: '',
+    modelId: 'eleven_multilingual_v2',
+    stability: 0.5,
+    similarityBoost: 0.75
   },
   // Configurações para TTS local usando Piper
   piper: {
-    enabled: process.env.PIPER_ENABLED === 'true' || !!process.env.PIPER_MODEL,
-    executable: process.env.PIPER_EXECUTABLE || 'piper',
-    model: process.env.PIPER_MODEL || ''
+    enabled: false,
+    executable: 'piper',
+    model: ''
   },
   calorieApi: {
-    url: process.env.CALORIE_API_URL || 'https://api.api-ninjas.com/v1/nutrition?query=',
-    key: process.env.CALORIE_API_KEY || ''
+    url: 'https://api.api-ninjas.com/v1/nutrition?query=',
+    key: ''
   },
   google: {
-    clientId: process.env.GOOGLE_CLIENT_ID || '',
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-    redirect: process.env.GOOGLE_REDIRECT || 'http://localhost:3000/oauth2callback'
+    clientId: '',
+    clientSecret: '',
+    redirect: 'http://localhost:3000/oauth2callback'
   },
   // Configurações para login no LinkedIn
   linkedin: {
-    user: process.env.LINKEDIN_USER || '',
-    pass: process.env.LINKEDIN_PASS || '',
-    liAt: process.env.LINKEDIN_LI_AT || '',
-    timeoutMs: parseInt(process.env.LINKEDIN_TIMEOUT_MS || '30000', 10)
+    user: '',
+    pass: '',
+    liAt: '',
+    timeoutMs: 30000
   }
 };
 

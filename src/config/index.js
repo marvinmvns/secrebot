@@ -40,9 +40,9 @@ const CONFIG = {
     model: 'granite3.2:latest',
     imageModel: 'llava:7b',
     maxTokens: 3000,
-    host: llm.host
+    host: 'http://127.0.0.1:11434'
   },
-  audio: {git 
+  audio: {
     sampleRate: 16000,
     model: 'medium',
     language: 'pt'
@@ -366,7 +366,7 @@ function updateConfigFromEnv() {
   CONFIG.llm.model = process.env.LLM_MODEL || CONFIG.llm.model;
   CONFIG.llm.imageModel = process.env.LLM_IMAGE_MODEL || CONFIG.llm.imageModel;
   CONFIG.llm.maxTokens = parseInt(process.env.LLM_MAX_TOKENS || CONFIG.llm.maxTokens, 10);
-  CONFIG.llm.host =  CONFIG.llm.host;
+  CONFIG.llm.host = process.env.OLLAMA_HOST || CONFIG.llm.host;
   if (process.env.OLLAMA_TIMEOUT_MS) {
     process.env.UNDICI_HEADERS_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
     process.env.UNDICI_BODY_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;

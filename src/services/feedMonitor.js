@@ -1,3 +1,7 @@
+// src/services/FeedMonitor.js
+
+import { ytdlp } from 'yt-dlp-exec';
+import fetch from 'node-fetch';
 import VideoProcessor from './video/VideoProcessor.js';
 import JobQueue from './jobQueue.js';
 import Utils from '../utils/index.js';
@@ -35,16 +39,26 @@ export default class FeedMonitor {
   }
 
   start() {
-
     this.checkFeeds();
     setInterval(() => this.checkFeeds(), CONFIG.feeds.checkInterval);
   }
 
+  // ========================
+  // Channel ID Extraction
+  // ========================
   async extractChannelId(url) {
     try {
-      const info = await Utils.getVideoInfo(url);
-      return info.channel_id || info.uploader_id || this.parseChannelIdFromUrl(url);
-    } catch {
+      const info = await ytdlp(url, {
+        dumpSingleJson: true,
+        noWarnings: true,
+        noCheckCertificate: true
+      });
+
+      return info.channel_id
+        || info.uploader_id
+        || this.parseChannelIdFromUrl(url);
+    } catch (err) {
+      console.warn('yt-dlp failed, fallback to URL parse:', err.message);
       return this.parseChannelIdFromUrl(url);
     }
   }
@@ -52,8 +66,12 @@ export default class FeedMonitor {
   parseChannelIdFromUrl(url) {
     try {
       const u = new URL(url);
-      const channelMatch = u.pathname.match(/\/channel\/([\w-]+)/);
-      if (channelMatch) return channelMatch[1];
+      // case: /channel/UCxxxx
+      let m = u.pathname.match(/\/channel\/([\w-]+)/);
+      if (m) return m[1];
+      // case: /@handle
+      m = u.pathname.match(/@([\w-]+)/);
+      if (m) return m[1];
       return null;
     } catch {
       return null;
@@ -64,6 +82,9 @@ export default class FeedMonitor {
     return `https://www.youtube.com/channel/${channelId}`;
   }
 
+  // ========================
+  // Subscription Management
+  // ========================
   async addSubscription(contactId, link) {
     const phone = contactId.replace(/\D/g, '');
     const channelId = await this.extractChannelId(link);
@@ -96,11 +117,15 @@ export default class FeedMonitor {
     return res.deletedCount > 0;
   }
 
+  // ========================
+  // Feed Checking & Processing
+  // ========================
   async checkFeeds() {
-    const threshold = new Date(Date.now() - 60 * 60 * 1000);
+    const threshold = new Date(Date.now() - CONFIG.feeds.checkInterval);
     const subs = await this.subs.find({
       $or: [{ lastChecked: null }, { lastChecked: { $lte: threshold } }]
     }).toArray();
+
     for (const sub of subs) {
       await this.processSubscription(sub);
     }
@@ -115,7 +140,10 @@ export default class FeedMonitor {
       const idMatch = entry.match(/<yt:videoId>([^<]+)<\/yt:videoId>/);
       const pubMatch = entry.match(/<published>([^<]+)<\/published>/);
       if (idMatch) {
-        entries.push({ videoId: idMatch[1], published: pubMatch ? pubMatch[1] : null });
+        entries.push({
+          videoId: idMatch[1],
+          published: pubMatch ? pubMatch[1] : null
+        });
       }
     }
     return entries;
@@ -124,11 +152,13 @@ export default class FeedMonitor {
   async processSubscription(sub) {
     const now = new Date();
     const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${sub.channelId}`;
+
     try {
       const res = await fetch(feedUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const xml = await res.text();
       const entries = this.parseFeed(xml);
+
       for (const { videoId, published } of entries) {
         const exists = await this.items.findOne({ _id: videoId });
         if (!exists) {
@@ -142,9 +172,13 @@ export default class FeedMonitor {
           this.queue.add(() => this.summarizeAndSend(videoUrl, sub.phone, videoId));
         }
       }
-      await this.subs.updateOne({ _id: sub._id }, { $set: { lastChecked: now } });
+
+      await this.subs.updateOne(
+        { _id: sub._id },
+        { $set: { lastChecked: now } }
+      );
     } catch (err) {
-      console.error('FeedMonitor: erro ao processar feed');
+      console.error('FeedMonitor: erro ao processar feed', err);
     }
   }
 
@@ -153,14 +187,19 @@ export default class FeedMonitor {
       const { transcription } = await this.videoProcessor.transcribeVideo(videoUrl);
       const text = transcription.slice(0, 8000);
       const summary = await this.llmService.getVideoSummary(phone, text);
+
       await this.bot.getClient().sendMessage(
         Utils.formatRecipientId(phone),
         `📺 Novo vídeo resumido:\n${summary}`
       );
+
       await this.items.deleteOne({ _id: videoId });
     } catch (err) {
-      console.error('FeedMonitor: erro ao resumir video');
-      await this.items.updateOne({ _id: videoId }, { $set: { summaryStatus: 'failed' } });
+      console.error('FeedMonitor: erro ao resumir vídeo', err);
+      await this.items.updateOne(
+        { _id: videoId },
+        { $set: { summaryStatus: 'failed' } }
+      );
     }
   }
 }

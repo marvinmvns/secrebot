@@ -34,7 +34,7 @@ export default class FeedMonitor {
   }
 
   async init() {
-    console.error(`❌ entrou 6  ${contactId}:`, err);
+ 
     await this.ensureCollections();
     await this.subs.createIndex({ phone: 1, channelId: 1 }, { unique: true });
     await this.items.createIndex({ channelId: 1, published: 1 });

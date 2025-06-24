@@ -6,13 +6,14 @@ const { default: YTDlpWrap } = YTDlpWrapPkg;
 import SubtitleProcessor from './SubtitleProcessor.js';
 import TextSummarizer from './TextSummarizer.js';
 import AudioTranscriber from '../audioTranscriber.js';
+import { CONFIG } from '../../config/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default class VideoProcessor {
   constructor(options = {}) {
-    this.ytdlpPath = options.ytdlpPath || 'yt-dlp';
+    this.ytdlpPath = options.ytdlpPath || CONFIG.video.ytdlpPath || '/usr/bin/yt-dlp';
     this.ytdlp = new YTDlpWrap(this.ytdlpPath);
     this.tempDir = options.tempDir || path.join(__dirname, '../../temp');
     this.subtitleProcessor = new SubtitleProcessor();

@@ -13,7 +13,7 @@ export default class FeedMonitor {
     this.bot = bot;
     this.llmService = llmService;
     this.videoProcessor = bot.videoProcessor || new VideoProcessor({ transcriber: bot.transcriber });
-    this.ytdlp = new YTDlpWrap();
+    this.ytdlp = new YTDlpWrap(CONFIG.video.ytdlpPath || '/usr/bin/yt-dlp');
     this.queue = new JobQueue(CONFIG.queues.whisperConcurrency, CONFIG.queues.memoryThresholdGB);
   }
 

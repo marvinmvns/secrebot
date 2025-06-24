@@ -1,14 +1,14 @@
 // src/services/FeedMonitor.js
 
-import youtubedl from 'youtube-dl-exec';
-import fetch from 'node-fetch';
+// Use global fetch from Node 18+
+import { getVideoInfoCli } from '../utils/ytdlp.js';
 import VideoProcessor from './video/VideoProcessor.js';
 import JobQueue from './jobQueue.js';
 import Utils from '../utils/index.js';
 import { CONFIG } from '../config/index.js';
 
 export default class FeedMonitor {
-  constructor(db, bot, llmService) {
+  constructor(db, bot, llmService, fetchImpl = fetch) {
     this.db = db;
     this.subs = db.collection('feedSubscriptions');
     this.items = db.collection('feedItems');
@@ -16,6 +16,7 @@ export default class FeedMonitor {
     this.llmService = llmService;
     this.videoProcessor = bot.videoProcessor || new VideoProcessor({ transcriber: bot.transcriber });
     this.queue = new JobQueue(CONFIG.queues.whisperConcurrency, CONFIG.queues.memoryThresholdGB);
+    this.fetch = fetchImpl;
   }
 
   async collectionExists(name) {
@@ -48,18 +49,14 @@ export default class FeedMonitor {
   // ========================
   async extractChannelId(url) {
     try {
-      const info = await youtubedl(url, {
-        dumpSingleJson: true,
-        noWarnings: true,
-        noCheckCertificate: true,
-        preferFreeFormats: true
-      });
-
-      return info.channel_id
-        || info.uploader_id
-        || this.parseChannelIdFromUrl(url);
+      const info = await getVideoInfoCli(url, CONFIG.video.ytdlpPath);
+      return (
+        info.channel_id ||
+        info.uploader_id ||
+        this.parseChannelIdFromUrl(url)
+      );
     } catch (err) {
-      console.warn('youtubedl failed, fallback to URL parse:', err.message);
+      console.warn('yt-dlp failed, fallback to URL parse:', err.message);
       return this.parseChannelIdFromUrl(url);
     }
   }
@@ -153,7 +150,7 @@ export default class FeedMonitor {
     const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${sub.channelId}`;
 
     try {
-      const res = await fetch(feedUrl);
+      const res = await this.fetch(feedUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const xml = await res.text();
       const entries = this.parseFeed(xml);

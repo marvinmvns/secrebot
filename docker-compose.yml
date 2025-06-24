@@ -4,7 +4,6 @@ services:
     build: .
     container_name: secrebot
     environment:
-      - MONGO_URI=mongodb://mongodb:27017/
       - PORT=3000
       - OLLAMA_HOST=http://ollama:11434
       # aumenta o timeout do Undici para aguardar o carregamento do modelo

@@ -144,7 +144,6 @@ As variáveis serão gravadas na coleção `config`. O aplicativo não lê o `.e
 ```bash
 # 🔧 Configurações Básicas
 PORT=3000
-MONGO_URI=mongodb://bot:senha@localhost:27017/sched
 
 # 🤖 Ollama/LLM
 OLLAMA_HOST=http://127.0.0.1:11434
@@ -436,7 +435,6 @@ services:
     build: .
     environment:
       - NODE_ENV=production
-      - MONGO_URI=mongodb://mongo:27017/sched
     depends_on:
       - mongo
       - ollama

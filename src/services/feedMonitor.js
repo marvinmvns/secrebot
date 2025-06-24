@@ -52,7 +52,12 @@ export default class FeedMonitor {
       return info.channel_id || info.uploader_id || null;
     } catch (err) {
       console.error('FeedMonitor: erro ao obter channel_id', err);
-      return this.parseChannelIdFromUrl(url);
+      try {
+        const info = await Utils.debugGetVideoInfo(url);
+        return info.channel_id || info.uploader_id || this.parseChannelIdFromUrl(url);
+      } catch {
+        return this.parseChannelIdFromUrl(url);
+      }
     }
   }
 

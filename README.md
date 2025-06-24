@@ -327,6 +327,20 @@ DELETE /api/feeds/UCxxxx?phone=5511999999999
 }
 ```
 
+### Coleção conversations
+Armazena o histórico das conversas do comando `!deep`.
+
+```json
+{
+  "_id": "ObjectId",
+  "contactId": "5511999999999",
+  "role": "user|assistant|system",
+  "content": "Texto da mensagem ou resumo",
+  "timestamp": "2024-01-01T00:00:00Z"
+}
+```
+Um índice TTL mantém mensagens por `CONFIG.llm.ttlDays` (30 dias por padrão).
+
 ## 📁 Estrutura do Projeto
 
 ```

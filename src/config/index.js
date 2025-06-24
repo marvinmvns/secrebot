@@ -44,7 +44,10 @@ const CONFIG = {
     model: 'granite3.2:latest',
     imageModel: 'llava:7b',
     maxTokens: 3000,
-    host: OLLAMA_HOST
+    host: OLLAMA_HOST,
+    dbName: 'llmcontexts',
+    collectionName: 'conversations',
+    ttlDays: 30
   },
   audio: {
     sampleRate: 16000,
@@ -106,6 +109,9 @@ const CONFIG_DESCRIPTIONS = {
   'llm.imageModel': 'Modelo para visão computacional',
   'llm.maxTokens': 'Tokens máximos por resposta',
   'llm.host': 'Endereço do servidor Ollama',
+  'llm.dbName': 'Banco para histórico de conversas',
+  'llm.collectionName': 'Coleção para conversas (!deep)',
+  'llm.ttlDays': 'Dias para manter histórico (!deep)',
   'audio.sampleRate': 'Taxa de amostragem do áudio',
   'audio.model': 'Modelo Whisper',
   'audio.language': 'Idioma padrão das transcrições',

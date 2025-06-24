@@ -25,13 +25,20 @@ class LLMService {
   async connect() {
     this.mongoClient = new MongoClient(CONFIG.mongo.uri);
     await this.mongoClient.connect();
-    this.db = this.mongoClient.db('llmcontexts');
-    const hasColl = await this.db.listCollections({ name: 'conversations' }).toArray();
+    this.db = this.mongoClient.db(CONFIG.llm.dbName);
+    const collName = CONFIG.llm.collectionName;
+    const hasColl = await this.db.listCollections({ name: collName }).toArray();
     if (!hasColl.length) {
-      await this.db.createCollection('conversations');
+      await this.db.createCollection(collName);
     }
-    this.collection = this.db.collection('conversations');
+    this.collection = this.db.collection(collName);
     await this.collection.createIndex({ contactId: 1 });
+    if (CONFIG.llm.ttlDays > 0) {
+      await this.collection.createIndex(
+        { timestamp: 1 },
+        { expireAfterSeconds: CONFIG.llm.ttlDays * 24 * 60 * 60 }
+      );
+    }
   }
 
   async disconnect() {

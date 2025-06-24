@@ -1,9 +1,7 @@
-import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config();
 
 // Aumenta o tempo limite do Undici caso especificado
 // Ajusta os timeouts do Undici se OLLAMA_TIMEOUT_MS estiver definido

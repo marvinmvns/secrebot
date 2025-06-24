@@ -1,8 +1,10 @@
 import { Ollama } from 'ollama';
-import Utils from '../utils/index.js'; // Ajustar caminho se necessário
-import { CONFIG, CHAT_MODES, PROMPTS } from '../config/index.js'; // Ajustar caminho se necessário
+import { MongoClient } from 'mongodb';
+import Utils from '../utils/index.js';
+import { CONFIG, CHAT_MODES, PROMPTS } from '../config/index.js';
 import { fetchProfileRaw } from './linkedinScraper.js';
 import JobQueue from './jobQueue.js';
+import TextSummarizer from './video/TextSummarizer.js';
 
 // ============ Serviço LLM ============
 class LLMService {
@@ -13,6 +15,30 @@ class LLMService {
       CONFIG.queues.llmConcurrency,
       CONFIG.queues.memoryThresholdGB
     );
+
+    this.mongoClient = null;
+    this.db = null;
+    this.collection = null;
+    this.summarizer = new TextSummarizer({ defaultSentences: 5 });
+  }
+
+  async connect() {
+    this.mongoClient = new MongoClient(CONFIG.mongo.uri);
+    await this.mongoClient.connect();
+    this.db = this.mongoClient.db('llmcontexts');
+    const hasColl = await this.db.listCollections({ name: 'conversations' }).toArray();
+    if (!hasColl.length) {
+      await this.db.createCollection('conversations');
+    }
+    this.collection = this.db.collection('conversations');
+    await this.collection.createIndex({ contactId: 1 });
+  }
+
+  async disconnect() {
+    if (this.mongoClient) {
+      await this.mongoClient.close();
+      this.mongoClient = null;
+    }
   }
 
   getContext(contactId, type) {
@@ -23,12 +49,59 @@ class LLMService {
     return this.contexts.get(key);
   }
 
+  async loadDbContext(contactId) {
+    if (!this.collection) return [];
+    const docs = await this.collection
+      .find({ contactId })
+      .sort({ timestamp: 1 })
+      .toArray();
+    return docs.map((d) => ({ role: d.role, content: d.content }));
+  }
+
+  async saveMessage(contactId, role, content) {
+    if (!this.collection) return;
+    await this.collection.insertOne({
+      contactId,
+      role,
+      content,
+      timestamp: new Date()
+    });
+  }
+
+  async summarizeAndReset(contactId, messages) {
+    if (!this.collection || !messages.length) return;
+    const text = messages
+      .map((m) => `${m.role}: ${m.content}`)
+      .join('\n');
+    try {
+      const { text: summary } = await this.summarizer.summarize(text, 5);
+      await this.collection.deleteMany({ contactId });
+      await this.saveMessage(contactId, 'system', `Resumo da conversa: ${summary}`);
+    } catch (err) {
+      console.error('Erro ao resumir contexto:', err);
+      await this.collection.deleteMany({ contactId });
+    }
+  }
+
   async chat(contactId, text, type, systemPrompt) {
-    const context = this.getContext(contactId, type);
+    let context;
+    if (type === CHAT_MODES.ASSISTANT) {
+      context = await this.loadDbContext(contactId);
+      const tokens = context.reduce((a, c) => a + Utils.countTokens(c.content || ''), 0);
+      if (tokens + Utils.countTokens(text) > CONFIG.llm.maxTokens) {
+        await this.summarizeAndReset(contactId, context);
+        context = await this.loadDbContext(contactId);
+      }
+    } else {
+      context = this.getContext(contactId, type);
+    }
+
     context.push({ role: 'user', content: text });
-    
-    // Usa o método estático de Utils para limitar o contexto
-    const limitedContext = Utils.limitContext([...context]); 
+    if (type === CHAT_MODES.ASSISTANT) {
+      await this.saveMessage(contactId, 'user', text);
+    }
+
+    const limitedContext = Utils.limitContext([...context]);
     const messages = [{ role: 'system', content: systemPrompt }, ...limitedContext];
     
     try {
@@ -45,6 +118,9 @@ class LLMService {
         : response.message.content;
       
       context.push({ role: 'assistant', content });
+      if (type === CHAT_MODES.ASSISTANT) {
+        await this.saveMessage(contactId, 'assistant', content);
+      }
       return content;
     } catch (err) {
       console.error(`Erro no LLM (${type}):`, err);
@@ -86,6 +162,9 @@ class LLMService {
   clearContext(contactId, type) {
     const key = `${contactId}_${type}`;
     this.contexts.delete(key);
+    if (type === CHAT_MODES.ASSISTANT && this.collection) {
+      this.collection.deleteMany({ contactId }).catch(() => {});
+    }
   }
 }
 

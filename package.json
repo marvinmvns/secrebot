@@ -43,7 +43,6 @@
     "ejs": "^3.1.9",
     "yt-dlp-wrap": "^2.3.12",
     "subtitle": "^4.1.1",
-    "node-summarizer": "^1.0.7",
-    "natural": "^6.5.0"
+    "node-summarizer": "^1.0.7"
   }
 }

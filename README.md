@@ -78,7 +78,6 @@ cd secrebot
 ### 2. Instale as dependências
 ```bash
 npm install
-npx playwright install
 ```
 ### 3. Instale o yt-dlp (aarch64)
 ```bash

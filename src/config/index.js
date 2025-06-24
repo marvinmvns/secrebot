@@ -42,7 +42,7 @@ const CONFIG = {
     maxTokens: 3000,
     host: llm.host
   },
-  audio: {
+  audio: {git 
     sampleRate: 16000,
     model: 'medium',
     language: 'pt'
@@ -143,7 +143,6 @@ const CONFIG_ENV_MAP = {
   'llm.model': 'LLM_MODEL',
   'llm.imageModel': 'LLM_IMAGE_MODEL',
   'llm.maxTokens': 'LLM_MAX_TOKENS',
-  'llm.host': 'OLLAMA_HOST',
   'audio.sampleRate': 'AUDIO_SAMPLE_RATE',
   'audio.model': 'WHISPER_MODEL',
   'audio.language': 'AUDIO_LANGUAGE',

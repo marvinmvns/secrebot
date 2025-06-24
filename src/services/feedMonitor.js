@@ -46,7 +46,7 @@ export default class FeedMonitor {
 
   async extractChannelId(url) {
     try {
-      console.error(`❌ entrou 8 `);
+      console.error(`❌ entrou 8 `, url);
       const info = await this.ytdlp.getVideoInfo(url);
       console.error(`❌ entrou 8 `, info);
       return info.channel_id || info.uploader_id || null;

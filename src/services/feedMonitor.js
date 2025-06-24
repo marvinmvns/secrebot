@@ -39,7 +39,7 @@ export default class FeedMonitor {
 
   start() {
     this.checkFeeds();
-    setInterval(() => this.checkFeeds(), 60 * 60 * 1000);
+    setInterval(() => this.checkFeeds(), CONFIG.feeds.checkInterval);
   }
 
   async extractChannelId(url) {
@@ -160,7 +160,7 @@ export default class FeedMonitor {
         Utils.formatRecipientId(phone),
         `📺 Novo vídeo resumido:\n${summary}`
       );
-      await this.items.updateOne({ _id: videoId }, { $set: { summaryStatus: 'done' } });
+      await this.items.deleteOne({ _id: videoId });
     } catch (err) {
       console.error('FeedMonitor: erro ao resumir video', err);
       await this.items.updateOne({ _id: videoId }, { $set: { summaryStatus: 'failed' } });

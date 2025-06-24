@@ -150,6 +150,8 @@ PIPER_EXECUTABLE=/usr/local/bin/piper
 WHISPER_CONCURRENCY=1
 QUEUE_MEM_THRESHOLD_GB=4
 DYNAMIC_CONCURRENCY=false
+# Intervalo para checar novos vídeos (ms)
+FEED_CHECK_INTERVAL=1800000
 
 # 📅 Agendamentos
 SCHED_MAX_CONCURRENCY=10

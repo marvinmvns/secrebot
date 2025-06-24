@@ -26,6 +26,7 @@
 - Conversas alimentadas por LLM local (Ollama)
 - Respostas contextuais e personalizadas
 - Suporte a múltiplos modelos de linguagem
+- Histórico do comando `!deep` armazenado no MongoDB para manter contexto
 
 ### 🎤 **Processamento de Áudio**
 - **Transcrição**: Converte mensagens de voz em texto usando Whisper
@@ -176,7 +177,7 @@ Envie `!menu` ou use os atalhos numéricos:
 | `!agendabot` | 2️⃣ | Criar lembretes personalizados |
 | `!listaragendamentos` | 3️⃣ | Listar agendamentos ativos |
 | `!deletaragendamento` | 4️⃣ | Remover agendamentos |
-| `!deep` | 5️⃣ | Conversar com o chatbot IA |
+| `!deep` | 5️⃣ | Conversar com o chatbot IA (contexto salvo) |
 | `!transcrever` | 6️⃣ | Transcrever mensagens de áudio |
 | `!foto` | 7️⃣ | Descrever imagens enviadas |
 | `!calorias` | 8️⃣ | Estimar calorias de alimentos |

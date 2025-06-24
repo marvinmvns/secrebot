@@ -9,6 +9,7 @@ import FeedMonitor from './services/feedMonitor.js';
 import { applyConfig } from './config/index.js';
 
 let scheduler;
+let llmService;
 
 // ============ Inicialização ============
 async function main() {
@@ -32,7 +33,8 @@ async function main() {
     const dbConfig = await configService.init();
     applyConfig(dbConfig);
 
-    const llmService = new LLMService();
+    llmService = new LLMService();
+    await llmService.connect();
     const transcriber = new AudioTranscriber();
     const ttsService = new TtsService(); // Instanciar o serviço TTS
 
@@ -74,6 +76,9 @@ const gracefulShutdown = async (signal) => {
   console.log(`\n👋 Recebido sinal ${signal}. Encerrando aplicação...`);
   if (scheduler) {
     await scheduler.disconnect();
+  }
+  if (llmService) {
+    await llmService.disconnect();
   }
   console.log('🏁 Aplicação encerrada.');
   process.exit(0);

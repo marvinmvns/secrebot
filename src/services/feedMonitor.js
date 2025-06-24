@@ -48,9 +48,10 @@ export default class FeedMonitor {
     try {
       console.error(`❌ entrou 8 `);
       const info = await this.ytdlp.getVideoInfo(url);
+      console.error(`❌ entrou 8 `, info);
       return info.channel_id || info.uploader_id || null;
     } catch (err) {
-      console.error('FeedMonitor: erro ao obter channel_id');
+      console.error('FeedMonitor: erro ao obter channel_id', err);
       return this.parseChannelIdFromUrl(url);
     }
   }

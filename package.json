@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node src/app.js",
-    "test": "node --test"
+    "test": "node --test",
+    "migrate": "node scripts/migrateEnvToMongo.js"
   },
   "keywords": [
     "whatsapp",

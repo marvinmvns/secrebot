@@ -7,6 +7,7 @@ import SubtitleProcessor from './SubtitleProcessor.js';
 import TextSummarizer from './TextSummarizer.js';
 import AudioTranscriber from '../audioTranscriber.js';
 import { CONFIG } from '../../config/index.js';
+import Utils from '../../utils/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,7 +74,7 @@ export default class VideoProcessor {
   }
 
   async getVideoMetadata(url) {
-    const info = await this.ytdlp.getVideoInfo(url);
+    const info = await Utils.getVideoInfo(url, this.ytdlpPath);
     return {
       title: info.title || 'n/a',
       duration: info.duration || 0,

@@ -1,6 +1,6 @@
 // src/services/FeedMonitor.js
 
-import { ytdlp } from 'yt-dlp-exec';
+import youtubedl from 'youtube-dl-exec';
 import fetch from 'node-fetch';
 import VideoProcessor from './video/VideoProcessor.js';
 import JobQueue from './jobQueue.js';
@@ -48,17 +48,18 @@ export default class FeedMonitor {
   // ========================
   async extractChannelId(url) {
     try {
-      const info = await ytdlp(url, {
+      const info = await youtubedl(url, {
         dumpSingleJson: true,
         noWarnings: true,
-        noCheckCertificate: true
+        noCheckCertificate: true,
+        preferFreeFormats: true
       });
 
       return info.channel_id
         || info.uploader_id
         || this.parseChannelIdFromUrl(url);
     } catch (err) {
-      console.warn('yt-dlp failed, fallback to URL parse:', err.message);
+      console.warn('youtubedl failed, fallback to URL parse:', err.message);
       return this.parseChannelIdFromUrl(url);
     }
   }
@@ -66,10 +67,8 @@ export default class FeedMonitor {
   parseChannelIdFromUrl(url) {
     try {
       const u = new URL(url);
-      // case: /channel/UCxxxx
       let m = u.pathname.match(/\/channel\/([\w-]+)/);
       if (m) return m[1];
-      // case: /@handle
       m = u.pathname.match(/@([\w-]+)/);
       if (m) return m[1];
       return null;

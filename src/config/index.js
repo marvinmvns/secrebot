@@ -43,6 +43,9 @@ const CONFIG = {
     memoryThresholdGB: parseInt(process.env.QUEUE_MEM_THRESHOLD_GB || '4', 10),
     memoryCheckInterval: parseInt(process.env.MEM_CHECK_INTERVAL || '1000', 10)
   },
+  feeds: {
+    checkInterval: parseInt(process.env.FEED_CHECK_INTERVAL || String(30 * 60 * 1000), 10)
+  },
   llm: {
     model: process.env.LLM_MODEL || 'granite3.2:latest',
     imageModel: process.env.LLM_IMAGE_MODEL || 'llava:7b',
@@ -104,6 +107,7 @@ const CONFIG_DESCRIPTIONS = {
   'queues.whisperConcurrency': 'Processos de transcrição em paralelo',
   'queues.memoryThresholdGB': 'Memória (GB) para pausar filas',
   'queues.memoryCheckInterval': 'Intervalo (ms) de checagem de memória',
+  'feeds.checkInterval': 'Intervalo (ms) para verificar novos vídeos',
   'llm.model': 'Modelo de linguagem usado',
   'llm.imageModel': 'Modelo para visão computacional',
   'llm.maxTokens': 'Tokens máximos por resposta',
@@ -146,6 +150,7 @@ const CONFIG_ENV_MAP = {
   'queues.whisperConcurrency': 'WHISPER_CONCURRENCY',
   'queues.memoryThresholdGB': 'QUEUE_MEM_THRESHOLD_GB',
   'queues.memoryCheckInterval': 'MEM_CHECK_INTERVAL',
+  'feeds.checkInterval': 'FEED_CHECK_INTERVAL',
   'llm.model': 'LLM_MODEL',
   'llm.imageModel': 'LLM_IMAGE_MODEL',
   'llm.maxTokens': 'LLM_MAX_TOKENS',
@@ -365,6 +370,7 @@ function updateConfigFromEnv() {
   CONFIG.queues.whisperConcurrency = parseInt(process.env.WHISPER_CONCURRENCY || CONFIG.queues.whisperConcurrency, 10);
   CONFIG.queues.memoryThresholdGB = parseInt(process.env.QUEUE_MEM_THRESHOLD_GB || CONFIG.queues.memoryThresholdGB, 10);
   CONFIG.queues.memoryCheckInterval = parseInt(process.env.MEM_CHECK_INTERVAL || CONFIG.queues.memoryCheckInterval, 10);
+  CONFIG.feeds.checkInterval = parseInt(process.env.FEED_CHECK_INTERVAL || CONFIG.feeds.checkInterval, 10);
 
   CONFIG.audio.sampleRate = parseInt(process.env.AUDIO_SAMPLE_RATE || CONFIG.audio.sampleRate, 10);
   CONFIG.audio.model = process.env.WHISPER_MODEL || CONFIG.audio.model;

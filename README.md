@@ -85,6 +85,8 @@ sudo apt update
 sudo apt install -y python3-pip
 pip3 install yt-dlp --break-system-packages
 ```
+O caminho padrão utilizado pelo bot é `/usr/bin/yt-dlp`. Caso o executável esteja
+em outro local, defina a variável de ambiente `YTDLP_PATH` com o caminho correto.
 
 
 ### 4. Configure o Whisper

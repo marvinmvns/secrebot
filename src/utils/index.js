@@ -89,7 +89,7 @@ class Utils {
     return lower === COMMANDS.VOLTAR || lower === '0' || lower === 'voltar';
   }
 
-  static async debugGetVideoInfo(url, binaryPath = 'yt-dlp') {
+  static async debugGetVideoInfo(url, binaryPath = CONFIG.video.ytdlpPath) {
     return debugGetVideoInfo(url, binaryPath);
   }
 

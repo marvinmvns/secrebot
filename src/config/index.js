@@ -46,6 +46,9 @@ const CONFIG = {
   feeds: {
     checkInterval: parseInt(process.env.FEED_CHECK_INTERVAL || String(30 * 60 * 1000), 10)
   },
+  video: {
+    ytdlpPath: process.env.YTDLP_PATH || '/usr/bin/yt-dlp'
+  },
   llm: {
     model: process.env.LLM_MODEL || 'granite3.2:latest',
     imageModel: process.env.LLM_IMAGE_MODEL || 'llava:7b',
@@ -125,6 +128,7 @@ const CONFIG_DESCRIPTIONS = {
   'piper.model': 'Modelo do Piper',
   'calorieApi.url': 'URL da API de calorias',
   'calorieApi.key': 'Chave da API de calorias',
+  'video.ytdlpPath': 'Caminho para o executável yt-dlp',
   'google.clientId': 'Client ID do Google',
   'google.clientSecret': 'Client Secret do Google',
   'google.redirect': 'URL de redirecionamento OAuth',
@@ -168,6 +172,7 @@ const CONFIG_ENV_MAP = {
   'piper.model': 'PIPER_MODEL',
   'calorieApi.url': 'CALORIE_API_URL',
   'calorieApi.key': 'CALORIE_API_KEY',
+  'video.ytdlpPath': 'YTDLP_PATH',
   'google.clientId': 'GOOGLE_CLIENT_ID',
   'google.clientSecret': 'GOOGLE_CLIENT_SECRET',
   'google.redirect': 'GOOGLE_REDIRECT',
@@ -397,6 +402,8 @@ function updateConfigFromEnv() {
 
   CONFIG.calorieApi.url = process.env.CALORIE_API_URL || CONFIG.calorieApi.url;
   CONFIG.calorieApi.key = process.env.CALORIE_API_KEY || CONFIG.calorieApi.key;
+
+  CONFIG.video.ytdlpPath = process.env.YTDLP_PATH || CONFIG.video.ytdlpPath;
 
   CONFIG.google.clientId = process.env.GOOGLE_CLIENT_ID || CONFIG.google.clientId;
   CONFIG.google.clientSecret = process.env.GOOGLE_CLIENT_SECRET || CONFIG.google.clientSecret;

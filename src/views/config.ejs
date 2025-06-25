@@ -1,13 +1,15 @@
 <h2>Configurações da aplicação</h2>
 <form action="/config" method="POST">
-  <% for(const key in env){ %>
-    <div class="mb-3">
-      <label class="form-label"><%= key %></label>
-      <% if (descriptions[key]) { %>
-        <small class="form-text text-muted"><%= descriptions[key] %></small>
-      <% } %>
-      <input type="text" class="form-control" name="<%= key %>" value="<%= env[key] %>">
-    </div>
+  <% for(const key in config){ %>
+      <div class="mb-3">
+        <label class="form-label"><%= key %></label>
+        <% if (descriptions[key]) { %>
+          <small class="form-text text-muted"><%= descriptions[key] %></small>
+        <% } %>
+        <input type="text" class="form-control" name="<%= key %>" value="<%= config[key] %>">
+      </div>
   <% } %>
   <button type="submit" class="btn btn-primary mt-3">Salvar</button>
 </form>
+<h3 class="mt-5">Configuração atual do banco</h3>
+<pre><code><%= JSON.stringify(rawConfig, null, 2) %></code></pre>

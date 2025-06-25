@@ -14,7 +14,7 @@ import VideoProcessor from '../services/video/VideoProcessor.js';
 import CalorieService from '../services/calorieService.js';
 import GoogleCalendarService from '../services/googleCalendarService.js';
 import Utils from '../utils/index.js';
-import { CONFIG, COMMANDS, CONFIG_DESCRIPTIONS, CONFIG_ENV_MAP } from '../config/index.js';
+import { CONFIG, COMMANDS, CONFIG_DESCRIPTIONS } from '../config/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -564,17 +564,28 @@ class RestAPI {
     this.app.get('/config', async (req, res) => {
       const saved = await this.configService.getConfig();
 
-      const getNested = (obj, pathStr) =>
-        pathStr.split('.').reduce((o, k) => (o || {})[k], obj);
+      const flatten = (obj, prefix = '') => {
+        const out = {};
+        for (const [k, v] of Object.entries(obj || {})) {
+          const path = prefix ? `${prefix}.${k}` : k;
+          if (v && typeof v === 'object' && !Array.isArray(v)) {
+            Object.assign(out, flatten(v, path));
+          } else {
+            out[path] = v;
+          }
+        }
+        return out;
+      };
 
-      const env = {};
+      const config = flatten(saved);
       const descriptions = {};
-      for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
-        env[envVar] = getNested(saved, cfgPath);
-        descriptions[envVar] = CONFIG_DESCRIPTIONS[cfgPath];
+      for (const key of Object.keys(config)) {
+        if (CONFIG_DESCRIPTIONS[key]) {
+          descriptions[key] = CONFIG_DESCRIPTIONS[key];
+        }
       }
 
-      res.render('config', { env, descriptions });
+      res.render('config', { config, descriptions, rawConfig: saved });
     });
 
     this.app.post('/config', async (req, res) => {
@@ -593,12 +604,11 @@ class RestAPI {
         curr[keys[keys.length - 1]] = value;
       };
 
-      for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
-        if (req.body[envVar] === undefined) continue;
-        let val = req.body[envVar];
+      for (const [cfgPath, valStr] of Object.entries(req.body)) {
+        let val = valStr;
         const currentVal = getNested(CONFIG, cfgPath);
-        if (typeof currentVal === 'number') val = Number(val);
-        if (typeof currentVal === 'boolean') val = val === 'true';
+        if (typeof currentVal === 'number') val = Number(valStr);
+        if (typeof currentVal === 'boolean') val = valStr === 'true';
         setNested(saved, cfgPath, val);
       }
 

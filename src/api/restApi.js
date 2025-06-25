@@ -594,7 +594,9 @@ class RestAPI {
         }
       }
 
+
       res.render('config', { config, descriptions, envMap, examples, rawConfig: saved });
+
     });
 
     this.app.post('/config', async (req, res) => {

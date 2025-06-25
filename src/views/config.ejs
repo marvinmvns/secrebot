@@ -1,13 +1,16 @@
 <h2>Configurações da aplicação</h2>
 <form action="/config" method="POST">
-  <% for(const key in env){ %>
-    <div class="mb-3">
-      <label class="form-label"><%= key %></label>
-      <% if (descriptions[key]) { %>
-        <small class="form-text text-muted"><%= descriptions[key] %></small>
-      <% } %>
-      <input type="text" class="form-control" name="<%= key %>" value="<%= env[key] %>">
-    </div>
+  <% for(const key in config){ %>
+      <div class="mb-3">
+        <label class="form-label"><%= key %></label>
+        <% if (descriptions[key]) { %>
+          <small class="form-text text-muted"><%= descriptions[key] %></small>
+        <% } %>
+        <% if (envMap[key]) { %>
+          <small class="form-text text-muted">Exemplo: <code><%= envMap[key] %>=<%= examples[key] %></code></small>
+        <% } %>
+        <input type="text" class="form-control" name="<%= key %>" value="<%= config[key] %>">
+      </div>
   <% } %>
   <button type="submit" class="btn btn-primary mt-3">Salvar</button>
 </form>

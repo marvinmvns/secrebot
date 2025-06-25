@@ -61,6 +61,9 @@ const CONFIG = {
     executable: 'piper',
     model: ''
   },
+  video: {
+    ytdlpPath: 'yt-dlp'
+  },
   calorieApi: {
     url: 'https://api.api-ninjas.com/v1/nutrition?query=',
     key: ''
@@ -112,6 +115,7 @@ const CONFIG_DESCRIPTIONS = {
   'piper.enabled': 'Ativa TTS local Piper',
   'piper.executable': 'Executável do Piper',
   'piper.model': 'Modelo do Piper',
+  'video.ytdlpPath': 'Caminho para o executável yt-dlp',
   'calorieApi.url': 'URL da API de calorias',
   'calorieApi.key': 'Chave da API de calorias',
   'google.clientId': 'Client ID do Google',
@@ -153,6 +157,7 @@ const CONFIG_ENV_MAP = {
   'piper.enabled': 'PIPER_ENABLED',
   'piper.executable': 'PIPER_EXECUTABLE',
   'piper.model': 'PIPER_MODEL',
+  'video.ytdlpPath': 'YTDLP_PATH',
   'calorieApi.url': 'CALORIE_API_URL',
   'calorieApi.key': 'CALORIE_API_KEY',
   'google.clientId': 'GOOGLE_CLIENT_ID',
@@ -367,6 +372,8 @@ function updateConfigFromEnv() {
   CONFIG.piper.enabled = process.env.PIPER_ENABLED === 'true' || !!process.env.PIPER_MODEL || CONFIG.piper.enabled;
   CONFIG.piper.executable = process.env.PIPER_EXECUTABLE || CONFIG.piper.executable;
   CONFIG.piper.model = process.env.PIPER_MODEL || CONFIG.piper.model;
+
+  CONFIG.video.ytdlpPath = process.env.YTDLP_PATH || CONFIG.video.ytdlpPath;
 
   CONFIG.calorieApi.url = process.env.CALORIE_API_URL || CONFIG.calorieApi.url;
   CONFIG.calorieApi.key = process.env.CALORIE_API_KEY || CONFIG.calorieApi.key;

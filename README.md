@@ -86,6 +86,8 @@ sudo apt update
 sudo apt install -y python3-pip
 pip3 install yt-dlp --break-system-packages
 ```
+Se o executável `yt-dlp` não estiver no seu `PATH`, defina a variável de ambiente
+`YTDLP_PATH` apontando para o binário.
 
 
 ### 4. Configure o Whisper

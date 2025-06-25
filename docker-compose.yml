@@ -3,15 +3,6 @@ services:
   bot:
     build: .
     container_name: secrebot
-    environment:
-      - MONGO_URI=mongodb://mongodb:27017/
-      - PORT=3000
-      # aumenta o timeout do Undici para aguardar o carregamento do modelo
-      - OLLAMA_TIMEOUT_MS=120000
-      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
-      - ELEVENLABS_VOICE_ID=${ELEVENLABS_VOICE_ID}
-    volumes:
-      - ./.env:/app/.env
     ports:
       - "3000:3000"
     depends_on:

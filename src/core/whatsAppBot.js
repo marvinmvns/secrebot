@@ -563,9 +563,7 @@ async handleRecursoCommand(contactId) {
       }
       try {
           await this.sendResponse(contactId, '⏳ Processando vídeo...', true);
-          const { transcription } = await this.videoProcessor.transcribeVideo(link);
-          const text = transcription.slice(0, 8000);
-          const summary = await this.llmService.getVideoSummary(contactId, text);
+          const { summary } = await this.videoProcessor.processVideo(link);
           await this.sendResponse(contactId, `📝 *Resumo:*\n${summary}`);
       } catch (err) {
           console.error(`❌ Erro ao processar vídeo para ${contactId}:`, err);

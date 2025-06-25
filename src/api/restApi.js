@@ -367,9 +367,7 @@ class RestAPI {
       const url = req.body.url || '';
       if (!url.trim()) return res.render('video', { result: 'Informe o link do vídeo.', url });
       try {
-        const { transcription } = await this.videoProcessor.transcribeVideo(url);
-        const text = transcription.slice(0, 8000);
-        const summary = await this.bot.llmService.getVideoSummary('web', text);
+        const { summary } = await this.videoProcessor.processVideo(url);
         res.render('video', { result: summary, url });
       } catch (err) {
         console.error('Erro em /video:', err);

@@ -1,9 +1,7 @@
-import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config();
 
 const OLLAMA_HOST_DEFAULT = 'http://127.0.0.1:11434';
 
@@ -331,62 +329,6 @@ Data atual: ${date}.
 };
 
 
-function updateConfigFromEnv() {
-  CONFIG.mongo.uri = process.env.MONGO_URI || CONFIG.mongo.uri;
-  CONFIG.server.port = process.env.PORT || CONFIG.server.port;
-
-  CONFIG.scheduler.interval = parseInt(process.env.SCHED_INTERVAL || CONFIG.scheduler.interval, 10);
-  CONFIG.scheduler.maxAttempts = parseInt(process.env.SCHED_MAX_ATTEMPTS || CONFIG.scheduler.maxAttempts, 10);
-  CONFIG.scheduler.retryDelay = parseInt(process.env.SCHED_RETRY_DELAY || CONFIG.scheduler.retryDelay, 10);
-  CONFIG.scheduler.concurrency = parseInt(process.env.SCHED_CONCURRENCY || CONFIG.scheduler.concurrency, 10);
-
-  CONFIG.scheduler.dynamic.enabled = process.env.DYNAMIC_CONCURRENCY === 'true' || CONFIG.scheduler.dynamic.enabled;
-  CONFIG.scheduler.dynamic.min = parseInt(process.env.SCHED_DYNAMIC_MIN || CONFIG.scheduler.dynamic.min, 10);
-  CONFIG.scheduler.dynamic.max = parseInt(process.env.SCHED_MAX_CONCURRENCY || CONFIG.scheduler.dynamic.max, 10);
-  CONFIG.scheduler.dynamic.cpuThreshold = parseFloat(process.env.SCHED_CPU_THRESHOLD || CONFIG.scheduler.dynamic.cpuThreshold);
-  CONFIG.scheduler.dynamic.memThreshold = parseFloat(process.env.SCHED_MEM_THRESHOLD || CONFIG.scheduler.dynamic.memThreshold);
-
-  CONFIG.queues.llmConcurrency = parseInt(process.env.LLM_CONCURRENCY || CONFIG.queues.llmConcurrency, 10);
-  CONFIG.queues.whisperConcurrency = parseInt(process.env.WHISPER_CONCURRENCY || CONFIG.queues.whisperConcurrency, 10);
-  CONFIG.queues.memoryThresholdGB = parseInt(process.env.QUEUE_MEM_THRESHOLD_GB || CONFIG.queues.memoryThresholdGB, 10);
-  CONFIG.queues.memoryCheckInterval = parseInt(process.env.MEM_CHECK_INTERVAL || CONFIG.queues.memoryCheckInterval, 10);
-
-  CONFIG.audio.sampleRate = parseInt(process.env.AUDIO_SAMPLE_RATE || CONFIG.audio.sampleRate, 10);
-  CONFIG.audio.model = process.env.WHISPER_MODEL || CONFIG.audio.model;
-  CONFIG.audio.language = process.env.AUDIO_LANGUAGE || CONFIG.audio.language;
-
-  CONFIG.llm.model = process.env.LLM_MODEL || CONFIG.llm.model;
-  CONFIG.llm.imageModel = process.env.LLM_IMAGE_MODEL || CONFIG.llm.imageModel;
-  CONFIG.llm.maxTokens = parseInt(process.env.LLM_MAX_TOKENS || CONFIG.llm.maxTokens, 10);
-  if (process.env.OLLAMA_TIMEOUT_MS) {
-    process.env.UNDICI_HEADERS_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
-    process.env.UNDICI_BODY_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
-  }
-
-  CONFIG.elevenlabs.apiKey = process.env.ELEVENLABS_API_KEY || CONFIG.elevenlabs.apiKey;
-  CONFIG.elevenlabs.voiceId = process.env.ELEVENLABS_VOICE_ID || CONFIG.elevenlabs.voiceId;
-  CONFIG.elevenlabs.modelId = process.env.ELEVENLABS_MODEL_ID || CONFIG.elevenlabs.modelId;
-  CONFIG.elevenlabs.stability = parseFloat(process.env.ELEVENLABS_STABILITY || CONFIG.elevenlabs.stability);
-  CONFIG.elevenlabs.similarityBoost = parseFloat(process.env.ELEVENLABS_SIMILARITY || CONFIG.elevenlabs.similarityBoost);
-
-  CONFIG.piper.enabled = process.env.PIPER_ENABLED === 'true' || !!process.env.PIPER_MODEL || CONFIG.piper.enabled;
-  CONFIG.piper.executable = process.env.PIPER_EXECUTABLE || CONFIG.piper.executable;
-  CONFIG.piper.model = process.env.PIPER_MODEL || CONFIG.piper.model;
-
-  CONFIG.video.ytdlpPath = process.env.YTDLP_PATH || CONFIG.video.ytdlpPath;
-
-  CONFIG.calorieApi.url = process.env.CALORIE_API_URL || CONFIG.calorieApi.url;
-  CONFIG.calorieApi.key = process.env.CALORIE_API_KEY || CONFIG.calorieApi.key;
-
-  CONFIG.google.clientId = process.env.GOOGLE_CLIENT_ID || CONFIG.google.clientId;
-  CONFIG.google.clientSecret = process.env.GOOGLE_CLIENT_SECRET || CONFIG.google.clientSecret;
-  CONFIG.google.redirect = process.env.GOOGLE_REDIRECT || CONFIG.google.redirect;
-
-  CONFIG.linkedin.user = process.env.LINKEDIN_USER || CONFIG.linkedin.user;
-  CONFIG.linkedin.pass = process.env.LINKEDIN_PASS || CONFIG.linkedin.pass;
-  CONFIG.linkedin.liAt = process.env.LINKEDIN_LI_AT || CONFIG.linkedin.liAt;
-  CONFIG.linkedin.timeoutMs = parseInt(process.env.LINKEDIN_TIMEOUT_MS || CONFIG.linkedin.timeoutMs, 10);
-}
 
 function applyConfig(obj) {
   const merge = (t, s) => {
@@ -416,6 +358,5 @@ export {
   CONFIG_DESCRIPTIONS,
   CONFIG_ENV_MAP,
   __dirname,
-  updateConfigFromEnv,
   applyConfig
 };

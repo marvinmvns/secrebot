@@ -1,4 +1,4 @@
-import { CONFIG } from '../config/index.js';
+import { CONFIG, updateConfigFromEnv } from '../config/index.js';
 
 function deepMerge(target, source) {
   for (const key of Object.keys(source)) {
@@ -20,6 +20,7 @@ class ConfigService {
   async init() {
     let doc = await this.collection.findOne({ _id: 'app' });
     if (!doc) {
+      updateConfigFromEnv();
       const defaults = JSON.parse(JSON.stringify(CONFIG));
       await this.collection.insertOne({ _id: 'app', values: defaults });
       return defaults;

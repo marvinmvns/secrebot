@@ -1,7 +1,8 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { Readable } from 'stream';
-import { nodewhisper } from 'nodejs-whisper';
+import { spawn } from 'child_process';
+import { WHISPER_CPP_PATH, WHISPER_CPP_MAIN_PATH, MODEL_OBJECT } from 'nodejs-whisper/dist/constants.js';
 import ffmpeg from 'fluent-ffmpeg';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, __dirname } from '../config/index.js'; // Ajustar caminho se necessário
@@ -14,6 +15,38 @@ class AudioTranscriber {
       CONFIG.queues.whisperConcurrency,
       CONFIG.queues.memoryThresholdGB
     );
+  }
+
+  async runWhisper(filePath, options) {
+    const execPath = path.join(WHISPER_CPP_PATH, WHISPER_CPP_MAIN_PATH);
+    const modelFile = MODEL_OBJECT[options.modelName];
+    const modelPath = path.join(WHISPER_CPP_PATH, 'models', modelFile);
+    const args = ['-m', modelPath, '-f', filePath, '-otxt', '-l', options.whisperOptions.language];
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn(execPath, args, { cwd: WHISPER_CPP_PATH });
+      let stderr = '';
+      const timer = setTimeout(() => {
+        proc.kill('SIGKILL');
+        reject(new Error('Whisper process timed out'));
+      }, CONFIG.audio.timeoutMs);
+
+      proc.stderr.on('data', d => {
+        stderr += d.toString();
+      });
+      proc.on('error', err => {
+        clearTimeout(timer);
+        reject(err);
+      });
+      proc.on('close', code => {
+        clearTimeout(timer);
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(stderr || `Whisper exited with code ${code}`));
+        }
+      });
+    });
   }
 
   async transcribe(audioBuffer) {
@@ -49,8 +82,8 @@ class AudioTranscriber {
         }
       };
       
-      // A função nodewhisper pode precisar ser chamada de forma diferente dependendo da versão
-      await nodewhisper(tempOutputPath, options); 
+      // Executa o Whisper com controle de timeout
+      await this.runWhisper(tempOutputPath, options);
       
       const transcriptionPath = `${tempOutputPath}.txt`;
       const transcription = await fs.readFile(transcriptionPath, 'utf8');

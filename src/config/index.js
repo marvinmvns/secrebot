@@ -52,7 +52,8 @@ const CONFIG = {
   audio: {
     sampleRate: parseInt(process.env.AUDIO_SAMPLE_RATE || '16000', 10),
     model: process.env.WHISPER_MODEL || 'medium',
-    language: process.env.AUDIO_LANGUAGE || 'pt'
+    language: process.env.AUDIO_LANGUAGE || 'pt',
+    timeoutMs: parseInt(process.env.WHISPER_TIMEOUT_MS || '120000', 10)
   },
   // Novas configurações para ElevenLabs
   elevenlabs: {
@@ -111,6 +112,7 @@ const CONFIG_DESCRIPTIONS = {
   'audio.sampleRate': 'Taxa de amostragem do áudio',
   'audio.model': 'Modelo Whisper',
   'audio.language': 'Idioma padrão das transcrições',
+  'audio.timeoutMs': 'Timeout da transcrição (ms)',
   'elevenlabs.apiKey': 'Chave da API ElevenLabs',
   'elevenlabs.voiceId': 'ID de voz ElevenLabs',
   'elevenlabs.modelId': 'Modelo de TTS ElevenLabs',
@@ -153,6 +155,7 @@ const CONFIG_ENV_MAP = {
   'audio.sampleRate': 'AUDIO_SAMPLE_RATE',
   'audio.model': 'WHISPER_MODEL',
   'audio.language': 'AUDIO_LANGUAGE',
+  'audio.timeoutMs': 'WHISPER_TIMEOUT_MS',
   'elevenlabs.apiKey': 'ELEVENLABS_API_KEY',
   'elevenlabs.voiceId': 'ELEVENLABS_VOICE_ID',
   'elevenlabs.modelId': 'ELEVENLABS_MODEL_ID',
@@ -313,6 +316,7 @@ function updateConfigFromEnv() {
   CONFIG.audio.sampleRate = parseInt(process.env.AUDIO_SAMPLE_RATE || CONFIG.audio.sampleRate, 10);
   CONFIG.audio.model = process.env.WHISPER_MODEL || CONFIG.audio.model;
   CONFIG.audio.language = process.env.AUDIO_LANGUAGE || CONFIG.audio.language;
+  CONFIG.audio.timeoutMs = parseInt(process.env.WHISPER_TIMEOUT_MS || CONFIG.audio.timeoutMs, 10);
 
   CONFIG.llm.model = process.env.LLM_MODEL || CONFIG.llm.model;
   CONFIG.llm.imageModel = process.env.LLM_IMAGE_MODEL || CONFIG.llm.imageModel;

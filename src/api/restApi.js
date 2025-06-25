@@ -528,14 +528,14 @@ class RestAPI {
       const getNested = (obj, pathStr) =>
         pathStr.split('.').reduce((o, k) => (o || {})[k], obj);
 
-      const env = {};
+      const config = {};
       const descriptions = {};
-      for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
-        env[envVar] = getNested(saved, cfgPath);
-        descriptions[envVar] = CONFIG_DESCRIPTIONS[cfgPath];
+      for (const cfgPath of Object.keys(CONFIG_DESCRIPTIONS)) {
+        config[cfgPath] = getNested(saved, cfgPath);
+        descriptions[cfgPath] = CONFIG_DESCRIPTIONS[cfgPath];
       }
 
-      res.render('config', { env, descriptions });
+      res.render('config', { config, descriptions });
     });
 
     this.app.post('/config', async (req, res) => {
@@ -554,9 +554,9 @@ class RestAPI {
         curr[keys[keys.length - 1]] = value;
       };
 
-      for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
-        if (req.body[envVar] === undefined) continue;
-        let val = req.body[envVar];
+      for (const cfgPath of Object.keys(CONFIG_DESCRIPTIONS)) {
+        if (req.body[cfgPath] === undefined) continue;
+        let val = req.body[cfgPath];
         const currentVal = getNested(CONFIG, cfgPath);
         if (typeof currentVal === 'number') val = Number(val);
         if (typeof currentVal === 'boolean') val = val === 'true';

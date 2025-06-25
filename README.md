@@ -290,7 +290,7 @@ GET /health
 ### ⚙️ Configurações
 - **Rota**: `/config`
 - **Recursos**:
-  - Edição de variáveis do `.env`
+  - Edição das configurações salvas no banco de dados
   - Reinicialização automática
   - Validação de configurações
 

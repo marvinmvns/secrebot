@@ -146,7 +146,7 @@ As variáveis serão gravadas na coleção `config`. O aplicativo não lê o `.e
 PORT=3000
 
 # 🤖 Ollama/LLM
-OLLAMA_HOST=http://127.0.0.1:11434
+OLLAMA_HOST=<url_do_servidor_ollama>
 OLLAMA_TIMEOUT_MS=60000
 LLM_CONCURRENCY=2
 

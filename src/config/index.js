@@ -40,7 +40,7 @@ const CONFIG = {
     model: 'granite3.2:latest',
     imageModel: 'llava:7b',
     maxTokens: 3000,
-    host: 'http://127.0.0.1:11434'
+    host: ''
   },
   audio: {
     sampleRate: 16000,

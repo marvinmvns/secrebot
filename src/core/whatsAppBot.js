@@ -26,7 +26,6 @@ import {
   PROMPTS,
   __dirname
 } from '../config/index.js';
-const ollamaClient = new Ollama({ host: CONFIG.llm.host });
 
 // Importar o serviço TTS
 import TtsService from '../services/ttsService.js';
@@ -42,6 +41,7 @@ class WhatsAppBot {
     this.llmService = llmService;
     this.transcriber = transcriber;
     this.ttsService = ttsService; // CORREÇÃO: Atribuir o serviço TTS
+    this.ollamaClient = new Ollama({ host: CONFIG.llm.host });
     this.chatModes = new Map();
     this.userPreferences = new Map(); // Para armazenar preferências (ex: { voiceResponse: true/false })
     this.linkedinSessions = new Map(); // contato -> li_at
@@ -667,7 +667,7 @@ async handleRecursoCommand(contactId) {
         mode = 'description';
       }
       await this.sendResponse(contactId, processingMessage, true); // Status sempre em texto
-      const response = await ollamaClient.generate({
+      const response = await this.ollamaClient.generate({
         model: CONFIG.llm.imageModel,
         prompt: prompt,
         images: [imagePath],
@@ -802,7 +802,7 @@ async handleRecursoCommand(contactId) {
         console.log(`🎤 Áudio recebido no menu. Mapeando transcrição "${transcription}" para comando...`);
         await this.sendResponse(contactId, '🤔 Interpretando comando de áudio...', true);
         const commandPrompt = PROMPTS.audioCommandMapping(transcription);
-        const response = await ollamaClient.chat({
+        const response = await this.ollamaClient.chat({
             model: CONFIG.llm.model,
             messages: [{ role: 'user', content: commandPrompt }],
             options: { temperature: 0.2 }

@@ -113,13 +113,18 @@ export default class VideoProcessor {
 
   async transcribeWithWhisper(url, config) {
     const audioPath = path.join(this.tempDir, `audio_${Date.now()}.wav`);
-    await this.ytdlp.execPromise([
-      url,
-      '--extract-audio',
-      '--audio-format', 'wav',
-      '--audio-quality', '0',
-      '--postprocessor-args', '-ar 16000 -ac 1',
-      '-o', audioPath
+    await Promise.race([
+      this.ytdlp.execPromise([
+        url,
+        '--extract-audio',
+        '--audio-format', 'wav',
+        '--audio-quality', '0',
+        '--postprocessor-args', '-ar 16000 -ac 1',
+        '-o', audioPath
+      ]),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout na extração de áudio')), config.timeout)
+      )
     ]);
     const audio = await fs.readFile(audioPath);
     await fs.unlink(audioPath).catch(() => {});

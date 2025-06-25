@@ -574,7 +574,7 @@ class RestAPI {
         descriptions[envVar] = CONFIG_DESCRIPTIONS[cfgPath];
       }
 
-      res.render('config', { env, descriptions });
+      res.render('config', { env, descriptions, rawConfig: saved });
     });
 
     this.app.post('/config', async (req, res) => {

@@ -14,7 +14,7 @@ import VideoProcessor from '../services/video/VideoProcessor.js';
 import CalorieService from '../services/calorieService.js';
 import GoogleCalendarService from '../services/googleCalendarService.js';
 import Utils from '../utils/index.js';
-import { CONFIG, COMMANDS, CONFIG_DESCRIPTIONS } from '../config/index.js';
+import { CONFIG, COMMANDS, CONFIG_DESCRIPTIONS, CONFIG_ENV_MAP } from '../config/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -578,14 +578,23 @@ class RestAPI {
       };
 
       const config = flatten(saved);
+      const defaults = flatten(CONFIG);
       const descriptions = {};
+      const envMap = {};
+      const examples = {};
       for (const key of Object.keys(config)) {
         if (CONFIG_DESCRIPTIONS[key]) {
           descriptions[key] = CONFIG_DESCRIPTIONS[key];
         }
+        if (CONFIG_ENV_MAP[key]) {
+          envMap[key] = CONFIG_ENV_MAP[key];
+        }
+        if (defaults[key] !== undefined) {
+          examples[key] = defaults[key];
+        }
       }
 
-      res.render('config', { config, descriptions, rawConfig: saved });
+      res.render('config', { config, descriptions, envMap, examples, rawConfig: saved });
     });
 
     this.app.post('/config', async (req, res) => {

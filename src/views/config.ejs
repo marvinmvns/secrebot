@@ -6,6 +6,9 @@
         <% if (descriptions[key]) { %>
           <small class="form-text text-muted"><%= descriptions[key] %></small>
         <% } %>
+        <% if (envMap[key]) { %>
+          <small class="form-text text-muted">Exemplo: <code><%= envMap[key] %>=<%= examples[key] %></code></small>
+        <% } %>
         <input type="text" class="form-control" name="<%= key %>" value="<%= config[key] %>">
       </div>
   <% } %>

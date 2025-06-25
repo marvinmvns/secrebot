@@ -551,7 +551,9 @@ async handleRecursoCommand(contactId) {
   }
 
   async handleResumirVideoCommand(msg, contactId) {
-      const link = msg.body.substring(COMMANDS.RESUMIRVIDEO.length).trim();
+      const remainder = msg.body.substring(COMMANDS.RESUMIRVIDEO.length).trim();
+      const match = remainder.match(/https?:\/?\/?\S+/);
+      const link = match ? match[0] : null;
       if (!link) {
           await this.sendResponse(contactId, '📺 Por favor, envie o link do vídeo que deseja processar.');
           return;

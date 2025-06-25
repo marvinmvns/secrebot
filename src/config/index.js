@@ -142,7 +142,6 @@ const CONFIG_ENV_MAP = {
   'llm.model': 'LLM_MODEL',
   'llm.imageModel': 'LLM_IMAGE_MODEL',
   'llm.maxTokens': 'LLM_MAX_TOKENS',
-  'llm.host': 'OLLAMA_HOST',
   'audio.sampleRate': 'AUDIO_SAMPLE_RATE',
   'audio.model': 'WHISPER_MODEL',
   'audio.language': 'AUDIO_LANGUAGE',
@@ -320,7 +319,8 @@ Comandos disponíveis: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias
   `,
   videoSummary: (date) => `
 Você é um assistente especializado em resumir vídeos.
-Forneça um resumo em português com até 5 frases destacando os principais pontos do conteúdo.
+Forneça um resumo em português estruturado por tópicos, com no máximo 50 linhas ao todo.
+Cada tópico deve destacar de forma concisa as principais ideias do vídeo.
 Data atual: ${date}.
   `
 };
@@ -353,7 +353,6 @@ function updateConfigFromEnv() {
   CONFIG.llm.model = process.env.LLM_MODEL || CONFIG.llm.model;
   CONFIG.llm.imageModel = process.env.LLM_IMAGE_MODEL || CONFIG.llm.imageModel;
   CONFIG.llm.maxTokens = parseInt(process.env.LLM_MAX_TOKENS || CONFIG.llm.maxTokens, 10);
-  CONFIG.llm.host = process.env.OLLAMA_HOST || CONFIG.llm.host;
   if (process.env.OLLAMA_TIMEOUT_MS) {
     process.env.UNDICI_HEADERS_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
     process.env.UNDICI_BODY_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;

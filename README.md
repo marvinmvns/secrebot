@@ -135,7 +135,7 @@ PORT=3000
 MONGO_URI=mongodb://bot:senha@localhost:27017/sched
 
 # 🤖 Ollama/LLM
-OLLAMA_HOST=http://127.0.0.1:11434
+# O endereço do servidor Ollama é configurado pela tela /config e salvo no MongoDB
 OLLAMA_TIMEOUT_MS=60000
 LLM_CONCURRENCY=2
 

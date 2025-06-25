@@ -6,7 +6,6 @@ services:
     environment:
       - MONGO_URI=mongodb://mongodb:27017/
       - PORT=3000
-      - OLLAMA_HOST=http://ollama:11434
       # aumenta o timeout do Undici para aguardar o carregamento do modelo
       - OLLAMA_TIMEOUT_MS=120000
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}

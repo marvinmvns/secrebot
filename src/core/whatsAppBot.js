@@ -46,7 +46,10 @@ class WhatsAppBot {
     this.userPreferences = new Map(); // Para armazenar preferências (ex: { voiceResponse: true/false })
     this.linkedinSessions = new Map(); // contato -> li_at
     this.awaitingLinkedinCreds = new Map();
-    this.videoProcessor = new VideoProcessor({ transcriber });
+    this.videoProcessor = new VideoProcessor({
+      transcriber,
+      ytdlpPath: CONFIG.video.ytdlpPath
+    });
     this.client = new Client({
       authStrategy: new LocalAuth(),
       puppeteer: {

@@ -561,11 +561,9 @@ async handleRecursoCommand(contactId) {
           await this.sendResponse(contactId, `📝 *Transcrição:*\n\n${transcript}`);
 
           const summaryPrompt =
-            `Resuma em português o texto a seguir em tópicos e em até 30 linhas:\n\n${transcript}`;
-          const summary = await this.llmService.getAssistantResponse(
-            contactId,
-            summaryPrompt
-          );
+            `Resuma em português o texto a seguir em tópicos e em até ${CONFIG.video.maxSummaryLines} linhas:\n\n${transcript}`;
+          const summary = await this.llmService.getAssistantResponse(contactId, summaryPrompt);
+          this.llmService.clearContext(contactId, CHAT_MODES.ASSISTANT);
           await this.sendResponse(contactId, `📑 *Resumo:*\n\n${summary}`);
       } catch (err) {
           console.error(`❌ Erro ao transcrever vídeo para ${contactId}:`, err);

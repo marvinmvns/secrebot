@@ -78,6 +78,9 @@ const CONFIG = {
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     redirect: process.env.GOOGLE_REDIRECT || 'http://localhost:3000/oauth2callback'
   },
+  video: {
+    maxSummaryLines: parseInt(process.env.VIDEO_SUMMARY_LINES || '30', 10)
+  },
   // Configurações para login no LinkedIn
   linkedin: {
     user: process.env.LINKEDIN_USER || '',
@@ -126,6 +129,7 @@ const CONFIG_DESCRIPTIONS = {
   'google.clientId': 'Client ID do Google',
   'google.clientSecret': 'Client Secret do Google',
   'google.redirect': 'URL de redirecionamento OAuth',
+  'video.maxSummaryLines': 'Linhas máximas ao resumir vídeos',
   'linkedin.user': 'Usuário do LinkedIn',
   'linkedin.pass': 'Senha do LinkedIn',
   'linkedin.liAt': 'Cookie li_at',
@@ -169,6 +173,7 @@ const CONFIG_ENV_MAP = {
   'google.clientId': 'GOOGLE_CLIENT_ID',
   'google.clientSecret': 'GOOGLE_CLIENT_SECRET',
   'google.redirect': 'GOOGLE_REDIRECT',
+  'video.maxSummaryLines': 'VIDEO_SUMMARY_LINES',
   'linkedin.user': 'LINKEDIN_USER',
   'linkedin.pass': 'LINKEDIN_PASS',
   'linkedin.liAt': 'LINKEDIN_LI_AT',
@@ -343,6 +348,8 @@ function updateConfigFromEnv() {
   CONFIG.google.clientId = process.env.GOOGLE_CLIENT_ID || CONFIG.google.clientId;
   CONFIG.google.clientSecret = process.env.GOOGLE_CLIENT_SECRET || CONFIG.google.clientSecret;
   CONFIG.google.redirect = process.env.GOOGLE_REDIRECT || CONFIG.google.redirect;
+
+  CONFIG.video.maxSummaryLines = parseInt(process.env.VIDEO_SUMMARY_LINES || CONFIG.video.maxSummaryLines, 10);
 
   CONFIG.linkedin.user = process.env.LINKEDIN_USER || CONFIG.linkedin.user;
   CONFIG.linkedin.pass = process.env.LINKEDIN_PASS || CONFIG.linkedin.pass;

@@ -97,7 +97,7 @@ async function fetchTranscript(url) {
     const transcriptInfo = await info.getTranscript();
     const segments = transcriptInfo?.transcript?.content?.body?.initial_segments || [];
     if (segments.length) {
-      return segments.map((s) => s.text).join(' ');
+      return segments.map((s) => s.snippet?.text ?? s.text).join(' ');
     }
   } catch (err) {
     console.warn('Transcrição via YouTube.js falhou, utilizando Whisper:', err.message);

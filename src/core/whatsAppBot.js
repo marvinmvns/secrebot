@@ -559,6 +559,14 @@ async handleRecursoCommand(contactId) {
           await this.sendResponse(contactId, '⏳ Transcrevendo vídeo...', true);
           const transcript = await YouTubeService.fetchTranscript(link);
           await this.sendResponse(contactId, `📝 *Transcrição:*\n\n${transcript}`);
+
+          const summaryPrompt =
+            `Resuma em português o texto a seguir em tópicos e em até 30 linhas:\n\n${transcript}`;
+          const summary = await this.llmService.getAssistantResponse(
+            contactId,
+            summaryPrompt
+          );
+          await this.sendResponse(contactId, `📑 *Resumo:*\n\n${summary}`);
       } catch (err) {
           console.error(`❌ Erro ao transcrever vídeo para ${contactId}:`, err);
           await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);

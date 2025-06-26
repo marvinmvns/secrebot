@@ -216,7 +216,7 @@ Envie `!menu` ou use os atalhos numéricos:
 | `!recurso` | 1️⃣1️⃣ | Informações do sistema |
 | `!resumir` | 1️⃣2️⃣ | Resumir textos ou arquivos |
 | `!importaragenda` | 1️⃣3️⃣ | Importar eventos do Calendar |
-| `!resumirvideo <URL>` | 1️⃣4️⃣ | Transcrever vídeos do YouTube |
+| `!resumirvideo <URL>` | 1️⃣4️⃣ | Transcrever e resumir vídeos do YouTube |
 | `!voltar` | 0️⃣ | Retornar ao menu principal |
 
 ### Exemplos de Uso

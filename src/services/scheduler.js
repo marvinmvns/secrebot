@@ -58,6 +58,7 @@ class Scheduler {
 
   async connect() {
     try {
+      console.log(CONFIG.mongo.uri);
       this.client = new MongoClient(CONFIG.mongo.uri);
       await this.client.connect();
       console.log('✅ Conectado ao MongoDB.');

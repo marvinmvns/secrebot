@@ -1,0 +1,194 @@
+import Scheduler from '../services/scheduler.js';
+import LLMService from '../services/llmService.js';
+import AudioTranscriber from '../services/audioTranscriber.js';
+import TtsService from '../services/ttsService.js';
+import WhatsAppBot from './whatsAppBot.js';
+import RestAPI from '../api/restApi.js';
+import ConfigService from '../services/configService.js';
+import { CONFIG, applyConfig } from '../config/config.js';
+import logger from '../utils/logger.js';
+import { handleError, setupGlobalErrorHandlers, gracefulShutdown } from '../utils/errorHandler.js';
+
+export class ApplicationFactory {
+  constructor(config = CONFIG) {
+    this.config = config;
+    this.services = new Map();
+    this.isInitialized = false;
+  }
+
+  async createScheduler() {
+    if (this.services.has('scheduler')) {
+      return this.services.get('scheduler');
+    }
+
+    try {
+      const scheduler = new Scheduler();
+      await scheduler.connect();
+      this.services.set('scheduler', scheduler);
+      logger.info('Scheduler service initialized');
+      return scheduler;
+    } catch (error) {
+      throw handleError(error, 'Scheduler initialization');
+    }
+  }
+
+  async createConfigService(scheduler) {
+    if (this.services.has('configService')) {
+      return this.services.get('configService');
+    }
+
+    try {
+      const configService = new ConfigService(scheduler.db);
+      const dbConfig = await configService.init();
+      applyConfig(dbConfig);
+      
+      this.services.set('configService', configService);
+      logger.info('Configuration service initialized');
+      return configService;
+    } catch (error) {
+      throw handleError(error, 'ConfigService initialization');
+    }
+  }
+
+  createLLMService() {
+    if (this.services.has('llmService')) {
+      return this.services.get('llmService');
+    }
+
+    const llmService = new LLMService();
+    this.services.set('llmService', llmService);
+    logger.info('LLM service initialized');
+    return llmService;
+  }
+
+  createAudioTranscriber() {
+    if (this.services.has('audioTranscriber')) {
+      return this.services.get('audioTranscriber');
+    }
+
+    const transcriber = new AudioTranscriber();
+    this.services.set('audioTranscriber', transcriber);
+    logger.info('Audio transcriber service initialized');
+    return transcriber;
+  }
+
+  createTtsService() {
+    if (this.services.has('ttsService')) {
+      return this.services.get('ttsService');
+    }
+
+    const ttsService = new TtsService();
+    this.services.set('ttsService', ttsService);
+    logger.info('TTS service initialized');
+    return ttsService;
+  }
+
+  async createWhatsAppBot(scheduler, llmService, transcriber, ttsService) {
+    if (this.services.has('whatsAppBot')) {
+      return this.services.get('whatsAppBot');
+    }
+
+    try {
+      const bot = new WhatsAppBot(scheduler, llmService, transcriber, ttsService);
+      await bot.initialize();
+      
+      this.services.set('whatsAppBot', bot);
+      logger.info('WhatsApp bot initialized');
+      return bot;
+    } catch (error) {
+      throw handleError(error, 'WhatsApp bot initialization');
+    }
+  }
+
+  createRestAPI(bot, configService) {
+    if (this.services.has('restAPI')) {
+      return this.services.get('restAPI');
+    }
+
+    const api = new RestAPI(bot, configService);
+    this.services.set('restAPI', api);
+    logger.info('REST API initialized');
+    return api;
+  }
+
+  async initializeApplication() {
+    if (this.isInitialized) {
+      return this.getServices();
+    }
+
+    try {
+      logger.banner('WhatsApp Bot Assistant', 'Versão 2.1 - Com Voz');
+      logger.startup('Inicializando aplicação...');
+
+      setupGlobalErrorHandlers();
+
+      const scheduler = await this.createScheduler();
+      const configService = await this.createConfigService(scheduler);
+      const llmService = this.createLLMService();
+      const transcriber = this.createAudioTranscriber();
+      const ttsService = this.createTtsService();
+      const bot = await this.createWhatsAppBot(scheduler, llmService, transcriber, ttsService);
+      const api = this.createRestAPI(bot, configService);
+
+      this.setupGracefulShutdown();
+      this.isInitialized = true;
+
+      logger.success('Aplicação iniciada com sucesso!');
+      logger.info('Escaneie o QR Code para conectar o WhatsApp (se necessário)');
+
+      return this.getServices();
+    } catch (error) {
+      logger.error('Erro fatal na inicialização', error);
+      throw error;
+    }
+  }
+
+  getServices() {
+    return {
+      scheduler: this.services.get('scheduler'),
+      configService: this.services.get('configService'),
+      llmService: this.services.get('llmService'),
+      audioTranscriber: this.services.get('audioTranscriber'),
+      ttsService: this.services.get('ttsService'),
+      whatsAppBot: this.services.get('whatsAppBot'),
+      restAPI: this.services.get('restAPI')
+    };
+  }
+
+  setupGracefulShutdown() {
+    const resources = Array.from(this.services.values()).filter(
+      service => service && typeof service.disconnect === 'function'
+    );
+
+    process.on('SIGINT', () => gracefulShutdown('SIGINT', resources));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM', resources));
+  }
+
+  async startAPI() {
+    const { restAPI } = this.getServices();
+    if (restAPI && typeof restAPI.start === 'function') {
+      restAPI.start();
+      logger.info('REST API server started');
+    }
+  }
+
+  async shutdown() {
+    logger.info('Shutting down application...');
+    
+    const resources = Array.from(this.services.values()).filter(
+      service => service && typeof service.disconnect === 'function'
+    );
+
+    await Promise.all(resources.map(async (resource) => {
+      try {
+        await resource.disconnect();
+      } catch (error) {
+        logger.error('Error disconnecting resource', error);
+      }
+    }));
+
+    this.services.clear();
+    this.isInitialized = false;
+    logger.success('Application shutdown completed');
+  }
+}

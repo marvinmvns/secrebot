@@ -684,11 +684,20 @@ async handleRecursoCommand(contactId) {
           await this.sendResponse(contactId, '📺 Por favor, envie o link do vídeo do YouTube que deseja transcrever.');
           return;
       }
+
+      console.log(`▶️ Iniciando resumo via Whisper para ${contactId}. Link recebido: ${link}`);
+      console.log('📥 Enviando confirmação de transcrição ao usuário');
+
       try {
           await this.sendResponse(contactId, '⏳ Transcrevendo vídeo via Whisper...', true);
+          console.log('🎙️ Chamando serviço YouTubeService.fetchTranscriptWhisperOnly');
           const transcript = await YouTubeService.fetchTranscriptWhisperOnly(link);
 
+          console.log(`📝 Transcrição concluída (${transcript.length} caracteres). Trecho inicial: "${transcript.slice(0, 80)}..."`);
+          console.log(`📊 Tamanho total da transcrição: ${transcript.length}`);
+
           if (!transcript || transcript.trim().length === 0) {
+              console.warn(`⚠️ Transcrição vazia para ${contactId}`);
               await this.sendResponse(contactId, '❌ Não foi possível transcrever o vídeo. Verifique se o link está correto.');
               return;
           }
@@ -697,12 +706,19 @@ async handleRecursoCommand(contactId) {
           const truncatedTranscript = transcript.slice(0, 15000);
           const truncated = transcriptLength > 15000;
 
+          if (truncated) {
+              console.log('⚠️ Transcrição grande, aplicando truncamento para 15k caracteres');
+          }
+
           await this.sendResponse(contactId, `📝 *Gerando resumo...*\n\n📊 Caracteres transcritos: ${transcriptLength.toLocaleString()}${truncated ? '\n⚠️ Texto truncado para processamento' : ''}`, true);
 
           const summaryPrompt = `Resuma em português o texto a seguir em tópicos claros e objetivos, em até 30 linhas:\n\n${truncatedTranscript}`;
 
+          console.log(`📨 Prompt preparado com ${summaryPrompt.length} caracteres. Enviando ao LLM`);
+
           let summary;
           try {
+            console.log('💬 Chamando LLM para gerar resumo');
             summary = await this.llmService.getAssistantResponse(contactId, summaryPrompt);
           } catch (llmError) {
             console.error(`❌ Erro no LLM ao processar vídeo para ${contactId}:`, llmError);
@@ -713,16 +729,21 @@ async handleRecursoCommand(contactId) {
             throw llmError;
           }
 
+          console.log(`✅ Resumo gerado com ${summary.length} caracteres. Trecho inicial: "${summary.slice(0, 80)}..."`);
+          console.log('📤 Enviando resumo final ao usuário');
+
           let finalResponse = `📑 *Resumo do Vídeo*\n\n${summary}`;
           if (truncated) {
               finalResponse += `\n\n⚠️ *Nota:* Devido ao tamanho da transcrição, apenas os primeiros 15.000 caracteres foram resumidos.`;
           }
 
           await this.sendResponse(contactId, finalResponse);
+          console.log('🏁 Processo de resumo finalizado com sucesso');
 
       } catch (err) {
           console.error(`❌ Erro ao processar vídeo para ${contactId}:`, err);
           await this.sendErrorMessage(contactId, '❌ Erro ao processar o vídeo. Verifique se o link é válido e tente novamente.');
+          console.log('📛 Processo de resumo via Whisper finalizado com erro');
       }
   }
 

@@ -48,7 +48,6 @@ class LLMService {
         
         const response = await this.queue.add(() => 
           this.chatWithTimeout({
-            console.log(CONFIG.llm.model),
             model: CONFIG.llm.model,
             messages
           }, timeoutMs)

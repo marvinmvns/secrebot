@@ -19,9 +19,29 @@ PIPER_DIR="$PROJECT_DIR/piper"
 MODELS_DIR="$PIPER_DIR/models"
 BIN_DIR="$PIPER_DIR/bin"
 
-# URLs para download
-PIPER_VERSION="2023.11.14-2"
-PIPER_BASE_URL="https://github.com/rhasspy/piper/releases/download/${PIPER_VERSION}"
+# Carregar configuração dos modelos
+CONFIG_FILE="$PROJECT_DIR/piper-models.json"
+if [ ! -f "$CONFIG_FILE" ]; then
+    print_error "Arquivo de configuração não encontrado: $CONFIG_FILE"
+    exit 1
+fi
+
+# Função para extrair dados do JSON (requer jq ou python)
+get_json_value() {
+    local key=$1
+    if command -v jq &> /dev/null; then
+        jq -r "$key" "$CONFIG_FILE"
+    elif command -v python3 &> /dev/null; then
+        python3 -c "import json; data=json.load(open('$CONFIG_FILE')); print($key)" 2>/dev/null || echo "null"
+    else
+        print_error "jq ou python3 necessário para processar configuração"
+        exit 1
+    fi
+}
+
+# Carregar configuração do Piper
+PIPER_VERSION=$(get_json_value '.piper.version')
+PIPER_BASE_URL=$(get_json_value '.piper.baseUrl')
 
 # Detectar arquitetura
 ARCH=$(uname -m)
@@ -43,39 +63,41 @@ case $ARCH in
         ;;
 esac
 
-# URLs específicas
+# Carregar URLs específicas da configuração
 if [ "$OS" = "linux" ]; then
-    if [ "$PIPER_ARCH" = "x64" ]; then
-        PIPER_ARCHIVE="piper_linux_x86_64.tar.gz"
-    elif [ "$PIPER_ARCH" = "arm64" ]; then
-        PIPER_ARCHIVE="piper_linux_aarch64.tar.gz"
-    elif [ "$PIPER_ARCH" = "armv7" ]; then
-        PIPER_ARCHIVE="piper_linux_armv7l.tar.gz"
-    else
-        echo -e "${RED}❌ Arquitetura Linux não suportada: $PIPER_ARCH${NC}"
-        exit 1
-    fi
-    PIPER_URL="${PIPER_BASE_URL}/${PIPER_ARCHIVE}"
+    REAL_ARCH=$ARCH  # Usar arquitetura real do sistema
+    PIPER_ARCHIVE=$(get_json_value ".piper.architectures.linux.\"$REAL_ARCH\"")
 elif [ "$OS" = "darwin" ]; then
-    if [ "$PIPER_ARCH" = "x64" ]; then
-        PIPER_ARCHIVE="piper_macos_x64.tar.gz"
-    elif [ "$PIPER_ARCH" = "arm64" ]; then
-        PIPER_ARCHIVE="piper_macos_arm64.tar.gz"
-    else
-        echo -e "${RED}❌ Arquitetura macOS não suportada: $PIPER_ARCH${NC}"
-        exit 1
-    fi
-    PIPER_URL="${PIPER_BASE_URL}/${PIPER_ARCHIVE}"
+    REAL_ARCH=$ARCH  # Usar arquitetura real do sistema
+    PIPER_ARCHIVE=$(get_json_value ".piper.architectures.darwin.\"$REAL_ARCH\"")
 else
     echo -e "${RED}❌ Sistema operacional não suportado: $OS${NC}"
     exit 1
 fi
 
-# Modelos pt-BR disponíveis
-declare -A MODELS=(
-    ["faber"]="https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx"
-    ["faber-config"]="https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx.json"
-)
+if [ "$PIPER_ARCHIVE" = "null" ] || [ -z "$PIPER_ARCHIVE" ]; then
+    echo -e "${RED}❌ Arquitetura não suportada: $OS/$ARCH${NC}"
+    exit 1
+fi
+
+PIPER_URL="${PIPER_BASE_URL}/${PIPER_ARCHIVE}"
+
+# Função para obter modelos da configuração
+get_default_model() {
+    local lang=$(get_json_value '.default.language')
+    local model=$(get_json_value '.default.model')
+    echo "${lang}:${model}"
+}
+
+get_model_urls() {
+    local lang=$1
+    local model_name=$2
+    local model_url=$(get_json_value ".models.\"$lang\"[] | select(.name == \"$model_name\") | .urls.model")
+    local config_url=$(get_json_value ".models.\"$lang\"[] | select(.name == \"$model_name\") | .urls.config")
+    local filename=$(get_json_value ".models.\"$lang\"[] | select(.name == \"$model_name\") | .filename")
+    
+    echo "${model_url}|${config_url}|${filename}"
+}
 
 print_header() {
     echo -e "${BLUE}"
@@ -214,32 +236,59 @@ install_piper() {
 }
 
 install_models() {
-    print_step "Instalando modelos pt-BR..."
+    print_step "Instalando modelos de voz..."
     
-    # Baixar modelo Faber (voz masculina brasileira)
-    local model_file="$MODELS_DIR/pt_BR-faber-medium.onnx"
-    local config_file="$MODELS_DIR/pt_BR-faber-medium.onnx.json"
+    # Obter modelo padrão da configuração
+    local default_model=$(get_default_model)
+    local lang=${default_model%:*}
+    local model_name=${default_model#*:}
     
-    if [ ! -f "$model_file" ]; then
-        download_file "${MODELS['faber']}" "$model_file" "modelo pt-BR Faber"
-    else
-        print_success "Modelo pt-BR Faber já existe"
+    print_step "Baixando modelo: $lang/$model_name"
+    
+    # Obter URLs do modelo
+    local model_info=$(get_model_urls "$lang" "$model_name")
+    local model_url=${model_info%%|*}
+    local remaining=${model_info#*|}
+    local config_url=${remaining%%|*}
+    local filename=${remaining#*|}
+    
+    if [ "$model_url" = "null" ] || [ -z "$model_url" ]; then
+        print_error "Modelo não encontrado na configuração: $lang/$model_name"
+        return 1
     fi
     
+    local model_file="$MODELS_DIR/${filename}.onnx"
+    local config_file="$MODELS_DIR/${filename}.onnx.json"
+    
+    # Baixar modelo
+    if [ ! -f "$model_file" ]; then
+        download_file "$model_url" "$model_file" "modelo $lang/$model_name"
+    else
+        print_success "Modelo $lang/$model_name já existe"
+    fi
+    
+    # Baixar configuração
     if [ ! -f "$config_file" ]; then
-        download_file "${MODELS['faber-config']}" "$config_file" "configuração do modelo"
+        download_file "$config_url" "$config_file" "configuração do modelo"
     else
         print_success "Configuração do modelo já existe"
     fi
     
-    print_success "Modelos pt-BR instalados"
+    print_success "Modelos instalados"
 }
 
 test_installation() {
     print_step "Testando instalação..."
     
     local piper_executable="$BIN_DIR/piper"
-    local model_file="$MODELS_DIR/pt_BR-faber-medium.onnx"
+    
+    # Obter modelo padrão para teste
+    local default_model=$(get_default_model)
+    local lang=${default_model%:*}
+    local model_name=${default_model#*:}
+    local model_info=$(get_model_urls "$lang" "$model_name")
+    local filename=${model_info##*|}
+    local model_file="$MODELS_DIR/${filename}.onnx"
     
     if [ ! -x "$piper_executable" ]; then
         print_error "Executável Piper não encontrado ou não executável"
@@ -247,7 +296,7 @@ test_installation() {
     fi
     
     if [ ! -f "$model_file" ]; then
-        print_error "Modelo pt-BR não encontrado"
+        print_error "Modelo não encontrado: $model_file"
         return 1
     fi
     
@@ -279,6 +328,13 @@ test_installation() {
 create_env_example() {
     print_step "Criando exemplo de configuração..."
     
+    # Obter modelo padrão para configuração
+    local default_model=$(get_default_model)
+    local lang=${default_model%:*}
+    local model_name=${default_model#*:}
+    local model_info=$(get_model_urls "$lang" "$model_name")
+    local filename=${model_info##*|}
+    
     local env_example="$PROJECT_DIR/.env.piper.example"
     
     cat > "$env_example" << EOF
@@ -287,15 +343,18 @@ create_env_example() {
 # Habilitar Piper TTS local
 PIPER_ENABLED=true
 
-# Caminho para o executável Piper
-PIPER_EXECUTABLE=$BIN_DIR/piper
+# Caminho para o executável Piper (use o wrapper para melhor compatibilidade)
+PIPER_EXECUTABLE=$PIPER_DIR/piper-wrapper.sh
 
-# Caminho para o modelo pt-BR
-PIPER_MODEL=$MODELS_DIR/pt_BR-faber-medium.onnx
+# Caminho para o modelo padrão ($lang/$model_name)
+PIPER_MODEL=$MODELS_DIR/${filename}.onnx
 
 # Exemplo de configuração completa:
 # cp .env.piper.example .env
 # ou adicione essas linhas ao seu .env existente
+
+# Nota: Modelos disponíveis estão definidos em piper-models.json
+# Para usar outro modelo, baixe-o primeiro com o script de instalação
 EOF
     
     print_success "Arquivo .env.piper.example criado"

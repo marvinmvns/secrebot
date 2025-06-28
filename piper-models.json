@@ -1,0 +1,53 @@
+{
+  "models": {
+    "pt_BR": [
+      {
+        "name": "faber-medium",
+        "displayName": "Faber (Masculina - Qualidade Média)",
+        "language": "pt_BR",
+        "gender": "male",
+        "quality": "medium",
+        "size": "~60MB",
+        "urls": {
+          "model": "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx",
+          "config": "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx.json"
+        },
+        "filename": "pt_BR-faber-medium"
+      }
+    ],
+    "en_US": [
+      {
+        "name": "lessac-medium",
+        "displayName": "Lessac (Female - Medium Quality)",
+        "language": "en_US",
+        "gender": "female",
+        "quality": "medium",
+        "size": "~45MB",
+        "urls": {
+          "model": "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx",
+          "config": "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json"
+        },
+        "filename": "en_US-lessac-medium"
+      }
+    ]
+  },
+  "default": {
+    "language": "pt_BR",
+    "model": "faber-medium"
+  },
+  "piper": {
+    "version": "2023.11.14-2",
+    "baseUrl": "https://github.com/rhasspy/piper/releases/download/2023.11.14-2",
+    "architectures": {
+      "linux": {
+        "x86_64": "piper_linux_x86_64.tar.gz",
+        "aarch64": "piper_linux_aarch64.tar.gz",
+        "armv7l": "piper_linux_armv7l.tar.gz"
+      },
+      "darwin": {
+        "x86_64": "piper_macos_x64.tar.gz",
+        "arm64": "piper_macos_arm64.tar.gz"
+      }
+    }
+  }
+}

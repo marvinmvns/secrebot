@@ -1,5 +1,86 @@
+# Dependencies
 node_modules/
-
-.env
 npm-debug.log
+yarn-error.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Coverage reports
 coverage/
+.nyc_output/
+
+# Cache directories
+.cache/
+*.cache/
+src/.wwebjs_cache/
+src/.wwebjs_auth/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Piper TTS installation (downloaded at runtime)
+piper/
+*.onnx
+*.onnx.json
+
+# Audio files
+*.wav
+*.mp3
+*.ogg
+*.m4a
+
+# WhatsApp Web.js cache
+.wwebjs_auth/
+.wwebjs_cache/
+
+# System files
+.DS_Store
+Thumbs.db
+.directory
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env.test
+.env.production
+
+# Backup files
+*.backup
+*.bak
+
+# Lock files (keep only one type)
+package-lock.json
+yarn.lock

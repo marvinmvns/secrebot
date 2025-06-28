@@ -15,15 +15,14 @@ import json
 import shutil
 from pathlib import Path
 
-# Configurações
-PIPER_VERSION = "2023.11.14-2"
-PIPER_BASE_URL = f"https://github.com/rhasspy/piper/releases/download/{PIPER_VERSION}"
-
-# Modelos pt-BR
-MODELS = {
-    "faber": "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx",
-    "faber_config": "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx.json"
-}
+# Carregar configuração do arquivo JSON
+def load_config():
+    config_file = Path(__file__).parent.parent / "piper-models.json"
+    if not config_file.exists():
+        raise FileNotFoundError(f"Arquivo de configuração não encontrado: {config_file}")
+    
+    with open(config_file, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
 class Colors:
     RED = '\033[0;31m'
@@ -40,47 +39,24 @@ class PiperInstaller:
         self.models_dir = self.piper_dir / "models"
         self.bin_dir = self.piper_dir / "bin"
         
+        # Carregar configuração
+        self.config = load_config()
+        
         self.os_name = platform.system().lower()
         self.arch = platform.machine().lower()
         
-        # Mapear arquiteturas
-        arch_map = {
-            'x86_64': 'x64',
-            'amd64': 'x64',
-            'aarch64': 'arm64',
-            'arm64': 'arm64',
-            'armv7l': 'armv7'
-        }
+        # Obter configuração do Piper
+        piper_config = self.config['piper']
+        base_url = piper_config['baseUrl']
         
-        self.piper_arch = arch_map.get(self.arch)
-        if not self.piper_arch:
-            self.print_error(f"Arquitetura não suportada: {self.arch}")
+        # Obter arquivo para a arquitetura atual
+        try:
+            archive_name = piper_config['architectures'][self.os_name][self.arch]
+        except KeyError:
+            self.print_error(f"Arquitetura não suportada: {self.os_name}/{self.arch}")
             sys.exit(1)
             
-        # URL do Piper
-        if self.os_name == 'linux':
-            if self.piper_arch == 'x64':
-                archive_name = "piper_linux_x86_64.tar.gz"
-            elif self.piper_arch == 'arm64':
-                archive_name = "piper_linux_aarch64.tar.gz"
-            elif self.piper_arch == 'armv7':
-                archive_name = "piper_linux_armv7l.tar.gz"
-            else:
-                self.print_error(f"Arquitetura Linux não suportada: {self.piper_arch}")
-                sys.exit(1)
-        elif self.os_name == 'darwin':
-            if self.piper_arch == 'x64':
-                archive_name = "piper_macos_x64.tar.gz"
-            elif self.piper_arch == 'arm64':
-                archive_name = "piper_macos_arm64.tar.gz"
-            else:
-                self.print_error(f"Arquitetura macOS não suportada: {self.piper_arch}")
-                sys.exit(1)
-        else:
-            self.print_error(f"Sistema operacional não suportado: {self.os_name}")
-            sys.exit(1)
-            
-        self.piper_url = f"{PIPER_BASE_URL}/{archive_name}"
+        self.piper_url = f"{base_url}/{archive_name}"
         self.piper_archive = archive_name
 
     def print_header(self):
@@ -184,29 +160,48 @@ class PiperInstaller:
             return False
 
     def install_models(self):
-        self.print_step("Instalando modelos pt-BR...")
+        self.print_step("Instalando modelos de voz...")
         
-        model_file = self.models_dir / "pt_BR-faber-medium.onnx"
-        config_file = self.models_dir / "pt_BR-faber-medium.onnx.json"
+        # Obter modelo padrão da configuração
+        default_config = self.config['default']
+        lang = default_config['language']
+        model_name = default_config['model']
+        
+        self.print_step(f"Baixando modelo: {lang}/{model_name}")
+        
+        # Encontrar configuração do modelo
+        model_config = None
+        for model in self.config['models'][lang]:
+            if model['name'] == model_name:
+                model_config = model
+                break
+        
+        if not model_config:
+            self.print_error(f"Modelo não encontrado na configuração: {lang}/{model_name}")
+            return False
+        
+        filename = model_config['filename']
+        model_file = self.models_dir / f"{filename}.onnx"
+        config_file = self.models_dir / f"{filename}.onnx.json"
         
         success = True
         
         # Baixar modelo
         if not model_file.exists():
-            if not self.download_file(MODELS["faber"], model_file, "modelo pt-BR Faber"):
+            if not self.download_file(model_config['urls']['model'], model_file, f"modelo {lang}/{model_name}"):
                 success = False
         else:
-            self.print_success("Modelo pt-BR Faber já existe")
+            self.print_success(f"Modelo {lang}/{model_name} já existe")
         
         # Baixar configuração
         if not config_file.exists():
-            if not self.download_file(MODELS["faber_config"], config_file, "configuração do modelo"):
+            if not self.download_file(model_config['urls']['config'], config_file, "configuração do modelo"):
                 success = False
         else:
             self.print_success("Configuração do modelo já existe")
         
         if success:
-            self.print_success("Modelos pt-BR instalados")
+            self.print_success("Modelos instalados")
         
         return success
 
@@ -214,14 +209,32 @@ class PiperInstaller:
         self.print_step("Testando instalação...")
         
         piper_executable = self.bin_dir / "piper"
-        model_file = self.models_dir / "pt_BR-faber-medium.onnx"
+        
+        # Obter modelo padrão para teste
+        default_config = self.config['default']
+        lang = default_config['language']
+        model_name = default_config['model']
+        
+        # Encontrar configuração do modelo
+        model_config = None
+        for model in self.config['models'][lang]:
+            if model['name'] == model_name:
+                model_config = model
+                break
+        
+        if not model_config:
+            self.print_error(f"Modelo não encontrado na configuração: {lang}/{model_name}")
+            return False
+        
+        filename = model_config['filename']
+        model_file = self.models_dir / f"{filename}.onnx"
         
         if not piper_executable.exists() or not os.access(piper_executable, os.X_OK):
             self.print_error("Executável Piper não encontrado ou não executável")
             return False
         
         if not model_file.exists():
-            self.print_error("Modelo pt-BR não encontrado")
+            self.print_error(f"Modelo não encontrado: {model_file}")
             return False
         
         # Teste básico
@@ -252,6 +265,23 @@ class PiperInstaller:
     def create_env_example(self):
         self.print_step("Criando exemplo de configuração...")
         
+        # Obter modelo padrão para configuração
+        default_config = self.config['default']
+        lang = default_config['language']
+        model_name = default_config['model']
+        
+        # Encontrar configuração do modelo
+        model_config = None
+        for model in self.config['models'][lang]:
+            if model['name'] == model_name:
+                model_config = model
+                break
+        
+        if not model_config:
+            self.print_error(f"Modelo não encontrado na configuração: {lang}/{model_name}")
+            return
+        
+        filename = model_config['filename']
         env_example = self.project_dir / ".env.piper.example"
         
         content = f"""# Configuração Piper TTS - Adicione ao seu arquivo .env
@@ -259,15 +289,18 @@ class PiperInstaller:
 # Habilitar Piper TTS local
 PIPER_ENABLED=true
 
-# Caminho para o executável Piper
-PIPER_EXECUTABLE={self.bin_dir}/piper
+# Caminho para o executável Piper (use o wrapper para melhor compatibilidade)
+PIPER_EXECUTABLE={self.piper_dir}/piper-wrapper.sh
 
-# Caminho para o modelo pt-BR
-PIPER_MODEL={self.models_dir}/pt_BR-faber-medium.onnx
+# Caminho para o modelo padrão ({lang}/{model_name})
+PIPER_MODEL={self.models_dir}/{filename}.onnx
 
 # Exemplo de configuração completa:
 # cp .env.piper.example .env
 # ou adicione essas linhas ao seu .env existente
+
+# Nota: Modelos disponíveis estão definidos em piper-models.json
+# Para usar outro modelo, baixe-o primeiro com o script de instalação
 """
         
         with open(env_example, 'w', encoding='utf-8') as f:

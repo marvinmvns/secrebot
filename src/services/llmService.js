@@ -13,6 +13,14 @@ class LLMService {
       CONFIG.queues.llmConcurrency,
       CONFIG.queues.memoryThresholdGB
     );
+    
+    // Configurações de timeout progressivo
+    this.timeoutLevels = [
+      300000,   // 30 segundos
+      600000,   // 1 minuto
+      18000000, // 30 minutos
+      36000000  // 1 hora (limite máximo)
+    ];
   }
 
   getContext(contactId, type) {
@@ -23,7 +31,7 @@ class LLMService {
     return this.contexts.get(key);
   }
 
-  async chat(contactId, text, type, systemPrompt, retries = 3) {
+  async chat(contactId, text, type, systemPrompt, maxRetries = this.timeoutLevels.length) {
     const context = this.getContext(contactId, type);
     context.push({ role: 'user', content: text });
     
@@ -31,13 +39,18 @@ class LLMService {
     const limitedContext = Utils.limitContext([...context]); 
     const messages = [{ role: 'system', content: systemPrompt }, ...limitedContext];
     
-    for (let attempt = 1; attempt <= retries; attempt++) {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const timeoutMs = this.timeoutLevels[attempt] || this.timeoutLevels[this.timeoutLevels.length - 1];
+      const timeoutLabel = this.formatTimeout(timeoutMs);
+      
       try {
-        const response = await this.queue.add(() =>
-          this.ollama.chat({
+        console.log(`🔄 LLM Tentativa ${attempt + 1}/${maxRetries} (timeout: ${timeoutLabel}) para ${contactId}`);
+        
+        const response = await this.queue.add(() => 
+          this.chatWithTimeout({
             model: CONFIG.llm.model,
             messages
-          })
+          }, timeoutMs)
         );
         
         // Usa o método estático de Utils para extrair JSON
@@ -46,21 +59,58 @@ class LLMService {
           : response.message.content;
         
         context.push({ role: 'assistant', content });
+        console.log(`✅ LLM resposta obtida em tentativa ${attempt + 1} para ${contactId}`);
         return content;
       } catch (err) {
-        console.error(`Erro no LLM (${type}) - Tentativa ${attempt}/${retries}:`, err);
+        const isTimeout = err.code === 'UND_ERR_HEADERS_TIMEOUT' || err.name === 'TimeoutError' || err.message?.includes('timeout');
         
-        if (attempt === retries) {
+        console.error(`❌ LLM (${type}) - Tentativa ${attempt + 1}/${maxRetries} [${timeoutLabel}]:`, {
+          error: err.message,
+          code: err.code,
+          isTimeout,
+          contactId
+        });
+        
+        if (attempt === maxRetries - 1) {
           // Remove the failed user message from context on final failure
           context.pop();
-          throw err;
+          console.error(`🚫 LLM falhou definitivamente após ${maxRetries} tentativas para ${contactId}`);
+          throw new Error(`LLM falhou após ${maxRetries} tentativas. Último erro: ${err.message}`);
         }
         
-        // Wait before retry with exponential backoff
-        const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 30000);
-        console.log(`Aguardando ${delayMs}ms antes da próxima tentativa...`);
+        // Delay progressivo entre tentativas
+        const delayMs = Math.min(2000 * Math.pow(1.5, attempt), 30000);
+        console.log(`⏳ Aguardando ${this.formatTimeout(delayMs)} antes da próxima tentativa...`);
         await new Promise(resolve => setTimeout(resolve, delayMs));
       }
+    }
+  }
+  
+  async chatWithTimeout(requestParams, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`LLM timeout após ${this.formatTimeout(timeoutMs)}`));
+      }, timeoutMs);
+      
+      this.ollama.chat(requestParams)
+        .then(response => {
+          clearTimeout(timeout);
+          resolve(response);
+        })
+        .catch(error => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+    });
+  }
+  
+  formatTimeout(ms) {
+    if (ms < 60000) {
+      return `${Math.round(ms / 1000)}s`;
+    } else if (ms < 3600000) {
+      return `${Math.round(ms / 60000)}min`;
+    } else {
+      return `${Math.round(ms / 3600000)}h`;
     }
   }
 

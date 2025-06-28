@@ -87,6 +87,70 @@ class WhatsAppBot {
   }
   // --- Fim Métodos de Preferência ---
 
+  // Método para chamadas Ollama com retry progressivo
+  async callOllamaWithRetry(requestParams, contactId, operation = 'unknown') {
+    const timeoutLevels = [
+      30000,   // 30 segundos
+      60000,   // 1 minuto
+      120000,  // 2 minutos
+      300000,  // 5 minutos
+      600000,  // 10 minutos
+      1200000, // 20 minutos
+      1800000, // 30 minutos
+      3600000  // 1 hora (limite máximo)
+    ];
+
+    const formatTimeout = (ms) => {
+      if (ms < 60000) {
+        return `${Math.round(ms / 1000)}s`;
+      } else if (ms < 3600000) {
+        return `${Math.round(ms / 60000)}min`;
+      } else {
+        return `${Math.round(ms / 3600000)}h`;
+      }
+    };
+
+    for (let attempt = 0; attempt < timeoutLevels.length; attempt++) {
+      const timeoutMs = timeoutLevels[attempt];
+      const timeoutLabel = formatTimeout(timeoutMs);
+      
+      try {
+        console.log(`🔄 Ollama ${operation} - Tentativa ${attempt + 1}/${timeoutLevels.length} (timeout: ${timeoutLabel}) para ${contactId}`);
+        
+        const response = await Promise.race([
+          requestParams.images ? 
+            ollamaClient.generate(requestParams) :
+            ollamaClient.chat(requestParams),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error(`Timeout após ${timeoutLabel}`)), timeoutMs)
+          )
+        ]);
+        
+        console.log(`✅ Ollama ${operation} respondeu em tentativa ${attempt + 1} para ${contactId}`);
+        return response;
+      } catch (err) {
+        const isTimeout = err.message?.includes('timeout') || err.code === 'UND_ERR_HEADERS_TIMEOUT';
+        
+        console.error(`❌ Ollama ${operation} - Tentativa ${attempt + 1}/${timeoutLevels.length} [${timeoutLabel}]:`, {
+          error: err.message,
+          code: err.code,
+          isTimeout,
+          contactId
+        });
+        
+        if (attempt === timeoutLevels.length - 1) {
+          console.error(`🚫 Ollama ${operation} falhou definitivamente após ${timeoutLevels.length} tentativas para ${contactId}`);
+          throw new Error(`Ollama ${operation} falhou após ${timeoutLevels.length} tentativas. Último erro: ${err.message}`);
+        }
+        
+        // Delay progressivo entre tentativas
+        const delayMs = Math.min(2000 * Math.pow(1.5, attempt), 30000);
+        console.log(`⏳ Aguardando ${formatTimeout(delayMs)} antes da próxima tentativa...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
   setupEvents() {
     this.client.on('qr', qr => {
       qrcode.generate(qr, { small: true });
@@ -945,7 +1009,12 @@ async handleRecursoCommand(contactId) {
           
       } catch (err) {
           console.error(`❌ Erro ao processar vídeo para ${contactId}:`, err);
-      await this.sendErrorMessage(contactId, '❌ Erro ao processar o vídeo. Verifique se o link é válido e tente novamente.');
+          
+          if (err.message?.includes('falhou após') && err.message?.includes('tentativas')) {
+            await this.sendErrorMessage(contactId, '⏱️ O processamento do vídeo demorou mais que o esperado. O sistema tentou por até 1 hora, mas não conseguiu completar. Tente novamente mais tarde ou com um vídeo menor.');
+          } else {
+            await this.sendErrorMessage(contactId, '❌ Erro ao processar o vídeo. Verifique se o link é válido e tente novamente.');
+          }
       }
   }
 
@@ -1013,7 +1082,12 @@ async handleRecursoCommand(contactId) {
 
       } catch (err) {
           console.error(`❌ Erro ao processar vídeo para ${contactId}:`, err);
-          await this.sendErrorMessage(contactId, '❌ Erro ao processar o vídeo. Verifique se o link é válido e tente novamente.');
+          
+          if (err.message?.includes('falhou após') && err.message?.includes('tentativas')) {
+            await this.sendErrorMessage(contactId, '⏱️ O processamento do vídeo demorou mais que o esperado. O sistema tentou por até 1 hora, mas não conseguiu completar. Tente novamente mais tarde ou com um vídeo menor.');
+          } else {
+            await this.sendErrorMessage(contactId, '❌ Erro ao processar o vídeo. Verifique se o link é válido e tente novamente.');
+          }
           console.log('📛 Processo de resumo via Whisper finalizado com erro');
       }
   }
@@ -1048,12 +1122,12 @@ async handleRecursoCommand(contactId) {
         mode = 'description';
       }
       await this.sendResponse(contactId, processingMessage, true); // Status sempre em texto
-      const response = await ollamaClient.generate({
+      const response = await this.callOllamaWithRetry({
         model: CONFIG.llm.imageModel,
         prompt: prompt,
         images: [imagePath],
         stream: false
-      });
+      }, contactId, 'image-analysis');
       const description = response.response.trim();
       console.log(`🤖 Resposta da análise de imagem (${mode}): ${description.substring(0, 100)}...`);
 
@@ -1087,7 +1161,12 @@ async handleRecursoCommand(contactId) {
       }
     } catch (err) {
         console.error(`❌ Erro ao processar imagem de ${contactId}:`, err);
-        await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+        
+        if (err.message?.includes('falhou após') && err.message?.includes('tentativas')) {
+          await this.sendErrorMessage(contactId, '⏱️ A análise da imagem demorou mais que o esperado. O sistema tentou por até 1 hora, mas não conseguiu completar. Tente novamente mais tarde ou com uma imagem menor.');
+        } else {
+          await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+        }
     } finally {
       await Utils.cleanupFile(imagePath);
       console.log(`🗑️ Arquivo de imagem temporário ${imagePath} removido.`);
@@ -1182,11 +1261,11 @@ async handleRecursoCommand(contactId) {
         console.log(`🎤 Áudio recebido no menu. Mapeando transcrição "${transcription}" para comando...`);
         await this.sendResponse(contactId, '🤔 Interpretando comando de áudio...', true);
         const commandPrompt = PROMPTS.audioCommandMapping(transcription);
-        const response = await ollamaClient.chat({
+        const response = await this.callOllamaWithRetry({
             model: CONFIG.llm.model,
             messages: [{ role: 'user', content: commandPrompt }],
             options: { temperature: 0.2 }
-        });
+        }, contactId, 'audio-command-mapping');
         const mappedCommand = response.message.content.trim();
         console.log(`🤖 LLM mapeou áudio para: ${mappedCommand}`);
         if (mappedCommand !== 'INVALIDO' && Object.values(COMMANDS).includes(mappedCommand)) {
@@ -1199,7 +1278,12 @@ async handleRecursoCommand(contactId) {
       }
     } catch (err) {
       console.error(`❌ Erro no processamento de áudio para ${contactId}:`, err);
-      await this.sendErrorMessage(contactId, `❌ Erro ao processar áudio: ${err.message || 'Tente novamente.'}`);
+      
+      if (err.message?.includes('falhou após') && err.message?.includes('tentativas')) {
+        await this.sendErrorMessage(contactId, '⏱️ O processamento do áudio demorou mais que o esperado. Tente novamente mais tarde.');
+      } else {
+        await this.sendErrorMessage(contactId, `❌ Erro ao processar áudio: ${err.message || 'Tente novamente.'}`);
+      }
     }
   }
 

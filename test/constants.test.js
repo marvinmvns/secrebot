@@ -8,12 +8,14 @@ test('COMMANDS should contain expected commands', () => {
   assert.equal(COMMANDS.DEEP, '!deep');
   assert.equal(COMMANDS.AGENDA, '!agendabot');
   assert.equal(COMMANDS.VOLTAR, '!voltar');
+  assert.equal(COMMANDS.RESUMIRVIDEO2, '!resumirvideo2');
 });
 
 test('NUMERIC_SHORTCUTS should map correctly to commands', () => {
   assert.equal(NUMERIC_SHORTCUTS['1'], COMMANDS.AJUDA);
   assert.equal(NUMERIC_SHORTCUTS['2'], COMMANDS.AGENDA);
   assert.equal(NUMERIC_SHORTCUTS['0'], COMMANDS.VOLTAR);
+  assert.equal(NUMERIC_SHORTCUTS['15'], COMMANDS.RESUMIRVIDEO2);
 });
 
 test('CHAT_MODES should contain expected modes', () => {

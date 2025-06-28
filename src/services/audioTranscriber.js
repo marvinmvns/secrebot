@@ -49,7 +49,7 @@ class AudioTranscriber {
     });
   }
 
-  async transcribe(audioBuffer) {
+  async transcribe(audioBuffer, inputFormat = 'ogg') {
     return this.queue.add(async () => {
       console.log('🎤 Iniciando transcrição de áudio...');
       const timestamp = Date.now();
@@ -59,7 +59,7 @@ class AudioTranscriber {
         await new Promise((resolve, reject) => {
           const inputStream = Readable.from(audioBuffer);
           ffmpeg(inputStream)
-            .inputFormat('ogg')
+            .inputFormat(inputFormat)
             .outputOptions(`-ar ${CONFIG.audio.sampleRate}`)
             .toFormat('wav')
             .on('error', (err) => {

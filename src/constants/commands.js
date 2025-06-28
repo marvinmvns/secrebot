@@ -13,6 +13,7 @@ export const COMMANDS = {
   RECURSO: "!recurso",
   RESUMIR: '!resumir',
   RESUMIRVIDEO: '!resumirvideo',
+  RESUMIRVIDEO2: '!resumirvideo2',
   IMPORTAR_AGENDA: '!importaragenda',
   VOLTAR: '!voltar'
 };
@@ -32,6 +33,7 @@ export const NUMERIC_SHORTCUTS = {
   '12': COMMANDS.RESUMIR,
   '13': COMMANDS.IMPORTAR_AGENDA,
   '14': COMMANDS.RESUMIRVIDEO,
+  '15': COMMANDS.RESUMIRVIDEO2,
   '0': COMMANDS.VOLTAR
 };
 

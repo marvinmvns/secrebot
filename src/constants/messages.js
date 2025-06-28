@@ -14,6 +14,7 @@ export const MENU_MESSAGE = `🤖 *Bem-vindo!* Escolha uma opção:\n\n1️⃣ $
 1️⃣2️⃣ ${COMMANDS.RESUMIR} - Resumir texto/arquivo
 1️⃣3️⃣ ${COMMANDS.IMPORTAR_AGENDA} - Importar eventos
 1️⃣4️⃣ ${COMMANDS.RESUMIRVIDEO} - Resumir vídeo do YouTube
+1️⃣5️⃣ ${COMMANDS.RESUMIRVIDEO2} - Resumir vídeo (Whisper)
 0️⃣ ${COMMANDS.VOLTAR} - Voltar`;
 
 export const MODE_MESSAGES = {

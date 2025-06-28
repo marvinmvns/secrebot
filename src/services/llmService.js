@@ -23,7 +23,7 @@ class LLMService {
     return this.contexts.get(key);
   }
 
-  async chat(contactId, text, type, systemPrompt) {
+  async chat(contactId, text, type, systemPrompt, retries = 3) {
     const context = this.getContext(contactId, type);
     context.push({ role: 'user', content: text });
     
@@ -31,24 +31,36 @@ class LLMService {
     const limitedContext = Utils.limitContext([...context]); 
     const messages = [{ role: 'system', content: systemPrompt }, ...limitedContext];
     
-    try {
-      const response = await this.queue.add(() =>
-        this.ollama.chat({
-          model: CONFIG.llm.model,
-          messages
-        })
-      );
-      
-      // Usa o método estático de Utils para extrair JSON
-      const content = type === CHAT_MODES.AGENDABOT 
-        ? Utils.extractJSON(response.message.content)
-        : response.message.content;
-      
-      context.push({ role: 'assistant', content });
-      return content;
-    } catch (err) {
-      console.error(`Erro no LLM (${type}):`, err);
-      throw err;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const response = await this.queue.add(() =>
+          this.ollama.chat({
+            model: CONFIG.llm.model,
+            messages
+          })
+        );
+        
+        // Usa o método estático de Utils para extrair JSON
+        const content = type === CHAT_MODES.AGENDABOT 
+          ? Utils.extractJSON(response.message.content)
+          : response.message.content;
+        
+        context.push({ role: 'assistant', content });
+        return content;
+      } catch (err) {
+        console.error(`Erro no LLM (${type}) - Tentativa ${attempt}/${retries}:`, err);
+        
+        if (attempt === retries) {
+          // Remove the failed user message from context on final failure
+          context.pop();
+          throw err;
+        }
+        
+        // Wait before retry with exponential backoff
+        const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 30000);
+        console.log(`Aguardando ${delayMs}ms antes da próxima tentativa...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
     }
   }
 

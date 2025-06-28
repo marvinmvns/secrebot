@@ -594,8 +594,8 @@ async handleRecursoCommand(contactId) {
       }
 
       const originalLength = textContent.length;
-      const text = textContent.trim().slice(0, 8000);
-      const truncated = originalLength > 8000;
+      const text = textContent.trim().slice(0, 1500000);
+      const truncated = originalLength > 1500000;
 
       try {
           let statusMsg = `📝 *Gerando resumo...*\n\n📊 Caracteres: ${originalLength.toLocaleString()}`;
@@ -635,18 +635,45 @@ async handleRecursoCommand(contactId) {
       try {
           await this.sendResponse(contactId, '⏳ Transcrevendo vídeo...', true);
           const transcript = await YouTubeService.fetchTranscript(link);
-          await this.sendResponse(contactId, `📝 *Transcrição:*\n\n${transcript}`);
+          
+          // Verificar se a transcrição foi obtida
+          if (!transcript || transcript.trim().length === 0) {
+              await this.sendResponse(contactId, '❌ Não foi possível obter a transcrição do vídeo. Verifique se o link está correto e se o vídeo possui legendas.');
+              return;
+          }
 
-          const summaryPrompt =
-            `Resuma em português o texto a seguir em tópicos e em até 30 linhas:\n\n${transcript}`;
-          const summary = await this.llmService.getAssistantResponse(
-            contactId,
-            summaryPrompt
-          );
-          await this.sendResponse(contactId, `📑 *Resumo:*\n\n${summary}`);
+          const transcriptLength = transcript.length;
+          const truncatedTranscript = transcript.slice(0, 15000); // Limite para LLM
+          const truncated = transcriptLength > 15000;
+
+          await this.sendResponse(contactId, `📝 *Gerando resumo...*\n\n📊 Caracteres transcritos: ${transcriptLength.toLocaleString()}${truncated ? '\n⚠️ Texto truncado para processamento' : ''}`, true);
+
+          const summaryPrompt = `Resuma em português o texto a seguir em tópicos claros e objetivos, em até 30 linhas:\n\n${truncatedTranscript}`;
+          
+          // Try with more retries for video processing due to larger content
+          let summary;
+          try {
+            summary = await this.llmService.getAssistantResponse(contactId, summaryPrompt);
+          } catch (llmError) {
+            console.error(`❌ Erro no LLM ao processar vídeo para ${contactId}:`, llmError);
+            if (llmError.message && llmError.message.includes('timeout')) {
+              await this.sendResponse(contactId, '⏱️ O processamento do vídeo demorou mais que o esperado. Tente novamente com um vídeo menor ou aguarde alguns minutos.');
+              return;
+            }
+            throw llmError;
+          }
+          
+          let finalResponse = `📑 *Resumo do Vídeo*\n\n${summary}`;
+          
+          if (truncated) {
+              finalResponse += `\n\n⚠️ *Nota:* Devido ao tamanho da transcrição, apenas os primeiros 15.000 caracteres foram resumidos.`;
+          }
+          
+          await this.sendResponse(contactId, finalResponse);
+          
       } catch (err) {
-          console.error(`❌ Erro ao transcrever vídeo para ${contactId}:`, err);
-          await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+          console.error(`❌ Erro ao processar vídeo para ${contactId}:`, err);
+          await this.sendErrorMessage(contactId, '❌ Erro ao processar o vídeo. Verifique se o link é válido e tente novamente.');
       }
   }
 

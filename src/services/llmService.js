@@ -16,10 +16,10 @@ class LLMService {
     
     // Configurações de timeout progressivo
     this.timeoutLevels = [
-      300000,   // 30 segundos
-      600000,   // 1 minuto
-      18000000, // 30 minutos
-      36000000  // 1 hora (limite máximo)
+      3000000,   // 30 segundos
+      6000000,   // 1 minuto
+      180000000, // 30 minutos
+      360000000  // 1 hora (limite máximo)
     ];
   }
 
@@ -48,6 +48,7 @@ class LLMService {
         
         const response = await this.queue.add(() => 
           this.chatWithTimeout({
+            console.log(CONFIG.llm.model),
             model: CONFIG.llm.model,
             messages
           }, timeoutMs)

@@ -27,7 +27,7 @@ export const MODE_MESSAGES = {
   
   [CHAT_MODES.DELETAR]: `🗑️ *Modo Deletar Agendamento*\n\nAguarde enquanto busco seus agendamentos...`,
   
-  [CHAT_MODES.RESUMIR]: `📑 *Modo Resumo Ativado!*\n\nEnvie o texto ou arquivo que deseja resumir.\nUse !resumirvideo <link> para vídeos do YouTube.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
+  [CHAT_MODES.RESUMIR]: `📑 *Modo Resumo Ativado!*\n\n📎 *Agora envie:*\n• Arquivo PDF, DOCX, TXT ou CSV\n• Texto diretamente na mensagem\n\n💡 *Dica:* Use !resumirvideo <link> para vídeos do YouTube\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
 };
 
 export const SUCCESS_MESSAGES = {

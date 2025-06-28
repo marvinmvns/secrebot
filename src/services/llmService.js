@@ -1,7 +1,7 @@
 import { Ollama } from 'ollama';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, CHAT_MODES, PROMPTS } from '../config/index.js'; // Ajustar caminho se necessário
-import { fetchProfileRaw } from './linkedinScraper.js';
+import { fetchProfileStructured } from './linkedinScraper.js';
 import JobQueue from './jobQueue.js';
 
 // ============ Serviço LLM ============
@@ -66,16 +66,86 @@ class LLMService {
 
   async getAssistantResponseLinkedin(contactId, url, liAt) {
     try {
-      const data = await fetchProfileRaw(url, {
+      const data = await fetchProfileStructured(url, {
         liAt,
-        timeoutMs: CONFIG.linkedin.timeoutMs
+        timeoutMs: CONFIG.linkedin.timeoutMs,
+        retries: 3
       });
-      const text = data.success ? data.rawText : data.error;
-      return await this.chat(contactId, text, CHAT_MODES.LINKEDIN, PROMPTS.linkedin);
+      
+      if (!data.success) {
+        return `❌ Erro ao analisar perfil: ${data.error}`;
+      }
+
+      const profileData = data.data;
+      const quality = data.dataQuality;
+
+      const structuredText = this.formatProfileForLLM(profileData, quality);
+      
+      const enhancedPrompt = `${PROMPTS.linkedin}
+
+QUALIDADE DOS DADOS: ${quality.quality} (${quality.percentage}%)
+TENTATIVAS: ${data.attempt || 1}
+
+Analise o perfil abaixo e forneça um resumo profissional detalhado e insights relevantes:
+
+${structuredText}`;
+
+      return await this.chat(contactId, enhancedPrompt, CHAT_MODES.LINKEDIN, PROMPTS.linkedin);
     } catch (err) {
       console.error('Erro ao raspar LinkedIn:', err);
-      return 'Função em construção.';
+      return '❌ Erro interno ao processar perfil LinkedIn.';
     }
+  }
+
+  formatProfileForLLM(profileData, quality) {
+    let formatted = '';
+    
+    if (profileData.name) {
+      formatted += `**NOME:** ${profileData.name}\n`;
+    }
+    
+    if (profileData.headline) {
+      formatted += `**TÍTULO:** ${profileData.headline}\n`;
+    }
+    
+    if (profileData.location) {
+      formatted += `**LOCALIZAÇÃO:** ${profileData.location}\n`;
+    }
+    
+    if (profileData.connections) {
+      formatted += `**CONEXÕES:** ${profileData.connections}\n`;
+    }
+    
+    if (profileData.about && profileData.about.length > 0) {
+      formatted += `\n**SOBRE:**\n${profileData.about}\n`;
+    }
+    
+    if (profileData.experience && profileData.experience.length > 0) {
+      formatted += `\n**EXPERIÊNCIA PROFISSIONAL:**\n`;
+      profileData.experience.forEach((exp, index) => {
+        formatted += `${index + 1}. ${exp.title || 'Cargo não especificado'}\n`;
+        formatted += `   Empresa: ${exp.company || 'Empresa não especificada'}\n`;
+        formatted += `   Período: ${exp.duration || 'Período não especificado'}\n\n`;
+      });
+    }
+    
+    if (profileData.education && profileData.education.length > 0) {
+      formatted += `**EDUCAÇÃO:**\n`;
+      profileData.education.forEach((edu, index) => {
+        formatted += `${index + 1}. ${edu.degree || 'Curso não especificado'}\n`;
+        formatted += `   Instituição: ${edu.school || 'Instituição não especificada'}\n`;
+        formatted += `   Período: ${edu.years || 'Período não especificado'}\n\n`;
+      });
+    }
+    
+    if (profileData.skills && profileData.skills.length > 0) {
+      formatted += `**PRINCIPAIS HABILIDADES:**\n`;
+      formatted += profileData.skills.slice(0, 15).join(' • ') + '\n';
+    }
+    
+    formatted += `\n**QUALIDADE DOS DADOS EXTRAÍDOS:** ${quality.percentage}% (${quality.score}/${quality.maxScore} campos preenchidos)`;
+    
+    return formatted;
   }
 
   clearContext(contactId, type) {

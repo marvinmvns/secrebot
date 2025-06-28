@@ -486,66 +486,143 @@ async handleRecursoCommand(contactId) {
 
   async handleResumirCommand(msg, contactId) {
       const text = msg.body.substring(COMMANDS.RESUMIR.length).trim();
-      if (!msg.hasMedia && !text) {
-          this.setMode(contactId, CHAT_MODES.RESUMIR);
-          await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.RESUMIR]);
+      
+      if (msg.hasMedia || text) {
+          await this.sendResponse(contactId, '⚠️ *Comando !resumir ativado!*\n\nPara usar o comando !resumir, envie apenas `!resumir` primeiro.\nEm seguida, envie o documento ou texto que deseja resumir.\n\n🔙 Para voltar ao menu: !voltar');
           return;
       }
-      await this.performResumir(msg, contactId, text);
+      
+      this.setMode(contactId, CHAT_MODES.RESUMIR);
+      await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.RESUMIR]);
   }
 
   async performResumir(msg, contactId, providedText = '') {
       let textContent = '';
+      let fileType = '';
 
       if (msg && msg.hasMedia) {
+          await this.sendResponse(contactId, '⏳ *Processando arquivo...*', true);
+          
           const media = await Utils.downloadMediaWithRetry(msg);
           if (!media) {
-              await this.sendErrorMessage(contactId, '❌ Não foi possível baixar o arquivo.');
+              await this.sendErrorMessage(contactId, '❌ Não foi possível baixar o arquivo. Tente novamente.');
               return;
           }
+          
           const buffer = Buffer.from(media.data, 'base64');
           const filename = msg.filename ? msg.filename.toLowerCase() : '';
           const type = msg.mimetype;
+          
+          // Debug info
+          console.log(`🔍 Debug arquivo - Contato: ${contactId}`);
+          console.log(`📁 Filename: ${msg.filename}`);
+          console.log(`📁 Filename lowercase: ${filename}`);
+          console.log(`🏷️ MIME type: ${type}`);
+          console.log(`📏 Buffer size: ${buffer.length} bytes`);
+          
           try {
-              if (type === 'application/pdf' || filename.endsWith('.pdf')) {
-                  await this.sendResponse(contactId, '📑 Lendo PDF...', true);
+              // Função para detectar PDF por magic bytes
+              const detectPdfByHeader = (buffer) => {
+                  if (buffer.length < 4) return false;
+                  const header = buffer.subarray(0, 4).toString('ascii');
+                  return header === '%PDF';
+              };
+              
+              // Função para detectar DOCX por magic bytes (ZIP signature)
+              const detectDocxByHeader = (buffer) => {
+                  if (buffer.length < 4) return false;
+                  const header = buffer.subarray(0, 4);
+                  return header[0] === 0x50 && header[1] === 0x4B && header[2] === 0x03 && header[3] === 0x04;
+              };
+              
+              // Detectar tipo de arquivo por múltiplos métodos
+              const isPdf = filename.endsWith('.pdf') || 
+                           type === 'application/pdf' || 
+                           (type === 'application/octet-stream' && detectPdfByHeader(buffer)) ||
+                           detectPdfByHeader(buffer);
+                           
+              const isTxt = filename.endsWith('.txt') || type === 'text/plain';
+              const isCsv = filename.endsWith('.csv') || type === 'text/csv' || type === 'application/csv';
+              const isDocx = filename.endsWith('.docx') || 
+                            type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                            (type === 'application/octet-stream' && detectDocxByHeader(buffer) && filename.includes('docx'));
+              
+              console.log(`🔍 Detecção de tipo:`);
+              console.log(`📄 isPdf: ${isPdf} (magic: ${detectPdfByHeader(buffer)})`);
+              console.log(`📄 isTxt: ${isTxt}`);
+              console.log(`📄 isCsv: ${isCsv}`);
+              console.log(`📄 isDocx: ${isDocx} (magic: ${detectDocxByHeader(buffer)})`);
+              
+              if (isPdf) {
+                  fileType = 'PDF';
+                  await this.sendResponse(contactId, '📑 Extraindo texto do PDF...', true);
                   textContent = await parsePdfBuffer(buffer);
-              } else if (type === 'text/plain' || filename.endsWith('.txt')) {
+              } else if (isTxt) {
+                  fileType = 'TXT';
+                  await this.sendResponse(contactId, '📄 Lendo arquivo de texto...', true);
                   textContent = buffer.toString('utf8');
-              } else if (type === 'text/csv' || filename.endsWith('.csv')) {
+              } else if (isCsv) {
+                  fileType = 'CSV';
+                  await this.sendResponse(contactId, '📊 Processando arquivo CSV...', true);
                   textContent = buffer.toString('utf8');
-              } else if (type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || filename.endsWith('.docx')) {
-                  await this.sendResponse(contactId, '📄 Lendo DOCX...', true);
+              } else if (isDocx) {
+                  fileType = 'DOCX';
+                  await this.sendResponse(contactId, '📄 Extraindo texto do Word...', true);
                   const result = await mammoth.extractRawText({ buffer });
                   textContent = result.value;
               } else {
-                  await this.sendResponse(contactId, ERROR_MESSAGES.UNSUPPORTED_FILE);
+                  console.log(`❌ Tipo de arquivo não reconhecido`);
+                  await this.sendResponse(contactId, `❌ *Tipo de arquivo não suportado*\n\n📎 **Arquivo recebido:**\n• Nome: ${msg.filename || 'sem nome'}\n• Tipo: ${type || 'desconhecido'}\n• Tamanho: ${buffer.length} bytes\n\n📎 **Formatos aceitos:**\n• PDF (.pdf)\n• Word (.docx)\n• Texto (.txt)\n• CSV (.csv)\n\n🔄 Envie um arquivo válido ou !voltar para cancelar`);
                   return;
               }
           } catch (err) {
-              console.error(`❌ Erro ao ler arquivo para ${contactId}:`, err);
-              await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+              console.error(`❌ Erro ao ler arquivo ${fileType} para ${contactId}:`, err);
+              await this.sendErrorMessage(contactId, `❌ Erro ao processar arquivo ${fileType}. Verifique se o arquivo não está corrompido e tente novamente.`);
               return;
           }
       } else if (providedText) {
           textContent = providedText;
+          fileType = 'texto fornecido';
       } else if (msg && msg.body) {
           textContent = msg.body.trim();
+          fileType = 'mensagem de texto';
       }
 
-      if (!textContent) {
-          await this.sendResponse(contactId, ERROR_MESSAGES.TEXT_OR_FILE_REQUIRED);
+      if (!textContent || textContent.trim().length === 0) {
+          await this.sendResponse(contactId, '❌ *Conteúdo vazio detectado*\n\nO arquivo ou texto não contém informações para resumir.\n\n🔄 Envie outro documento ou !voltar para cancelar');
           return;
       }
 
+      const originalLength = textContent.length;
+      const text = textContent.trim().slice(0, 8000);
+      const truncated = originalLength > 8000;
+
       try {
-          const text = textContent.trim().slice(0, 8000);
-          await this.sendResponse(contactId, '📝 Resumindo...', true);
-          const summary = await this.llmService.getAssistantResponse(contactId, `Resuma em português o texto a seguir:\n\n${text}`);
-          await this.sendResponse(contactId, summary);
+          let statusMsg = `📝 *Gerando resumo...*\n\n📊 Caracteres: ${originalLength.toLocaleString()}`;
+          if (fileType) {
+              statusMsg += `\n📎 Fonte: ${fileType}`;
+          }
+          if (truncated) {
+              statusMsg += `\n⚠️ Texto truncado para 8.000 caracteres`;
+          }
+          
+          await this.sendResponse(contactId, statusMsg, true);
+          
+          const summary = await this.llmService.getAssistantResponse(contactId, `Resuma em português o texto a seguir de forma clara e concisa:\n\n${text}`);
+          
+          let finalResponse = `✅ *Resumo Concluído*\n\n${summary}`;
+          
+          if (truncated) {
+              finalResponse += `\n\n⚠️ *Nota:* Devido ao tamanho do documento, apenas os primeiros 8.000 caracteres foram resumidos.`;
+          }
+          
+          finalResponse += `\n\n🔙 Para voltar ao menu: !voltar`;
+          
+          await this.sendResponse(contactId, finalResponse);
+          
       } catch (err) {
-          console.error(`❌ Erro ao resumir texto para ${contactId}:`, err);
-      await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+          console.error(`❌ Erro ao gerar resumo para ${contactId}:`, err);
+          await this.sendErrorMessage(contactId, '❌ Erro ao gerar o resumo. Tente novamente em alguns instantes.');
       }
   }
 
@@ -793,6 +870,10 @@ async handleRecursoCommand(contactId) {
         await this.processAgendabotMessage(contactId, text);
         break;
       case CHAT_MODES.RESUMIR:
+        if (!msg.hasMedia && !text.trim()) {
+          await this.sendResponse(contactId, '📝 *Aguardando documento ou texto...*\n\nPor favor, envie:\n• Um arquivo (PDF, DOCX, TXT, CSV)\n• Ou digite/cole o texto na mensagem\n\n🔙 Para cancelar: !voltar');
+          return;
+        }
         await this.performResumir(msg, contactId, text);
         this.setMode(contactId, null);
         break;

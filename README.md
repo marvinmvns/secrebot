@@ -167,16 +167,48 @@ GOOGLE_REDIRECT=http://localhost:3000/oauth2callback
 
 ### 🗣️ TTS Local com Piper
 
-Para usar TTS local sem depender da ElevenLabs:
+Para usar TTS local sem depender da ElevenLabs, use nosso instalador automático:
+
+#### 🚀 Instalação Automática (Recomendado)
 
 ```bash
-# Instale o Piper
-# Baixe um modelo pt-br de https://github.com/rhasspy/piper
+# Opção 1: Usando Makefile (mais fácil)
+make install-piper
 
+# Opção 2: Script Bash direto
+./scripts/install-piper.sh
+
+# Opção 3: Script Python (se Bash não estiver disponível)
+python3 scripts/install-piper.py
+```
+
+#### ⚙️ Configuração Automática
+
+```bash
+# Configurar variáveis de ambiente automaticamente
+make setup-env
+
+# Ou copiar manualmente
+cp .env.piper.example .env
+```
+
+#### 🧪 Teste da Instalação
+
+```bash
+# Testar se Piper está funcionando
+make test-piper
+
+# Ver status completo
+make status
+```
+
+#### 📋 Configuração Manual (se necessário)
+
+```bash
 # Configure no .env
 PIPER_ENABLED=true
-PIPER_MODEL=/caminho/para/pt-br-voce.onnx
-PIPER_EXECUTABLE=/usr/local/bin/piper
+PIPER_MODEL=./piper/models/pt_BR-faber-medium.onnx
+PIPER_EXECUTABLE=./piper/bin/piper
 ```
 
 **Alternativa com Docker:**

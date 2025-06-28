@@ -83,9 +83,16 @@ class TtsService {
       const oggPath = wavPath.replace('.wav', '.ogg');
       try {
         await new Promise((resolve, reject) => {
+          // Configurar LD_LIBRARY_PATH para Piper
+          const env = { ...process.env };
+          const piperDir = path.dirname(path.dirname(CONFIG.piper.executable));
+          const binDir = path.join(piperDir, 'bin');
+          env.LD_LIBRARY_PATH = `${binDir}:${env.LD_LIBRARY_PATH || ''}`;
+          
           const piper = spawn(
             CONFIG.piper.executable,
-            ['--model', CONFIG.piper.model, '--output_file', wavPath]
+            ['--model', CONFIG.piper.model, '--output_file', wavPath],
+            { env }
           );
           piper.stdin.write(text);
           piper.stdin.end();

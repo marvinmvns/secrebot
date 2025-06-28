@@ -12,10 +12,10 @@ test('COMMANDS should contain expected commands', () => {
 });
 
 test('NUMERIC_SHORTCUTS should map correctly to commands', () => {
-  assert.equal(NUMERIC_SHORTCUTS['1'], COMMANDS.AJUDA);
-  assert.equal(NUMERIC_SHORTCUTS['2'], COMMANDS.AGENDA);
+  assert.equal(NUMERIC_SHORTCUTS['1'], 'submenu_agenda');
+  assert.equal(NUMERIC_SHORTCUTS['1.1'], COMMANDS.AGENDA);
   assert.equal(NUMERIC_SHORTCUTS['0'], COMMANDS.VOLTAR);
-  assert.equal(NUMERIC_SHORTCUTS['15'], COMMANDS.RESUMIRVIDEO2);
+  assert.equal(NUMERIC_SHORTCUTS['2.3.2'], COMMANDS.RESUMIRVIDEO2);
 });
 
 test('CHAT_MODES should contain expected modes', () => {
@@ -25,9 +25,9 @@ test('CHAT_MODES should contain expected modes', () => {
 });
 
 test('MENU_MESSAGE should contain welcome message', () => {
-  assert.ok(MENU_MESSAGE.includes('Bem-vindo'));
-  assert.ok(MENU_MESSAGE.includes(COMMANDS.AJUDA));
-  assert.ok(MENU_MESSAGE.includes(COMMANDS.AGENDA));
+  assert.ok(MENU_MESSAGE.includes('SECREBOT'));
+  assert.ok(MENU_MESSAGE.includes('MENU PRINCIPAL'));
+  assert.ok(MENU_MESSAGE.includes('AGENDA & LEMBRETES'));
 });
 
 test('ERROR_MESSAGES should contain expected errors', () => {

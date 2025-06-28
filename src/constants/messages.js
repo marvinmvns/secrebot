@@ -50,6 +50,12 @@ export const SUBMENU_MESSAGES = {
 
 5.1 🔊 Modo de Resposta (Texto/Voz)
 5.2 ⚡ Recursos do Sistema
+5.3 🤖 Listar Modelos IA
+5.4 🔄 Trocar Modelo IA
+5.5 🎤 Listar Modelos Whisper
+5.6 🔄 Trocar Modelo Whisper
+5.7 🔄 Reiniciar Ollama
+5.8 🎤 Reiniciar Whisper
 
 0️⃣ Voltar ao menu principal`,
 
@@ -82,6 +88,10 @@ export const MODE_MESSAGES = {
   [CHAT_MODES.DELETAR]: `🗑️ *Modo Deletar Agendamento*\n\nAguarde enquanto busco seus agendamentos...`,
   
   [CHAT_MODES.RESUMIR]: `📑 *Modo Resumo Ativado!*\n\n📎 *Agora envie:*\n• Arquivo PDF, DOCX, TXT ou CSV\n• Texto diretamente na mensagem\n\n💡 *Dica:* Use !resumirvideo <link> para vídeos do YouTube\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
+
+  [CHAT_MODES.TROCAR_MODELO]: `🔄 *Modo Trocar Modelo IA Ativado!*\n\n🤖 *Digite o número do modelo* que deseja ativar.\n\n💡 *Dica:* Use ${COMMANDS.MODELOS} para ver a lista atualizada\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
+
+  [CHAT_MODES.TROCAR_MODELO_WHISPER]: `🎤 *Modo Trocar Modelo Whisper Ativado!*\n\n🗣️ *Digite o número do modelo* que deseja ativar.\n\n💡 *Dica:* Use ${COMMANDS.MODELOS_WHISPER} para ver a lista atualizada\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
 };
 
 export const SUCCESS_MESSAGES = {

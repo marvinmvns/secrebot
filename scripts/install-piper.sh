@@ -143,6 +143,77 @@ check_dependencies() {
     print_success "Dependências verificadas"
 }
 
+install_espeak_ng() {
+    print_step "Verificando e instalando espeak-ng..."
+    
+    # Verificar se espeak-ng já está instalado
+    if command -v espeak-ng &> /dev/null && [ -d "/usr/share/espeak-ng-data" ]; then
+        print_success "espeak-ng já está instalado"
+        return 0
+    fi
+    
+    print_step "Instalando espeak-ng..."
+    
+    # Detectar gerenciador de pacotes e instalar
+    if command -v apt-get &> /dev/null; then
+        print_step "Usando apt-get para instalar espeak-ng..."
+        if sudo apt-get update && sudo apt-get install -y espeak-ng espeak-ng-data; then
+            print_success "espeak-ng instalado via apt-get"
+        else
+            print_error "Falha ao instalar espeak-ng via apt-get"
+            return 1
+        fi
+    elif command -v yum &> /dev/null; then
+        print_step "Usando yum para instalar espeak-ng..."
+        if sudo yum install -y espeak-ng; then
+            print_success "espeak-ng instalado via yum"
+        else
+            print_error "Falha ao instalar espeak-ng via yum"
+            return 1
+        fi
+    elif command -v dnf &> /dev/null; then
+        print_step "Usando dnf para instalar espeak-ng..."
+        if sudo dnf install -y espeak-ng; then
+            print_success "espeak-ng instalado via dnf"
+        else
+            print_error "Falha ao instalar espeak-ng via dnf"
+            return 1
+        fi
+    elif command -v pacman &> /dev/null; then
+        print_step "Usando pacman para instalar espeak-ng..."
+        if sudo pacman -S --noconfirm espeak-ng; then
+            print_success "espeak-ng instalado via pacman"
+        else
+            print_error "Falha ao instalar espeak-ng via pacman"
+            return 1
+        fi
+    elif command -v zypper &> /dev/null; then
+        print_step "Usando zypper para instalar espeak-ng..."
+        if sudo zypper install -y espeak-ng; then
+            print_success "espeak-ng instalado via zypper"
+        else
+            print_error "Falha ao instalar espeak-ng via zypper"
+            return 1
+        fi
+    else
+        print_error "Gerenciador de pacotes não suportado. Instale espeak-ng manualmente:"
+        echo "Ubuntu/Debian: sudo apt-get install espeak-ng espeak-ng-data"
+        echo "CentOS/RHEL/Fedora: sudo yum install espeak-ng ou sudo dnf install espeak-ng"
+        echo "Arch Linux: sudo pacman -S espeak-ng"
+        echo "openSUSE: sudo zypper install espeak-ng"
+        return 1
+    fi
+    
+    # Verificar se a instalação foi bem-sucedida
+    if [ ! -d "/usr/share/espeak-ng-data" ]; then
+        print_error "Diretório espeak-ng-data não encontrado após instalação"
+        print_error "Tente instalar manualmente: sudo apt-get install espeak-ng-data"
+        return 1
+    fi
+    
+    print_success "espeak-ng instalado e configurado"
+}
+
 create_directories() {
     print_step "Criando diretórios..."
     
@@ -325,6 +396,51 @@ test_installation() {
     fi
 }
 
+create_wrapper_script() {
+    print_step "Criando script wrapper..."
+    
+    local wrapper_script="$PIPER_DIR/piper-wrapper.sh"
+    
+    cat > "$wrapper_script" << 'EOF'
+#!/bin/bash
+
+# Wrapper script para Piper TTS com configuração de ambiente
+# Garante que todas as dependências estejam disponíveis
+
+# Diretório do script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PIPER_EXECUTABLE="$SCRIPT_DIR/bin/piper"
+
+# Configurar LD_LIBRARY_PATH para bibliotecas do Piper
+export LD_LIBRARY_PATH="$SCRIPT_DIR/bin:$SCRIPT_DIR/lib:$LD_LIBRARY_PATH"
+
+# Verificar se espeak-ng está disponível
+if ! command -v espeak-ng &> /dev/null; then
+    echo "Erro: espeak-ng não encontrado. Execute o script de instalação primeiro." >&2
+    exit 1
+fi
+
+# Verificar se os dados do espeak-ng existem
+if [ ! -d "/usr/share/espeak-ng-data" ]; then
+    echo "Erro: Dados do espeak-ng não encontrados em /usr/share/espeak-ng-data" >&2
+    echo "Execute: sudo apt-get install espeak-ng-data" >&2
+    exit 1
+fi
+
+# Verificar se o executável Piper existe
+if [ ! -x "$PIPER_EXECUTABLE" ]; then
+    echo "Erro: Executável Piper não encontrado em $PIPER_EXECUTABLE" >&2
+    exit 1
+fi
+
+# Executar Piper com todos os argumentos passados
+exec "$PIPER_EXECUTABLE" "$@"
+EOF
+    
+    chmod +x "$wrapper_script"
+    print_success "Script wrapper criado"
+}
+
 create_env_example() {
     print_step "Criando exemplo de configuração..."
     
@@ -369,8 +485,10 @@ show_final_instructions() {
     
     echo -e "${BLUE}📁 Arquivos instalados:${NC}"
     echo "   • Executável: $BIN_DIR/piper"
+    echo "   • Wrapper: $PIPER_DIR/piper-wrapper.sh (recomendado)"
     echo "   • Modelo pt-BR: $MODELS_DIR/pt_BR-faber-medium.onnx"
     echo "   • Configuração: .env.piper.example"
+    echo "   • espeak-ng: /usr/share/espeak-ng-data (dependência)"
     echo
     echo -e "${BLUE}🔧 Para configurar:${NC}"
     echo "   1. Copie as variáveis de .env.piper.example para seu .env"
@@ -382,8 +500,9 @@ show_final_instructions() {
     echo "   2. Envie qualquer mensagem para ouvir a voz"
     echo
     echo -e "${BLUE}💡 Comandos úteis:${NC}"
-    echo "   • Teste manual: echo 'Olá mundo' | $BIN_DIR/piper --model $MODELS_DIR/pt_BR-faber-medium.onnx --output_file teste.wav"
-    echo "   • Verificar versão: $BIN_DIR/piper --version"
+    echo "   • Teste manual: echo 'Olá mundo' | $PIPER_DIR/piper-wrapper.sh --model $MODELS_DIR/pt_BR-faber-medium.onnx --output_file teste.wav"
+    echo "   • Verificar versão: $PIPER_DIR/piper-wrapper.sh --version"
+    echo "   • Teste direto: echo 'Olá mundo' | $BIN_DIR/piper --model $MODELS_DIR/pt_BR-faber-medium.onnx --output_file teste.wav"
     echo
 }
 
@@ -395,9 +514,11 @@ main() {
     echo
     
     check_dependencies
+    install_espeak_ng
     create_directories
     install_piper
     install_models
+    create_wrapper_script
     test_installation
     create_env_example
     show_final_instructions

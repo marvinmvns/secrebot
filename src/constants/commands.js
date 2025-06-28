@@ -15,7 +15,13 @@ export const COMMANDS = {
   RESUMIRVIDEO: '!resumirvideo',
   RESUMIRVIDEO2: '!resumirvideo2',
   IMPORTAR_AGENDA: '!importaragenda',
-  VOLTAR: '!voltar'
+  VOLTAR: '!voltar',
+  MODELOS: '!modelos',
+  TROCAR_MODELO: '!trocarmodelo',
+  MODELOS_WHISPER: '!modeloswhisper',
+  TROCAR_MODELO_WHISPER: '!trocarmodelwhisper',
+  REINICIAR_OLLAMA: '!reiniciarollama',
+  REINICIAR_WHISPER: '!reiniciarwhisper'
 };
 
 export const NUMERIC_SHORTCUTS = {
@@ -51,6 +57,12 @@ export const NUMERIC_SHORTCUTS = {
   // Configurações
   '5.1': COMMANDS.VOZ,
   '5.2': COMMANDS.RECURSO,
+  '5.3': COMMANDS.MODELOS,
+  '5.4': COMMANDS.TROCAR_MODELO,
+  '5.5': COMMANDS.MODELOS_WHISPER,
+  '5.6': COMMANDS.TROCAR_MODELO_WHISPER,
+  '5.7': COMMANDS.REINICIAR_OLLAMA,
+  '5.8': COMMANDS.REINICIAR_WHISPER,
   
   // Suporte & Sistema
   '6.1': COMMANDS.AJUDA,
@@ -67,7 +79,9 @@ export const CHAT_MODES = {
   TRANSCRICAO: 'transcricao',
   LINKEDIN: 'linkedin',
   DELETAR: 'deletar',
-  RESUMIR: 'resumir'
+  RESUMIR: 'resumir',
+  TROCAR_MODELO: 'trocar_modelo',
+  TROCAR_MODELO_WHISPER: 'trocar_modelo_whisper'
 };
 
 export const NAVIGATION_STATES = {
@@ -80,3 +94,17 @@ export const NAVIGATION_STATES = {
   SUBMENU_SUPORTE: 'submenu_suporte',
   SUBMENU_VIDEO: 'submenu_video'
 };
+
+export const WHISPER_MODELS_LIST = [
+  'tiny',
+  'tiny.en',
+  'base',
+  'base.en', 
+  'small',
+  'small.en',
+  'medium',
+  'medium.en',
+  'large-v1',
+  'large',
+  'large-v3-turbo'
+];

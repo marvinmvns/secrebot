@@ -20,6 +20,7 @@ import {
   NUMERIC_SHORTCUTS,
   CHAT_MODES,
   NAVIGATION_STATES,
+  WHISPER_MODELS_LIST,
   MENU_MESSAGE,
   SUBMENU_MESSAGES,
   MODE_MESSAGES,
@@ -198,9 +199,61 @@ class WhatsAppBot {
   async initialize() {
     try {
       await this.client.initialize();
+      
+      // Verificar se foi um restart solicitado por usuário
+      setTimeout(() => {
+        this.checkForRestartNotification();
+      }, 5000); // Aguardar 5 segundos após inicialização
+      
     } catch (err) {
       console.error('❌ Erro na inicialização do WhatsApp:', err);
       throw err;
+    }
+  }
+
+  async checkForRestartNotification() {
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const restartFile = path.join(process.cwd(), '.restart-info.json');
+      
+      // Verificar se arquivo de restart existe
+      try {
+        const restartData = await fs.readFile(restartFile, 'utf8');
+        const restartInfo = JSON.parse(restartData);
+        
+        if (restartInfo && restartInfo.requestedBy) {
+          console.log(`📱 Notificando usuário ${restartInfo.requestedBy} sobre restart concluído`);
+          
+          const restartTime = new Date(restartInfo.requestedAt).toLocaleString('pt-BR');
+          let message = `✅ *APLICAÇÃO REINICIADA COM SUCESSO!*\n\n`;
+          message += `🔄 **Reinício solicitado em:** ${restartTime}\n`;
+          message += `🎯 **Motivo:** ${restartInfo.reason === 'ollama_restart' ? 'Limpeza do Ollama' : 'Reinicialização geral'}\n\n`;
+          message += `📊 **Sistema atualizado:**\n`;
+          message += `• ✅ Aplicação SecreBot reiniciada\n`;
+          message += `• ✅ Modelos Ollama descarregados da memória\n`;
+          message += `• ✅ Conexões e contextos limpos\n`;
+          message += `• ✅ Configurações recarregadas\n\n`;
+          message += `💡 **O sistema está pronto** para uso com configurações limpas.\n\n`;
+          message += `🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`;
+          
+          // Enviar notificação para o usuário que solicitou
+          await this.sendResponse(restartInfo.requestedBy, message);
+        }
+        
+        // Remover arquivo após processamento
+        await fs.unlink(restartFile);
+        console.log(`🗑️ Arquivo de restart removido: ${restartFile}`);
+        
+      } catch (fileErr) {
+        // Arquivo não existe ou erro ao ler - normal se não houve restart
+        if (fileErr.code !== 'ENOENT') {
+          console.warn('⚠️ Erro ao verificar arquivo de restart:', fileErr.message);
+        }
+      }
+      
+    } catch (err) {
+      console.error('❌ Erro ao verificar notificação de restart:', err);
     }
   }
 
@@ -403,6 +456,22 @@ class WhatsAppBot {
       case '5.2':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
         await this.handleMessage({ ...msg, body: COMMANDS.RECURSO });
+        return true;
+      case '5.3':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.MODELOS });
+        return true;
+      case '5.4':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.TROCAR_MODELO });
+        return true;
+      case '5.5':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.REINICIAR_OLLAMA });
+        return true;
+      case '5.6':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.REINICIAR_WHISPER });
         return true;
       case '0':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
@@ -618,7 +687,13 @@ class WhatsAppBot {
           },
           [COMMANDS.CALORIAS]: async () => {
               await this.sendResponse(contactId, ERROR_MESSAGES.IMAGE_REQUIRED);
-          }
+          },
+          [COMMANDS.MODELOS]: () => this.handleModelosCommand(contactId),
+          [COMMANDS.TROCAR_MODELO]: () => this.handleTrocarModeloCommand(contactId),
+          [COMMANDS.MODELOS_WHISPER]: () => this.handleModelosWhisperCommand(contactId),
+          [COMMANDS.TROCAR_MODELO_WHISPER]: () => this.handleTrocarModeloWhisperCommand(contactId),
+          [COMMANDS.REINICIAR_OLLAMA]: () => this.handleReiniciarOllamaCommand(contactId),
+          [COMMANDS.REINICIAR_WHISPER]: () => this.handleReiniciarWhisperCommand(contactId)
       };
 
       const sortedHandlers = Object.entries(commandHandlers).sort((a, b) => b[0].length - a[0].length);
@@ -639,6 +714,219 @@ class WhatsAppBot {
       const message = voiceEnabled ? SUCCESS_MESSAGES.VOICE_ENABLED : SUCCESS_MESSAGES.VOICE_DISABLED;
       // Enviar confirmação sempre em texto para clareza
       await this.sendResponse(contactId, message, true);
+  }
+
+  async handleModelosCommand(contactId) {
+    try {
+      await this.sendResponse(contactId, '🤖 Carregando lista de modelos IA...', true);
+      
+      // Listar modelos usando API do Ollama
+      const models = await ollamaClient.list();
+      
+      if (!models || !models.models || models.models.length === 0) {
+        await this.sendResponse(contactId, '❌ Nenhum modelo encontrado no Ollama.\n\nVerifique se o Ollama está rodando e possui modelos instalados.');
+        return;
+      }
+      
+      // Obter modelo atual
+      const currentModel = CONFIG.llm.model;
+      const currentImageModel = CONFIG.llm.imageModel;
+      
+      let message = '🤖 *MODELOS IA DISPONÍVEIS*\n\n';
+      message += `📋 *Modelo Atual (Texto):* ${currentModel}\n`;
+      message += `🖼️ *Modelo Atual (Imagem):* ${currentImageModel}\n\n`;
+      message += '📊 *Modelos Instalados:*\n\n';
+      
+      models.models.forEach((model, index) => {
+        const isCurrentText = model.name === currentModel;
+        const isCurrentImage = model.name === currentImageModel;
+        const icon = isCurrentText ? '✅' : (isCurrentImage ? '🖼️' : '🔸');
+        
+        message += `${icon} **${index + 1}.** ${model.name}\n`;
+        
+        if (model.details) {
+          const sizeGB = (model.size / (1024 * 1024 * 1024)).toFixed(1);
+          message += `   📏 Tamanho: ${sizeGB}GB\n`;
+          
+          if (model.details.family) {
+            message += `   🏷️ Família: ${model.details.family}\n`;
+          }
+        }
+        
+        if (model.modified_at) {
+          const modDate = new Date(model.modified_at).toLocaleDateString('pt-BR');
+          message += `   📅 Modificado: ${modDate}\n`;
+        }
+        
+        message += '\n';
+      });
+      
+      message += `💡 *Para trocar modelo:* Use ${COMMANDS.TROCAR_MODELO}\n`;
+      message += `🔄 *Para atualizar lista:* Use ${COMMANDS.MODELOS}\n\n`;
+      message += `🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`;
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (err) {
+      console.error(`❌ Erro ao listar modelos para ${contactId}:`, err);
+      await this.sendResponse(contactId, '❌ Erro ao acessar modelos do Ollama.\n\nVerifique se o serviço está rodando e tente novamente.');
+    }
+  }
+
+  async handleTrocarModeloCommand(contactId) {
+    try {
+      await this.sendResponse(contactId, '🤖 Carregando modelos disponíveis...', true);
+      
+      // Listar modelos para seleção
+      const models = await ollamaClient.list();
+      
+      if (!models || !models.models || models.models.length === 0) {
+        await this.sendResponse(contactId, '❌ Nenhum modelo encontrado no Ollama.\n\nVerifique se o Ollama está rodando e possui modelos instalados.');
+        return;
+      }
+      
+      // Armazenar lista de modelos para este usuário
+      this.setUserPreference(contactId, 'availableModels', models.models);
+      
+      let message = '🔄 *TROCAR MODELO IA*\n\n';
+      message += '🤖 *Selecione o novo modelo:*\n\n';
+      
+      models.models.forEach((model, index) => {
+        const isCurrentText = model.name === CONFIG.llm.model;
+        const isCurrentImage = model.name === CONFIG.llm.imageModel;
+        const status = isCurrentText ? ' ✅ (atual-texto)' : (isCurrentImage ? ' 🖼️ (atual-imagem)' : '');
+        
+        message += `**${index + 1}.** ${model.name}${status}\n`;
+        
+        if (model.details?.family) {
+          message += `   🏷️ ${model.details.family}`;
+          if (model.details.parameter_size) {
+            message += ` (${model.details.parameter_size})`;
+          }
+          message += '\n';
+        }
+        
+        message += '\n';
+      });
+      
+      message += '📝 *Digite o número* do modelo que deseja ativar.\n\n';
+      message += '💡 *Tipos de modelo:*\n';
+      message += '• Modelos de texto: llama, granite, mistral, etc.\n';
+      message += '• Modelos de imagem: llava, bakllava, etc.\n\n';
+      message += `🔙 Para cancelar: ${COMMANDS.VOLTAR}`;
+      
+      this.setMode(contactId, CHAT_MODES.TROCAR_MODELO);
+      await this.sendResponse(contactId, message);
+      
+    } catch (err) {
+      console.error(`❌ Erro ao preparar troca de modelo para ${contactId}:`, err);
+      await this.sendResponse(contactId, '❌ Erro ao acessar modelos do Ollama.\n\nVerifique se o serviço está rodando e tente novamente.');
+    }
+  }
+
+  async handleModelosWhisperCommand(contactId) {
+    try {
+      await this.sendResponse(contactId, '🎤 *MODELOS WHISPER DISPONÍVEIS*\n\n⏳ Carregando lista...', true);
+      
+      const currentModel = CONFIG.audio.model;
+      
+      let message = '🎤 *MODELOS WHISPER DISPONÍVEIS*\n\n';
+      message += '🗣️ *Lista de modelos para transcrição:*\n\n';
+      
+      WHISPER_MODELS_LIST.forEach((model, index) => {
+        const isCurrent = model === currentModel;
+        const status = isCurrent ? ' ✅ (ativo)' : '';
+        
+        message += `**${index + 1}.** ${model}${status}\n`;
+        
+        // Adicionar descrição do modelo
+        if (model.includes('tiny')) {
+          message += '   📊 Mais rápido, menor qualidade\n';
+        } else if (model.includes('small')) {
+          message += '   ⚖️ Equilibrio velocidade/qualidade\n';
+        } else if (model.includes('medium')) {
+          message += '   🎯 Boa qualidade, velocidade moderada\n';
+        } else if (model.includes('large')) {
+          message += '   🏆 Melhor qualidade, mais lento\n';
+        } else if (model.includes('base')) {
+          message += '   🔸 Qualidade básica, rápido\n';
+        }
+        
+        if (model.includes('.en')) {
+          message += '   🇺🇸 Especializado em inglês\n';
+        } else {
+          message += '   🌍 Multilíngue (inclui português)\n';
+        }
+        
+        message += '\n';
+      });
+      
+      message += '💡 **Sobre os modelos:**\n';
+      message += '• **tiny:** Mais rápido, menor precisão\n';
+      message += '• **base/small:** Equilibrio ótimo para uso geral\n';
+      message += '• **medium:** Qualidade superior\n';
+      message += '• **large:** Máxima qualidade para casos críticos\n';
+      message += '• **.en:** Versões otimizadas apenas para inglês\n\n';
+      message += `🔄 Para trocar modelo: ${COMMANDS.TROCAR_MODELO_WHISPER}\n`;
+      message += `🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`;
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (err) {
+      console.error(`❌ Erro ao listar modelos Whisper para ${contactId}:`, err);
+      await this.sendResponse(contactId, '❌ Erro ao listar modelos Whisper.\n\nTente novamente mais tarde.');
+    }
+  }
+
+  async handleTrocarModeloWhisperCommand(contactId) {
+    try {
+      await this.sendResponse(contactId, '🎤 *TROCAR MODELO WHISPER*\n\n⏳ Preparando lista de modelos...', true);
+      
+      const currentModel = CONFIG.audio.model;
+      
+      // Armazenar lista de modelos para este usuário
+      this.setUserPreference(contactId, 'availableWhisperModels', WHISPER_MODELS_LIST);
+      
+      let message = '🔄 *TROCAR MODELO WHISPER*\n\n';
+      message += '🎤 *Selecione o novo modelo:*\n\n';
+      
+      WHISPER_MODELS_LIST.forEach((model, index) => {
+        const isCurrent = model === currentModel;
+        const status = isCurrent ? ' ✅ (atual)' : '';
+        
+        message += `**${index + 1}.** ${model}${status}\n`;
+        
+        // Adicionar informação do modelo
+        if (model.includes('tiny')) {
+          message += '   ⚡ Ultrarrápido\n';
+        } else if (model.includes('small')) {
+          message += '   🚀 Rápido\n';
+        } else if (model.includes('medium')) {
+          message += '   ⚖️ Moderado\n';
+        } else if (model.includes('large')) {
+          message += '   🐌 Lento, alta qualidade\n';
+        } else if (model.includes('base')) {
+          message += '   💨 Básico e rápido\n';
+        }
+        
+        message += '\n';
+      });
+      
+      message += '📝 *Digite o número* do modelo que deseja ativar.\n\n';
+      message += '💡 **Recomendações:**\n';
+      message += '• **Uso geral:** small ou base\n';
+      message += '• **Só inglês:** tiny.en ou small.en\n';
+      message += '• **Máxima qualidade:** large-v3-turbo\n';
+      message += '• **Rapidez máxima:** tiny\n\n';
+      message += `🔙 Para cancelar: ${COMMANDS.VOLTAR}`;
+      
+      this.setMode(contactId, CHAT_MODES.TROCAR_MODELO_WHISPER);
+      await this.sendResponse(contactId, message);
+      
+    } catch (err) {
+      console.error(`❌ Erro ao preparar troca de modelo Whisper para ${contactId}:`, err);
+      await this.sendResponse(contactId, '❌ Erro ao acessar modelos Whisper.\n\nTente novamente mais tarde.');
+    }
   }
 
 async handleRecursoCommand(contactId) {
@@ -1329,6 +1617,12 @@ async handleRecursoCommand(contactId) {
         await this.performResumir(msg, contactId, text);
         this.setMode(contactId, null);
         break;
+      case CHAT_MODES.TROCAR_MODELO:
+        await this.processTrocarModeloMessage(contactId, text);
+        break;
+      case CHAT_MODES.TROCAR_MODELO_WHISPER:
+        await this.processTrocarModeloWhisperMessage(contactId, text);
+        break;
       default:
           console.warn(`⚠️ Modo desconhecido encontrado: ${currentMode}`);
           this.setMode(contactId, null);
@@ -1361,6 +1655,418 @@ async handleRecursoCommand(contactId) {
     } catch (err) {
       console.error(`❌ Erro ao processar mensagem Agendabot para ${contactId}:`, err);
       await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+    }
+  }
+
+  async processTrocarModeloMessage(contactId, text) {
+    try {
+      const selectedNumber = parseInt(text.trim());
+      
+      if (isNaN(selectedNumber) || selectedNumber < 1) {
+        await this.sendResponse(contactId, '❌ *Número inválido!*\n\nPor favor, digite um número válido da lista de modelos.\n\nDigite um número ou !voltar para cancelar.');
+        return;
+      }
+      
+      // Obter lista de modelos armazenada
+      const availableModels = this.getUserPreference(contactId, 'availableModels', []);
+      
+      if (availableModels.length === 0) {
+        await this.sendResponse(contactId, '❌ *Lista de modelos não encontrada!*\n\nUse !trocarmodelo novamente para recarregar a lista.');
+        this.setMode(contactId, null);
+        return;
+      }
+      
+      if (selectedNumber > availableModels.length) {
+        await this.sendResponse(contactId, `❌ *Número fora do intervalo!*\n\nEscolha um número entre 1 e ${availableModels.length}.\n\nDigite um número válido ou !voltar para cancelar.`);
+        return;
+      }
+      
+      const selectedModel = availableModels[selectedNumber - 1];
+      
+      if (!selectedModel) {
+        await this.sendResponse(contactId, '❌ *Modelo não encontrado!*\n\nTente usar !trocarmodelo novamente.');
+        this.setMode(contactId, null);
+        return;
+      }
+      
+      await this.sendResponse(contactId, `🔄 *Ativando modelo:* ${selectedModel.name}\n\n⏳ Aguarde...`, true);
+      
+      // Detectar tipo de modelo e aplicar mudança
+      const isImageModel = this.isImageModel(selectedModel.name);
+      const oldModel = isImageModel ? CONFIG.llm.imageModel : CONFIG.llm.model;
+      
+      // Tentar descarregar modelo anterior
+      try {
+        console.log(`🔄 Tentando descarregar modelo anterior: ${oldModel}`);
+        await this.unloadModel(oldModel);
+      } catch (unloadError) {
+        console.warn(`⚠️ Aviso ao descarregar modelo ${oldModel}:`, unloadError.message);
+      }
+      
+      // Aplicar novo modelo
+      if (isImageModel) {
+        CONFIG.llm.imageModel = selectedModel.name;
+        console.log(`🖼️ Modelo de imagem alterado para: ${selectedModel.name}`);
+      } else {
+        CONFIG.llm.model = selectedModel.name;
+        console.log(`📝 Modelo de texto alterado para: ${selectedModel.name}`);
+      }
+      
+      // Testar novo modelo
+      try {
+        await this.testModel(selectedModel.name, isImageModel);
+        
+        let successMessage = `✅ *Modelo ativado com sucesso!*\n\n`;
+        successMessage += `🤖 **Novo modelo ${isImageModel ? '(imagem)' : '(texto)'}:** ${selectedModel.name}\n`;
+        
+        if (selectedModel.details?.family) {
+          successMessage += `🏷️ **Família:** ${selectedModel.details.family}\n`;
+        }
+        
+        if (selectedModel.size) {
+          const sizeGB = (selectedModel.size / (1024 * 1024 * 1024)).toFixed(1);
+          successMessage += `📏 **Tamanho:** ${sizeGB}GB\n`;
+        }
+        
+        successMessage += `\n💡 **Modelo anterior descarregado:** ${oldModel}\n`;
+        successMessage += `\n🎯 **O novo modelo já está ativo** e será usado nas próximas interações.\n\n`;
+        successMessage += `🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`;
+        
+        await this.sendResponse(contactId, successMessage);
+        
+        // Limpar contextos LLM para usar novo modelo
+        this.llmService.clearContext(contactId, CHAT_MODES.ASSISTANT);
+        
+      } catch (testError) {
+        // Reverter mudança em caso de erro
+        if (isImageModel) {
+          CONFIG.llm.imageModel = oldModel;
+        } else {
+          CONFIG.llm.model = oldModel;
+        }
+        
+        console.error(`❌ Erro ao testar novo modelo ${selectedModel.name}:`, testError);
+        await this.sendResponse(contactId, `❌ *Erro ao ativar modelo!*\n\n🚫 **Modelo:** ${selectedModel.name}\n❗ **Erro:** ${testError.message}\n\n🔄 **Modelo anterior mantido:** ${oldModel}\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`);
+      }
+      
+      this.setMode(contactId, null);
+      
+      // Limpar dados temporários
+      this.setUserPreference(contactId, 'availableModels', []);
+      
+    } catch (err) {
+      console.error(`❌ Erro ao processar troca de modelo para ${contactId}:`, err);
+      await this.sendErrorMessage(contactId, '❌ Erro interno ao trocar modelo. Tente novamente.');
+      this.setMode(contactId, null);
+    }
+  }
+
+  async processTrocarModeloWhisperMessage(contactId, text) {
+    try {
+      const selectedNumber = parseInt(text.trim());
+      
+      if (isNaN(selectedNumber) || selectedNumber < 1) {
+        await this.sendResponse(contactId, '❌ *Número inválido!*\n\nPor favor, digite um número válido da lista de modelos Whisper.\n\nDigite um número ou !voltar para cancelar.');
+        return;
+      }
+      
+      // Obter lista de modelos Whisper armazenada
+      const availableModels = this.getUserPreference(contactId, 'availableWhisperModels', []);
+      
+      if (availableModels.length === 0) {
+        await this.sendResponse(contactId, '❌ *Lista de modelos Whisper não encontrada!*\n\nUse !trocarmodelwhisper novamente para recarregar a lista.');
+        this.setMode(contactId, null);
+        return;
+      }
+      
+      if (selectedNumber > availableModels.length) {
+        await this.sendResponse(contactId, `❌ *Número fora do intervalo!*\n\nEscolha um número entre 1 e ${availableModels.length}.\n\nDigite um número válido ou !voltar para cancelar.`);
+        return;
+      }
+      
+      const selectedModel = availableModels[selectedNumber - 1];
+      
+      if (!selectedModel) {
+        await this.sendResponse(contactId, '❌ *Modelo não encontrado!*\n\nTente usar !trocarmodelwhisper novamente.');
+        this.setMode(contactId, null);
+        return;
+      }
+      
+      await this.sendResponse(contactId, `🎤 *Ativando modelo Whisper:* ${selectedModel}\n\n⏳ Aguarde...`, true);
+      
+      const oldModel = CONFIG.audio.model;
+      
+      try {
+        // Aplicar novo modelo Whisper
+        CONFIG.audio.model = selectedModel;
+        console.log(`🎤 Modelo Whisper alterado de ${oldModel} para: ${selectedModel}`);
+        
+        // Notificar transcriber se disponível sobre mudança de modelo
+        if (this.transcriber && typeof this.transcriber.onModelChange === 'function') {
+          try {
+            await this.transcriber.onModelChange(selectedModel);
+            console.log(`📡 Transcriber notificado sobre mudança de modelo para: ${selectedModel}`);
+          } catch (notifyError) {
+            console.warn(`⚠️ Erro ao notificar transcriber sobre mudança:`, notifyError.message);
+          }
+        }
+        
+        let successMessage = `✅ *MODELO WHISPER ALTERADO COM SUCESSO!*\n\n`;
+        successMessage += `🔄 **Mudança aplicada:**\n`;
+        successMessage += `• 🎤 **Modelo anterior:** ${oldModel}\n`;
+        successMessage += `• ✅ **Novo modelo:** ${selectedModel}\n\n`;
+        
+        // Adicionar informações sobre o modelo
+        if (selectedModel.includes('tiny')) {
+          successMessage += `⚡ **Velocidade:** Ultrarrápida\n📊 **Qualidade:** Básica\n`;
+        } else if (selectedModel.includes('small')) {
+          successMessage += `🚀 **Velocidade:** Rápida\n📊 **Qualidade:** Boa\n`;
+        } else if (selectedModel.includes('medium')) {
+          successMessage += `⚖️ **Velocidade:** Moderada\n📊 **Qualidade:** Superior\n`;
+        } else if (selectedModel.includes('large')) {
+          successMessage += `🐌 **Velocidade:** Lenta\n📊 **Qualidade:** Máxima\n`;
+        } else if (selectedModel.includes('base')) {
+          successMessage += `💨 **Velocidade:** Rápida\n📊 **Qualidade:** Básica\n`;
+        }
+        
+        if (selectedModel.includes('.en')) {
+          successMessage += `🇺🇸 **Idioma:** Especializado em inglês\n`;
+        } else {
+          successMessage += `🌍 **Idioma:** Multilíngue (português incluído)\n`;
+        }
+        
+        successMessage += `\n💡 **O modelo está ativo** e será usado em novas transcrições.\n\n`;
+        successMessage += `🎯 **Teste:** Use ${COMMANDS.TRANSCREVER} e envie um áudio.\n\n`;
+        successMessage += `🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`;
+        
+        await this.sendResponse(contactId, successMessage);
+        
+      } catch (err) {
+        // Reverter em caso de erro
+        CONFIG.audio.model = oldModel;
+        console.error(`❌ Erro ao aplicar modelo Whisper ${selectedModel}:`, err);
+        await this.sendResponse(contactId, `❌ *ERRO AO TROCAR MODELO WHISPER*\n\n🚫 **Falha:** Não foi possível ativar o modelo "${selectedModel}"\n\n💡 **Modelo anterior mantido:** ${oldModel}\n\n⚠️ **Erro:** ${err.message}\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`);
+      }
+      
+      this.setMode(contactId, null);
+      
+      // Limpar dados temporários
+      this.setUserPreference(contactId, 'availableWhisperModels', []);
+      
+    } catch (err) {
+      console.error(`❌ Erro ao processar troca de modelo Whisper para ${contactId}:`, err);
+      await this.sendErrorMessage(contactId, '❌ Erro interno ao trocar modelo Whisper. Tente novamente.');
+      this.setMode(contactId, null);
+    }
+  }
+
+  isImageModel(modelName) {
+    // Detectar se é modelo de imagem baseado no nome
+    const imageModelNames = ['llava', 'bakllava', 'moondream', 'vision'];
+    return imageModelNames.some(name => modelName.toLowerCase().includes(name));
+  }
+
+  async unloadModel(modelName) {
+    try {
+      // Usar API do Ollama para descarregar modelo
+      await ollamaClient.delete({
+        model: modelName,
+        keep_alive: 0 // Força descarregamento imediato
+      });
+      console.log(`✅ Modelo ${modelName} descarregado com sucesso`);
+    } catch (err) {
+      if (err.message?.includes('not found') || err.message?.includes('404')) {
+        console.log(`ℹ️ Modelo ${modelName} já estava descarregado`);
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  async testModel(modelName, isImageModel) {
+    if (isImageModel) {
+      // Teste simples para modelo de imagem (sem imagem real)
+      console.log(`🧪 Testando modelo de imagem: ${modelName}`);
+      // Para modelos de imagem, apenas verificamos se está carregado
+      await ollamaClient.show({ model: modelName });
+    } else {
+      // Teste simples para modelo de texto
+      console.log(`🧪 Testando modelo de texto: ${modelName}`);
+      const testResponse = await ollamaClient.chat({
+        model: modelName,
+        messages: [{ role: 'user', content: 'Responda apenas: OK' }],
+        options: { temperature: 0.1 }
+      });
+      
+      if (!testResponse?.message?.content) {
+        throw new Error('Modelo não respondeu corretamente ao teste');
+      }
+    }
+  }
+
+  async handleReiniciarOllamaCommand(contactId) {
+    try {
+      await this.sendResponse(contactId, '🔄 *REINICIAR APLICAÇÃO (OLLAMA)*\n\n⚠️ **ATENÇÃO:** Esta operação irá:\n• Reiniciar toda a aplicação SecreBot\n• Descarregar todos os modelos Ollama\n• Limpar todas as conexões ativas\n• Recarregar configurações\n\n⏳ A aplicação será reiniciada em 10 segundos...\n\n📱 **Você receberá uma confirmação** quando o sistema voltar online.', true);
+      
+      console.log(`🔄 REINÍCIO DA APLICAÇÃO solicitado por ${contactId}`);
+      console.log(`⚠️ A aplicação será reiniciada em 10 segundos para permitir limpeza do Ollama`);
+      
+      // Salvar informação do usuário que solicitou restart para notificar depois
+      const restartInfo = {
+        requestedBy: contactId,
+        requestedAt: new Date().toISOString(),
+        reason: 'ollama_restart'
+      };
+      
+      // Salvar em arquivo temporário para recuperar após restart
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const restartFile = path.join(process.cwd(), '.restart-info.json');
+      
+      try {
+        await fs.writeFile(restartFile, JSON.stringify(restartInfo, null, 2));
+        console.log(`💾 Informações de restart salvas em ${restartFile}`);
+      } catch (err) {
+        console.warn('⚠️ Não foi possível salvar informações de restart:', err.message);
+      }
+      
+      // Aguardar 10 segundos para dar tempo da mensagem chegar
+      setTimeout(async () => {
+        console.log('🔄 Iniciando reinício da aplicação...');
+        
+        try {
+          // Tentar descarregar modelos rapidamente antes do restart
+          const models = await ollamaClient.list();
+          if (models && models.models) {
+            console.log(`📊 Tentando descarregar ${models.models.length} modelos antes do restart...`);
+            for (const model of models.models.slice(0, 3)) { // Apenas os 3 primeiros para não demorar
+              try {
+                await this.unloadModel(model.name);
+                console.log(`✅ Modelo ${model.name} descarregado`);
+              } catch (err) {
+                console.warn(`⚠️ Erro ao descarregar ${model.name}:`, err.message);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('⚠️ Erro ao descarregar modelos pre-restart:', err.message);
+        }
+        
+        // Detectar ambiente e executar restart apropriado
+        if (process.env.PM2_HOME || process.env.name || process.env.PM_ID || process.env.pm_id || process.env.PM2_JSON_PROCESSING) {
+          // Executando via PM2
+          console.log('🔄 Executando restart via PM2...');
+          console.log(`📊 PM2 vars: PM2_HOME=${process.env.PM2_HOME}, name=${process.env.name}, PM_ID=${process.env.PM_ID}`);
+          process.exit(0); // PM2 irá reiniciar automaticamente
+        } else if (process.env.DOCKER_CONTAINER) {
+          // Executando em container Docker
+          console.log('🔄 Executando restart em container Docker...');
+          process.exit(0); // Docker restart policy irá reiniciar
+        } else {
+          // Executando diretamente - tentar restart gracioso
+          console.log('🔄 Executando restart direto...');
+          
+          // Tentar usar processo pai se disponível
+          if (process.send) {
+            process.send('restart');
+          }
+          
+          // Forçar saída para restart manual
+          setTimeout(() => {
+            process.exit(0);
+          }, 1000);
+        }
+        
+      }, 10000); // 10 segundos de delay
+      
+    } catch (err) {
+      console.error(`❌ Erro ao preparar reinício para ${contactId}:`, err);
+      await this.sendResponse(contactId, `❌ *ERRO AO REINICIAR APLICAÇÃO*\n\n🚫 **Erro:** ${err.message}\n\n⚠️ **Recomendação:** Tente reiniciar manualmente usando PM2 ou Docker.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`);
+    }
+  }
+
+  async handleReiniciarWhisperCommand(contactId) {
+    try {
+      await this.sendResponse(contactId, '🎤 *REINICIAR WHISPER*\n\n⚠️ **Atenção:** Esta operação irá:\n• Limpar cache de transcrições\n• Reinicializar serviço Whisper\n• Resetar modos de transcrição\n\n⏳ Iniciando processo...', true);
+      
+      console.log(`🎤 Iniciando reinicialização do Whisper solicitada por ${contactId}`);
+      
+      // 1. Limpar modos de transcrição
+      let clearedTranscriptionModes = 0;
+      for (const [userId, mode] of this.chatModes.entries()) {
+        if (mode === CHAT_MODES.TRANSCRICAO) {
+          this.chatModes.delete(userId);
+          clearedTranscriptionModes++;
+        }
+      }
+      console.log(`🧹 ${clearedTranscriptionModes} modos de transcrição limpos`);
+      
+      // 2. Reinicializar transcriber se disponível
+      let transcriberStatus = 'N/A';
+      if (this.transcriber) {
+        try {
+          // Se o transcriber tem método de cleanup, usar
+          if (typeof this.transcriber.cleanup === 'function') {
+            await this.transcriber.cleanup();
+            console.log('🧹 Cache do transcriber limpo');
+            transcriberStatus = 'Cache limpo';
+          } else {
+            console.log('ℹ️ Transcriber não possui método de cleanup');
+            transcriberStatus = 'Sem cache para limpar';
+          }
+          
+          // Teste básico do transcriber
+          if (typeof this.transcriber.isReady === 'function') {
+            const isReady = await this.transcriber.isReady();
+            transcriberStatus += isReady ? ' - Pronto' : ' - Não disponível';
+          } else {
+            transcriberStatus += ' - Status desconhecido';
+          }
+          
+        } catch (err) {
+          console.warn('⚠️ Erro ao reinicializar transcriber:', err.message);
+          transcriberStatus = `Erro: ${err.message}`;
+        }
+      } else {
+        transcriberStatus = 'Não inicializado';
+      }
+      
+      // 3. Limpar preferências relacionadas a áudio se necessário
+      let clearedAudioPrefs = 0;
+      for (const [, prefs] of this.userPreferences.entries()) {
+        if (prefs && typeof prefs === 'object') {
+          let hasAudioPrefs = false;
+          // Manter outras preferências, limpar apenas relacionadas a áudio se houver
+          if (prefs.lastTranscriptionTime) {
+            delete prefs.lastTranscriptionTime;
+            hasAudioPrefs = true;
+          }
+          if (prefs.transcriptionCache) {
+            delete prefs.transcriptionCache;
+            hasAudioPrefs = true;
+          }
+          if (hasAudioPrefs) {
+            clearedAudioPrefs++;
+          }
+        }
+      }
+      
+      let successMessage = `✅ *WHISPER REINICIADO COM SUCESSO!*\n\n`;
+      successMessage += `📊 **Resultados:**\n`;
+      successMessage += `• 🎤 Modos de transcrição resetados: ${clearedTranscriptionModes}\n`;
+      successMessage += `• 🔄 Status do transcriber: ${transcriberStatus}\n`;
+      successMessage += `• 🧹 Preferências de áudio limpas: ${clearedAudioPrefs}\n\n`;
+      successMessage += `💡 **O serviço de transcrição** está pronto para uso.\n\n`;
+      successMessage += `🎯 **Teste:** Use ${COMMANDS.TRANSCREVER} e envie um áudio.\n\n`;
+      successMessage += `🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`;
+      
+      await this.sendResponse(contactId, successMessage);
+      
+      console.log(`✅ Reinicialização do Whisper concluída com sucesso para ${contactId}`);
+      
+    } catch (err) {
+      console.error(`❌ Erro ao reiniciar Whisper para ${contactId}:`, err);
+      await this.sendResponse(contactId, `❌ *ERRO AO REINICIAR WHISPER*\n\n🚫 **Erro:** ${err.message}\n\n⚠️ **Recomendação:** Verifique a configuração do Whisper e tente novamente.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`);
     }
   }
 

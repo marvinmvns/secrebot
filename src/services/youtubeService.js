@@ -23,6 +23,10 @@ async function initClient() {
   return ytClientPromise;
 }
 
+function shouldUseYtDlp(err) {
+  return /Could not extract functions|nsig extraction failed/i.test(String(err));
+}
+
 async function downloadAudioBuffer(youtubeUrl) {
   const outputPath = path.join(__dirname, `audio_${Date.now()}.ogg`);
   const attemptYtdl = () => new Promise((resolve, reject) => {
@@ -80,7 +84,7 @@ async function downloadAudioBuffer(youtubeUrl) {
   try {
     return await attemptYtdl();
   } catch (err) {
-    if (/Could not extract functions/.test(String(err))) {
+    if (shouldUseYtDlp(err)) {
       try {
         return await attemptYtDlp();
       } catch (e) {
@@ -140,4 +144,4 @@ async function fetchTranscriptWhisperOnly(url) {
   return transcript;
 }
 
-export default { fetchTranscript, fetchTranscriptWhisperOnly };
+export default { fetchTranscript, fetchTranscriptWhisperOnly, shouldUseYtDlp };

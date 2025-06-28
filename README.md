@@ -1243,7 +1243,7 @@ Feito com ❤️ para revolucionar seu WhatsApp
 
 ---
 
-*📅 Última atualização: Dezembro 2024*  
+*📅 Última atualização: Julho 2025*  
 *🔄 Versão: 2.0.0*
 
 </div>

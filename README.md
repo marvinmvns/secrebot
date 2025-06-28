@@ -129,7 +129,7 @@ MONGO_URI=mongodb://bot:senha@localhost:27017/sched
 
 # 🤖 Ollama/LLM
 OLLAMA_HOST=http://127.0.0.1:11434
-OLLAMA_TIMEOUT_MS=60000
+OLLAMA_TIMEOUT_MS=600000 # 10 minutos
 LLM_CONCURRENCY=2
 
 # 🎤 Audio/TTS

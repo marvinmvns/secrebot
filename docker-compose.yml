@@ -8,7 +8,7 @@ services:
       - PORT=3000
       - OLLAMA_HOST=http://ollama:11434
       # aumenta o timeout do Undici para aguardar o carregamento do modelo
-      - OLLAMA_TIMEOUT_MS=120000
+      - OLLAMA_TIMEOUT_MS=600000
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
       - ELEVENLABS_VOICE_ID=${ELEVENLABS_VOICE_ID}
     volumes:

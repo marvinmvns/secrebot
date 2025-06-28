@@ -3,11 +3,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST;
+const OLLAMA_TIMEOUT_MS = process.env.OLLAMA_TIMEOUT_MS || '600000';
 
-if (process.env.OLLAMA_TIMEOUT_MS) {
-  process.env.UNDICI_HEADERS_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
-  process.env.UNDICI_BODY_TIMEOUT = process.env.OLLAMA_TIMEOUT_MS;
-}
+process.env.UNDICI_HEADERS_TIMEOUT = OLLAMA_TIMEOUT_MS;
+process.env.UNDICI_BODY_TIMEOUT = OLLAMA_TIMEOUT_MS;
 
 export const CONFIG = {
   mongo: {
@@ -41,7 +40,8 @@ export const CONFIG = {
     model: process.env.LLM_MODEL || 'granite3.2:latest',
     imageModel: process.env.LLM_IMAGE_MODEL || 'llava:7b',
     maxTokens: parseInt(process.env.LLM_MAX_TOKENS || '3000', 10),
-    host: OLLAMA_HOST
+    host: OLLAMA_HOST,
+    timeoutMs: parseInt(OLLAMA_TIMEOUT_MS, 10)
   },
   audio: {
     sampleRate: parseInt(process.env.AUDIO_SAMPLE_RATE || '16000', 10),

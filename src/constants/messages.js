@@ -1,21 +1,74 @@
-import { COMMANDS, CHAT_MODES } from './commands.js';
+import { COMMANDS, CHAT_MODES, NAVIGATION_STATES } from './commands.js';
 
-export const MENU_MESSAGE = `🤖 *Bem-vindo!* Escolha uma opção:\n\n1️⃣ ${COMMANDS.AJUDA} - Ajuda
-2️⃣ ${COMMANDS.AGENDA} - Agendar lembrete
-3️⃣ ${COMMANDS.LISTAR} - Listar lembretes
-4️⃣ ${COMMANDS.DELETAR} - Remover lembrete
-5️⃣ ${COMMANDS.DEEP} - Chatbot
-6️⃣ ${COMMANDS.TRANSCREVER} - Transcrever áudio
-7️⃣ ${COMMANDS.FOTO} - Descrever imagem
-8️⃣ ${COMMANDS.CALORIAS} - Estimar calorias
-9️⃣ ${COMMANDS.LINKEDIN} - Analisar LinkedIn
-🔟 ${COMMANDS.VOZ} - Alternar voz/texto
-1️⃣1️⃣ ${COMMANDS.RECURSO} - Recursos do sistema
-1️⃣2️⃣ ${COMMANDS.RESUMIR} - Resumir texto/arquivo
-1️⃣3️⃣ ${COMMANDS.IMPORTAR_AGENDA} - Importar eventos
-1️⃣4️⃣ ${COMMANDS.RESUMIRVIDEO} - Resumir vídeo do YouTube
-1️⃣5️⃣ ${COMMANDS.RESUMIRVIDEO2} - Resumir vídeo (Whisper)
-0️⃣ ${COMMANDS.VOLTAR} - Voltar`;
+export const MENU_MESSAGE = `🤖 *SECREBOT - MENU PRINCIPAL*
+
+1️⃣ 📅 AGENDA & LEMBRETES
+2️⃣ 🧠 INTELIGÊNCIA ARTIFICIAL
+3️⃣ 🎬 MÍDIA & CONTEÚDO
+4️⃣ 💼 ANÁLISE PROFISSIONAL
+5️⃣ ⚙️ CONFIGURAÇÕES
+6️⃣ 📞 SUPORTE & SISTEMA
+
+Digite o número ou comando:
+• ${COMMANDS.MENU} - Voltar ao menu principal
+• ${COMMANDS.AJUDA} - Exibir ajuda detalhada`;
+
+export const SUBMENU_MESSAGES = {
+  agenda: `📅 *AGENDA & LEMBRETES*
+
+1.1 ➕ Criar Agendamento
+1.2 📋 Listar Agendamentos
+1.3 🗑️ Deletar Agendamento
+1.4 📥 Importar Agenda (.ics)
+
+0️⃣ Voltar ao menu principal`,
+
+  ia: `🧠 *INTELIGÊNCIA ARTIFICIAL*
+
+2.1 💬 Chat Assistente (Deep)
+2.2 📄 Resumir Texto/Arquivo
+2.3 🎥 Resumir Vídeo
+2.4 🖼️ Analisar Imagem
+
+0️⃣ Voltar ao menu principal`,
+
+  midia: `🎬 *MÍDIA & CONTEÚDO*
+
+3.1 🎤 Transcrever Áudio
+3.2 🔊 Ativar/Desativar Voz
+3.3 🍎 Calcular Calorias (Foto)
+
+0️⃣ Voltar ao menu principal`,
+
+  profissional: `💼 *ANÁLISE PROFISSIONAL*
+
+4.1 🔗 Analisar LinkedIn
+
+0️⃣ Voltar ao menu principal`,
+
+  config: `⚙️ *CONFIGURAÇÕES*
+
+5.1 🔊 Modo de Resposta (Texto/Voz)
+5.2 ⚡ Recursos do Sistema
+
+0️⃣ Voltar ao menu principal`,
+
+  suporte: `📞 *SUPORTE & SISTEMA*
+
+6.1 📖 Ajuda Detalhada
+6.2 ⚡ Recursos do Sistema
+
+0️⃣ Voltar ao menu principal`,
+
+  video: `🎥 *RESUMIR VÍDEO*
+
+Escolha o método de resumo:
+
+2.3.1 🚀 Transcrição Automática (YouTube)
+2.3.2 🎯 Whisper IA (Mais Preciso)
+
+0️⃣ Voltar ao submenu IA`
+};
 
 export const MODE_MESSAGES = {
   [CHAT_MODES.ASSISTANT]: `🤖 *Modo Assistente Ativado!*\n\n✨ Agora posso ajudá-lo com qualquer pergunta ou tarefa.\n💬 Digite sua mensagem ou envie um áudio!\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,

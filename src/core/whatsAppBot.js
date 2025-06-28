@@ -19,7 +19,9 @@ import {
   COMMANDS,
   NUMERIC_SHORTCUTS,
   CHAT_MODES,
+  NAVIGATION_STATES,
   MENU_MESSAGE,
+  SUBMENU_MESSAGES,
   MODE_MESSAGES,
   SUCCESS_MESSAGES,
   ERROR_MESSAGES,
@@ -43,6 +45,7 @@ class WhatsAppBot {
     this.transcriber = transcriber;
     this.ttsService = ttsService; // CORREÇÃO: Atribuir o serviço TTS
     this.chatModes = new Map();
+    this.navigationStates = new Map(); // Para navegação hierárquica
     this.userPreferences = new Map(); // Para armazenar preferências (ex: { voiceResponse: true/false })
     this.linkedinSessions = new Map(); // contato -> li_at
     this.awaitingLinkedinCreds = new Map();
@@ -162,6 +165,260 @@ class WhatsAppBot {
     }
   }
 
+  // Métodos para navegação hierárquica
+  getNavigationState(contactId) {
+    return this.navigationStates.get(contactId) || NAVIGATION_STATES.MAIN_MENU;
+  }
+
+  setNavigationState(contactId, state) {
+    if (state === NAVIGATION_STATES.MAIN_MENU) {
+      this.navigationStates.delete(contactId);
+      console.log(`📍 Estado de navegação para ${contactId} resetado para menu principal.`);
+    } else {
+      this.navigationStates.set(contactId, state);
+      console.log(`📍 Estado de navegação para ${contactId} definido para: ${state}`);
+    }
+  }
+
+  handleHierarchicalNavigation(msg, contactId, text, navigationState) {
+    const numericInput = text.trim();
+    
+    // No menu principal (1-6)
+    if (navigationState === NAVIGATION_STATES.MAIN_MENU) {
+      switch (numericInput) {
+        case '1':
+          this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_AGENDA);
+          this.sendResponse(contactId, SUBMENU_MESSAGES.agenda);
+          return true;
+        case '2':
+          this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_IA);
+          this.sendResponse(contactId, SUBMENU_MESSAGES.ia);
+          return true;
+        case '3':
+          this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_MIDIA);
+          this.sendResponse(contactId, SUBMENU_MESSAGES.midia);
+          return true;
+        case '4':
+          this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_PROFISSIONAL);
+          this.sendResponse(contactId, SUBMENU_MESSAGES.profissional);
+          return true;
+        case '5':
+          this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_CONFIG);
+          this.sendResponse(contactId, SUBMENU_MESSAGES.config);
+          return true;
+        case '6':
+          this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_SUPORTE);
+          this.sendResponse(contactId, SUBMENU_MESSAGES.suporte);
+          return true;
+        case '0':
+          this.sendResponse(contactId, MENU_MESSAGE);
+          return true;
+      }
+      return false;
+    }
+
+    // Nos submenus
+    return this.handleSubmenuNavigation(msg, contactId, numericInput, navigationState);
+  }
+
+  handleSubmenuNavigation(msg, contactId, numericInput, navigationState) {
+    switch (navigationState) {
+      case NAVIGATION_STATES.SUBMENU_AGENDA:
+        return this.handleAgendaSubmenu(msg, contactId, numericInput);
+      case NAVIGATION_STATES.SUBMENU_IA:
+        return this.handleIASubmenu(msg, contactId, numericInput);
+      case NAVIGATION_STATES.SUBMENU_MIDIA:
+        return this.handleMidiaSubmenu(msg, contactId, numericInput);
+      case NAVIGATION_STATES.SUBMENU_PROFISSIONAL:
+        return this.handleProfissionalSubmenu(msg, contactId, numericInput);
+      case NAVIGATION_STATES.SUBMENU_CONFIG:
+        return this.handleConfigSubmenu(msg, contactId, numericInput);
+      case NAVIGATION_STATES.SUBMENU_SUPORTE:
+        return this.handleSuporteSubmenu(msg, contactId, numericInput);
+      case NAVIGATION_STATES.SUBMENU_VIDEO:
+        return this.handleVideoSubmenu(msg, contactId, numericInput);
+      default:
+        return false;
+    }
+  }
+
+  async handleAgendaSubmenu(msg, contactId, input) {
+    switch (input) {
+      case '1.1':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.AGENDA });
+        return true;
+      case '1.2':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.LISTAR });
+        return true;
+      case '1.3':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.DELETAR });
+        return true;
+      case '1.4':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.IMPORTAR_AGENDA });
+        return true;
+      case '0':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.sendResponse(contactId, MENU_MESSAGE);
+        return true;
+    }
+    return false;
+  }
+
+  async handleIASubmenu(msg, contactId, input) {
+    switch (input) {
+      case '2.1':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.DEEP });
+        return true;
+      case '2.2':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.RESUMIR });
+        return true;
+      case '2.3':
+        this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_VIDEO);
+        await this.sendResponse(contactId, SUBMENU_MESSAGES.video);
+        return true;
+      case '2.4':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.FOTO });
+        return true;
+      case '0':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.sendResponse(contactId, MENU_MESSAGE);
+        return true;
+    }
+    return false;
+  }
+
+  async handleMidiaSubmenu(msg, contactId, input) {
+    switch (input) {
+      case '3.1':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.TRANSCREVER });
+        return true;
+      case '3.2':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.VOZ });
+        return true;
+      case '3.3':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.CALORIAS });
+        return true;
+      case '0':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.sendResponse(contactId, MENU_MESSAGE);
+        return true;
+    }
+    return false;
+  }
+
+  async handleProfissionalSubmenu(msg, contactId, input) {
+    switch (input) {
+      case '4.1':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.LINKEDIN });
+        return true;
+      case '0':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.sendResponse(contactId, MENU_MESSAGE);
+        return true;
+    }
+    return false;
+  }
+
+  async handleConfigSubmenu(msg, contactId, input) {
+    switch (input) {
+      case '5.1':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.VOZ });
+        return true;
+      case '5.2':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.RECURSO });
+        return true;
+      case '0':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.sendResponse(contactId, MENU_MESSAGE);
+        return true;
+    }
+    return false;
+  }
+
+  async handleSuporteSubmenu(msg, contactId, input) {
+    switch (input) {
+      case '6.1':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.AJUDA });
+        return true;
+      case '6.2':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.RECURSO });
+        return true;
+      case '0':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.sendResponse(contactId, MENU_MESSAGE);
+        return true;
+    }
+    return false;
+  }
+
+  async handleVideoSubmenu(msg, contactId, input) {
+    switch (input) {
+      case '2.3.1':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.RESUMIRVIDEO });
+        return true;
+      case '2.3.2':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.RESUMIRVIDEO2 });
+        return true;
+      case '0':
+        this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_IA);
+        await this.sendResponse(contactId, SUBMENU_MESSAGES.ia);
+        return true;
+    }
+    return false;
+  }
+
+  async showSubmenu(contactId, submenuType) {
+    switch (submenuType) {
+      case 'submenu_agenda':
+        this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_AGENDA);
+        await this.sendResponse(contactId, SUBMENU_MESSAGES.agenda);
+        break;
+      case 'submenu_ia':
+        this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_IA);
+        await this.sendResponse(contactId, SUBMENU_MESSAGES.ia);
+        break;
+      case 'submenu_midia':
+        this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_MIDIA);
+        await this.sendResponse(contactId, SUBMENU_MESSAGES.midia);
+        break;
+      case 'submenu_profissional':
+        this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_PROFISSIONAL);
+        await this.sendResponse(contactId, SUBMENU_MESSAGES.profissional);
+        break;
+      case 'submenu_config':
+        this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_CONFIG);
+        await this.sendResponse(contactId, SUBMENU_MESSAGES.config);
+        break;
+      case 'submenu_suporte':
+        this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_SUPORTE);
+        await this.sendResponse(contactId, SUBMENU_MESSAGES.suporte);
+        break;
+      case 'submenu_video':
+        this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_VIDEO);
+        await this.sendResponse(contactId, SUBMENU_MESSAGES.video);
+        break;
+      default:
+        await this.sendResponse(contactId, MENU_MESSAGE);
+    }
+  }
+
   // Método unificado para enviar respostas (texto ou voz)
   async sendResponse(contactId, textContent, forceText = false) {
     const useVoice = this.getUserPreference(contactId, 'voiceResponse', false) && !forceText;
@@ -219,15 +476,29 @@ class WhatsAppBot {
 
     if (Utils.isVoltarCommand(text)) {
       this.setMode(contactId, null);
+      this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
       await this.sendResponse(contactId, MENU_MESSAGE);
       return;
     }
 
     const currentMode = this.getCurrentMode(contactId);
+    const navigationState = this.getNavigationState(contactId);
+
+    // Lógica de navegação hierárquica
+    if (!currentMode && this.handleHierarchicalNavigation(msg, contactId, text, navigationState)) {
+      return;
+    }
 
     if (!currentMode && NUMERIC_SHORTCUTS[text]) {
       const command = NUMERIC_SHORTCUTS[text];
       console.log(`🔢 Atalho numérico ${text} mapeado para ${command}`);
+      
+      // Se for um submenu, mostrar o submenu
+      if (command.startsWith('submenu_')) {
+        await this.showSubmenu(contactId, command);
+        return;
+      }
+      
       await this.handleMessage({ ...msg, body: command });
       return;
     }

@@ -276,6 +276,7 @@ class WhatsAppBot {
           [COMMANDS.RECURSO]: () => this.handleRecursoCommand(contactId),
           [COMMANDS.RESUMIR]: () => this.handleResumirCommand(msg, contactId),
           [COMMANDS.RESUMIRVIDEO]: () => this.handleResumirVideoCommand(msg, contactId),
+          [COMMANDS.RESUMIRVIDEO2]: () => this.handleResumirVideo2Command(msg, contactId),
           [COMMANDS.IMPORTAR_AGENDA]: () => this.handleImportarAgendaCommand(msg, contactId),
           [COMMANDS.FOTO]: async () => {
               await this.sendResponse(contactId, ERROR_MESSAGES.IMAGE_REQUIRED);
@@ -671,6 +672,54 @@ async handleRecursoCommand(contactId) {
           
           await this.sendResponse(contactId, finalResponse);
           
+      } catch (err) {
+          console.error(`❌ Erro ao processar vídeo para ${contactId}:`, err);
+      await this.sendErrorMessage(contactId, '❌ Erro ao processar o vídeo. Verifique se o link é válido e tente novamente.');
+      }
+  }
+
+  async handleResumirVideo2Command(msg, contactId) {
+      const link = msg.body.substring(COMMANDS.RESUMIRVIDEO2.length).trim();
+      if (!link) {
+          await this.sendResponse(contactId, '📺 Por favor, envie o link do vídeo do YouTube que deseja transcrever.');
+          return;
+      }
+      try {
+          await this.sendResponse(contactId, '⏳ Transcrevendo vídeo via Whisper...', true);
+          const transcript = await YouTubeService.fetchTranscriptWhisperOnly(link);
+
+          if (!transcript || transcript.trim().length === 0) {
+              await this.sendResponse(contactId, '❌ Não foi possível transcrever o vídeo. Verifique se o link está correto.');
+              return;
+          }
+
+          const transcriptLength = transcript.length;
+          const truncatedTranscript = transcript.slice(0, 15000);
+          const truncated = transcriptLength > 15000;
+
+          await this.sendResponse(contactId, `📝 *Gerando resumo...*\n\n📊 Caracteres transcritos: ${transcriptLength.toLocaleString()}${truncated ? '\n⚠️ Texto truncado para processamento' : ''}`, true);
+
+          const summaryPrompt = `Resuma em português o texto a seguir em tópicos claros e objetivos, em até 30 linhas:\n\n${truncatedTranscript}`;
+
+          let summary;
+          try {
+            summary = await this.llmService.getAssistantResponse(contactId, summaryPrompt);
+          } catch (llmError) {
+            console.error(`❌ Erro no LLM ao processar vídeo para ${contactId}:`, llmError);
+            if (llmError.message && llmError.message.includes('timeout')) {
+              await this.sendResponse(contactId, '⏱️ O processamento do vídeo demorou mais que o esperado. Tente novamente com um vídeo menor ou aguarde alguns minutos.');
+              return;
+            }
+            throw llmError;
+          }
+
+          let finalResponse = `📑 *Resumo do Vídeo*\n\n${summary}`;
+          if (truncated) {
+              finalResponse += `\n\n⚠️ *Nota:* Devido ao tamanho da transcrição, apenas os primeiros 15.000 caracteres foram resumidos.`;
+          }
+
+          await this.sendResponse(contactId, finalResponse);
+
       } catch (err) {
           console.error(`❌ Erro ao processar vídeo para ${contactId}:`, err);
           await this.sendErrorMessage(contactId, '❌ Erro ao processar o vídeo. Verifique se o link é válido e tente novamente.');

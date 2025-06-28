@@ -28,43 +28,19 @@ function shouldUseYtDlp(err) {
 }
 
 async function downloadAudioBuffer(youtubeUrl) {
-  const outputPath = path.join(__dirname, `audio_${Date.now()}.ogg`);
-  const attemptYtdl = () => new Promise((resolve, reject) => {
-    const stream = ytdl(youtubeUrl, { quality: 'highestaudio' });
-    ffmpeg(stream)
-      .audioBitrate(128)
-      .toFormat('ogg')
-      .save(outputPath)
-      .on('end', async () => {
-        try {
-          const data = await fs.readFile(outputPath);
-          await fs.unlink(outputPath);
-          resolve(data);
-        } catch (err) {
-          reject(err);
-        }
-      })
-      .on('error', async (err) => {
-        await fs.unlink(outputPath).catch(() => {});
-        reject(err);
-      });
-  });
+  const base = path.join(__dirname, `audio_${Date.now()}`);
 
-  const attemptYtDlp = () => new Promise((resolve, reject) => {
-    const proc = spawn('yt-dlp', [
-      '-f', 'bestaudio[ext=webm]/bestaudio/best',
-      '--no-playlist',
-      '-o', outputPath,
-      youtubeUrl
-    ]);
+  const runYtDlp = (args, ext) => new Promise((resolve, reject) => {
+    const outputPath = `${base}.${ext}`;
+    const proc = spawn('yt-dlp', [...args, '-o', outputPath, youtubeUrl]);
 
     let stderr = '';
-    proc.stderr.on('data', (chunk) => {
+    proc.stderr.on('data', chunk => {
       stderr += chunk.toString();
     });
 
     proc.on('error', reject);
-    proc.on('close', async (code) => {
+    proc.on('close', async code => {
       if (code !== 0) {
         await fs.unlink(outputPath).catch(() => {});
         const msg = stderr.trim() || `yt-dlp exited with code ${code}`;
@@ -74,33 +50,60 @@ async function downloadAudioBuffer(youtubeUrl) {
       try {
         const data = await fs.readFile(outputPath);
         await fs.unlink(outputPath);
-        resolve(data);
+        resolve({ buffer: data, format: ext });
       } catch (err) {
         reject(err);
       }
     });
   });
 
-  try {
-    return await attemptYtdl();
-  } catch (err) {
-    if (shouldUseYtDlp(err)) {
-      try {
-        return await attemptYtDlp();
-      } catch (e) {
-        throw e;
-      }
+  const attemptYtdl = () => new Promise((resolve, reject) => {
+    const outputPath = `${base}.ogg`;
+    const stream = ytdl(youtubeUrl, { quality: 'highestaudio' });
+    ffmpeg(stream)
+      .audioBitrate(128)
+      .toFormat('ogg')
+      .save(outputPath)
+      .on('end', async () => {
+        try {
+          const data = await fs.readFile(outputPath);
+          await fs.unlink(outputPath);
+          resolve({ buffer: data, format: 'ogg' });
+        } catch (err) {
+          reject(err);
+        }
+      })
+      .on('error', async err => {
+        await fs.unlink(outputPath).catch(() => {});
+        reject(err);
+      });
+  });
+
+  const attempts = [
+    () => runYtDlp(['-x', '--audio-format', 'mp3', '--no-playlist'], 'mp3'),
+    () => runYtDlp(['-x', '--audio-format', 'wav', '--no-playlist'], 'wav'),
+    attemptYtdl,
+    () => runYtDlp(['-f', 'bestaudio[ext=webm]/bestaudio/best', '--no-playlist'], 'ogg')
+  ];
+
+  let lastErr;
+  for (const attempt of attempts) {
+    try {
+      return await attempt();
+    } catch (err) {
+      lastErr = err;
+      if (!shouldUseYtDlp(err)) break;
     }
-    throw err;
   }
+  throw lastErr;
 }
 
 async function downloadWavBuffer(youtubeUrl) {
-  const oggBuffer = await downloadAudioBuffer(youtubeUrl);
+  const { buffer, format } = await downloadAudioBuffer(youtubeUrl);
   const outputPath = path.join(__dirname, `audio_${Date.now()}_wav.wav`);
   return new Promise((resolve, reject) => {
-    ffmpeg(Readable.from(oggBuffer))
-      .inputFormat('ogg')
+    ffmpeg(Readable.from(buffer))
+      .inputFormat(format)
       .outputOptions('-ar', String(CONFIG.audio.sampleRate))
       .toFormat('wav')
       .save(outputPath)
@@ -113,7 +116,7 @@ async function downloadWavBuffer(youtubeUrl) {
           reject(err);
         }
       })
-      .on('error', async (err) => {
+      .on('error', async err => {
         await fs.unlink(outputPath).catch(() => {});
         reject(err);
       });
@@ -133,8 +136,8 @@ async function fetchTranscript(url) {
   } catch (err) {
     console.warn('Transcrição via YouTube.js falhou, utilizando Whisper:', err.message);
   }
-  const audioBuffer = await downloadAudioBuffer(url);
-  const transcript = await transcriber.transcribe(audioBuffer);
+  const { buffer, format } = await downloadAudioBuffer(url);
+  const transcript = await transcriber.transcribe(buffer, format);
   return transcript;
 }
 

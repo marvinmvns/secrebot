@@ -117,3 +117,5 @@ export function applyConfig(obj) {
   };
   merge(config, obj);
 }
+
+export { config as CONFIG };

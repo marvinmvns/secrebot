@@ -8,7 +8,7 @@ const OLLAMA_TIMEOUT_MS = process.env.OLLAMA_TIMEOUT_MS || '600000';
 process.env.UNDICI_HEADERS_TIMEOUT = OLLAMA_TIMEOUT_MS;
 process.env.UNDICI_BODY_TIMEOUT = OLLAMA_TIMEOUT_MS;
 
-export const CONFIG = {
+export const config = {
   debug: {
     enabled: process.env.DEBUG_ENABLED === 'true' || process.env.NODE_ENV === 'development',
     verbose: process.env.DEBUG_VERBOSE === 'true',
@@ -80,6 +80,26 @@ export const CONFIG = {
     pass: process.env.LINKEDIN_PASS || '',
     liAt: process.env.LINKEDIN_LI_AT || '',
     timeoutMs: parseInt(process.env.LINKEDIN_TIMEOUT_MS || '30000', 10)
+  },
+  telegram: {
+    botToken: process.env.TELEGRAM_BOT_TOKEN || '',
+    enableTTS: process.env.TELEGRAM_ENABLE_TTS === 'true',
+    maxFileSize: parseInt(process.env.TELEGRAM_MAX_FILE_SIZE || '20971520', 10), // 20MB
+    webhookUrl: process.env.TELEGRAM_WEBHOOK_URL || '',
+    features: {
+      aiChat: process.env.TELEGRAM_FEATURE_AI_CHAT !== 'false',
+      scheduler: process.env.TELEGRAM_FEATURE_SCHEDULER !== 'false',
+      audioTranscription: process.env.TELEGRAM_FEATURE_AUDIO_TRANSCRIPTION !== 'false',
+      imageAnalysis: process.env.TELEGRAM_FEATURE_IMAGE_ANALYSIS !== 'false',
+      videoSummary: process.env.TELEGRAM_FEATURE_VIDEO_SUMMARY !== 'false',
+      textSummary: process.env.TELEGRAM_FEATURE_TEXT_SUMMARY !== 'false',
+      tts: process.env.TELEGRAM_FEATURE_TTS !== 'false',
+      calorieCounter: process.env.TELEGRAM_FEATURE_CALORIE_COUNTER === 'true',
+      linkedinAnalysis: process.env.TELEGRAM_FEATURE_LINKEDIN_ANALYSIS === 'true',
+      mediaProcessing: process.env.TELEGRAM_FEATURE_MEDIA_PROCESSING !== 'false',
+      professionalAnalysis: process.env.TELEGRAM_FEATURE_PROFESSIONAL_ANALYSIS === 'true',
+      systemResources: process.env.TELEGRAM_FEATURE_SYSTEM_RESOURCES !== 'false'
+    }
   }
 };
 
@@ -95,5 +115,5 @@ export function applyConfig(obj) {
       }
     }
   };
-  merge(CONFIG, obj);
+  merge(config, obj);
 }

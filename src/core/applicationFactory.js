@@ -3,15 +3,16 @@ import LLMService from '../services/llmService.js';
 import AudioTranscriber from '../services/audioTranscriber.js';
 import TtsService from '../services/ttsService.js';
 import WhatsAppBot from './whatsAppBot.js';
+import { TelegramBotService } from './telegramBot.js';
 import RestAPI from '../api/restApi.js';
 import ConfigService from '../services/configService.js';
-import { CONFIG, applyConfig } from '../config/config.js';
+import { config, applyConfig } from '../config/config.js';
 import logger from '../utils/logger.js';
 import { handleError, setupGlobalErrorHandlers, gracefulShutdown } from '../utils/errorHandler.js';
 
 export class ApplicationFactory {
-  constructor(config = CONFIG) {
-    this.config = config;
+  constructor(appConfig = config) {
+    this.config = appConfig;
     this.services = new Map();
     this.isInitialized = false;
   }
@@ -100,6 +101,27 @@ export class ApplicationFactory {
     }
   }
 
+  async createTelegramBot() {
+    if (this.services.has('telegramBot')) {
+      return this.services.get('telegramBot');
+    }
+
+    try {
+      if (!config.telegram?.botToken) {
+        logger.info('Telegram bot token não configurado. Bot do Telegram será omitido.');
+        return null;
+      }
+
+      const telegramBot = new TelegramBotService();
+      this.services.set('telegramBot', telegramBot);
+      logger.info('Telegram bot initialized');
+      return telegramBot;
+    } catch (error) {
+      logger.error('Erro ao inicializar bot do Telegram:', error);
+      return null;
+    }
+  }
+
   createRestAPI(bot, configService) {
     if (this.services.has('restAPI')) {
       return this.services.get('restAPI');
@@ -128,6 +150,7 @@ export class ApplicationFactory {
       const transcriber = this.createAudioTranscriber();
       const ttsService = this.createTtsService();
       const bot = await this.createWhatsAppBot(scheduler, llmService, transcriber, ttsService);
+      const telegramBot = await this.createTelegramBot();
       const api = this.createRestAPI(bot, configService);
 
       this.setupGracefulShutdown();
@@ -135,6 +158,10 @@ export class ApplicationFactory {
 
       logger.success('Aplicação iniciada com sucesso!');
       logger.info('Escaneie o QR Code para conectar o WhatsApp (se necessário)');
+      
+      if (telegramBot && telegramBot.isActive()) {
+        logger.info('Bot do Telegram ativo e pronto para uso');
+      }
 
       return this.getServices();
     } catch (error) {
@@ -151,6 +178,7 @@ export class ApplicationFactory {
       audioTranscriber: this.services.get('audioTranscriber'),
       ttsService: this.services.get('ttsService'),
       whatsAppBot: this.services.get('whatsAppBot'),
+      telegramBot: this.services.get('telegramBot'),
       restAPI: this.services.get('restAPI')
     };
   }

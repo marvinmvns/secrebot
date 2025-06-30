@@ -5,7 +5,7 @@ import { CalorieService } from './calorieService.js';
 import { LinkedInScraper } from './linkedinScraper.js';
 import { YouTubeService } from './youtubeService.js';
 import { Scheduler } from './scheduler.js';
-import { logger } from '../utils/logger.js';
+import logger from '../utils/logger.js';
 import { config } from '../config/config.js';
 import fs from 'fs';
 import path from 'path';

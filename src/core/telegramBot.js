@@ -1,5 +1,5 @@
 import TelegramBot from 'node-telegram-bot-api';
-import { logger } from '../utils/logger.js';
+import logger from '../utils/logger.js';
 import { config } from '../config/config.js';
 import { TELEGRAM_COMMANDS, TELEGRAM_MESSAGES } from '../constants/telegramCommands.js';
 import { createFeatureToggleManager } from '../services/featureToggleService.js';

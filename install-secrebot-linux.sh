@@ -243,7 +243,9 @@ install_system_deps() {
             fi
             
             # MongoDB
-            if ! check_command mongosh && ! check_command mongo; then
+            if check_mongo_installed; then
+                log_info "MongoDB já está instalado, pulando instalação"
+            else
                 log_info "Instalando MongoDB..."
                 wget -qO - https://www.mongodb.org/static/pgp/server-7.0.asc | sudo apt-key add -
                 echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
@@ -272,7 +274,9 @@ install_system_deps() {
             fi
             
             # MongoDB
-            if ! check_command mongosh && ! check_command mongo; then
+            if check_mongo_installed; then
+                log_info "MongoDB já está instalado, pulando instalação"
+            else
                 log_info "Instalando MongoDB..."
                 cat > /tmp/mongodb-org-7.0.repo << 'EOF'
 [mongodb-org-7.0]
@@ -306,7 +310,9 @@ EOF
             fi
             
             # MongoDB
-            if ! check_command mongosh && ! check_command mongo; then
+            if check_mongo_installed; then
+                log_info "MongoDB já está instalado, pulando instalação"
+            else
                 log_info "Instalando MongoDB..."
                 sudo pacman -S --noconfirm mongodb-bin mongodb-tools
             fi

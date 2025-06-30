@@ -91,14 +91,9 @@ class WhatsAppBot {
   // Método para chamadas Ollama com retry progressivo
   async callOllamaWithRetry(requestParams, contactId, operation = 'unknown') {
     const timeoutLevels = [
-      30000,   // 30 segundos
-      60000,   // 1 minuto
-      120000,  // 2 minutos
-      300000,  // 5 minutos
-      600000,  // 10 minutos
-      1200000, // 20 minutos
-      1800000, // 30 minutos
-      3600000  // 1 hora (limite máximo)
+      12000000, // 20 minutos
+      18000000, // 30 minutos
+      36000000  // 1 hora (limite máximo)
     ];
 
     const formatTimeout = (ms) => {

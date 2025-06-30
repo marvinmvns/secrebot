@@ -16,7 +16,6 @@ class LLMService {
     
     // Configurações de timeout progressivo
     this.timeoutLevels = [
-      3000000,   // 30 segundos
       6000000,   // 1 minuto
       180000000, // 30 minutos
       360000000  // 1 hora (limite máximo)

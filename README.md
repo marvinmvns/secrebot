@@ -928,6 +928,7 @@ Acesse **`http://localhost:3000`** para usar a interface web completa:
 - **📝 Editor**: Modificar variáveis de ambiente
 - **🔄 Restart**: Reinicialização automática
 - **✅ Validação**: Verificar configurações
+- **📋 Exemplos**: Campos exibem sugestões de valores
 
 ### 📊 Recursos (`/resources`)
 - **💻 Sistema**: CPU, memória, disco

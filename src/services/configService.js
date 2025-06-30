@@ -24,6 +24,27 @@ class ConfigService {
       await this.collection.insertOne({ _id: 'app', values: defaults });
       return defaults;
     }
+
+    const defaults = JSON.parse(JSON.stringify(CONFIG));
+    let updated = false;
+    const ensure = (target, source) => {
+      for (const key of Object.keys(source)) {
+        if (target[key] === undefined) {
+          target[key] = source[key];
+          updated = true;
+        } else if (
+          typeof source[key] === 'object' &&
+          !Array.isArray(source[key]) &&
+          source[key] !== null
+        ) {
+          ensure(target[key], source[key]);
+        }
+      }
+    };
+    ensure(doc.values, defaults);
+    if (updated) {
+      await this.setConfig(doc.values);
+    }
     return doc.values;
   }
 

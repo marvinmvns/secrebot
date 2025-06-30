@@ -14,6 +14,7 @@ async function parsePdfBuffer(buffer) {
 import mammoth from 'mammoth';
 
 import Utils from '../utils/index.js';
+import logger from '../utils/logger.js';
 import {
   CONFIG,
   COMMANDS,
@@ -78,7 +79,7 @@ class WhatsAppBot {
     const prefs = this.userPreferences.get(contactId) || {};
     prefs[key] = value;
     this.userPreferences.set(contactId, prefs);
-    console.log(`🔧 Preferência [${key}=${value}] definida para ${contactId}`);
+    logger.log(`🔧 Preferência [${key}=${value}] definida para ${contactId}`);
   }
 
   toggleVoicePreference(contactId) {
@@ -92,22 +93,22 @@ class WhatsAppBot {
   setupEvents() {
     this.client.on('qr', qr => {
       qrcode.generate(qr, { small: true });
-      console.log('📱 QR Code gerado. Escaneie para login.');
+      logger.info('📱 QR Code gerado. Escaneie para login.');
     });
 
     this.client.on('ready', () => {
-      console.log('✅ Cliente WhatsApp pronto!');
+      logger.info('✅ Cliente WhatsApp pronto!');
       this.startScheduler();
     });
 
-    this.client.on('authenticated', () => console.log('🔐 WhatsApp autenticado.'));
+    this.client.on('authenticated', () => logger.info('🔐 WhatsApp autenticado.'));
     this.client.on('auth_failure', msg => {
-      console.error('❌ Falha na autenticação:', msg);
+      logger.error('❌ Falha na autenticação', msg);
       process.exit(1);
     });
 
     this.client.on('disconnected', reason => {
-      console.error('🔌 WhatsApp desconectado:', reason);
+      logger.error('🔌 WhatsApp desconectado', reason);
       process.exit(1);
     });
 
@@ -116,7 +117,7 @@ class WhatsAppBot {
         // if (msg.isStatus || msg.from.includes('@g.us')) return; // Opcional: Ignorar status/grupos
         await this.handleMessage(msg);
       } catch (err) {
-        console.error('❌ Erro ao processar mensagem:', err);
+        logger.error('❌ Erro ao processar mensagem', err);
         if (this.client.info) {
             await this.sendResponse(msg.from, ERROR_MESSAGES.GENERIC);
         }
@@ -130,7 +131,7 @@ class WhatsAppBot {
       () => this.scheduler.processScheduledMessages(this.client),
       CONFIG.scheduler.interval
     );
-    console.log(`⏰ Scheduler iniciado com intervalo de ${CONFIG.scheduler.interval / 1000}s.`);
+    logger.info(`⏰ Scheduler iniciado com intervalo de ${CONFIG.scheduler.interval / 1000}s.`);
   }
 
   async initialize() {
@@ -143,7 +144,7 @@ class WhatsAppBot {
       }, 5000); // Aguardar 5 segundos após inicialização
       
     } catch (err) {
-      console.error('❌ Erro na inicialização do WhatsApp:', err);
+      logger.error('❌ Erro na inicialização do WhatsApp', err);
       throw err;
     }
   }
@@ -160,7 +161,7 @@ class WhatsAppBot {
         const restartInfo = JSON.parse(restartData);
         
         if (restartInfo && restartInfo.requestedBy) {
-          console.log(`📱 Notificando usuário ${restartInfo.requestedBy} sobre restart concluído`);
+          logger.flow(`📱 Notificando usuário ${restartInfo.requestedBy} sobre restart concluído`);
           
           const restartTime = new Date(restartInfo.requestedAt).toLocaleString('pt-BR');
           let message = `✅ *APLICAÇÃO REINICIADA COM SUCESSO!*\n\n`;
@@ -180,17 +181,17 @@ class WhatsAppBot {
         
         // Remover arquivo após processamento
         await fs.unlink(restartFile);
-        console.log(`🗑️ Arquivo de restart removido: ${restartFile}`);
+        logger.file(`🗑️ Arquivo de restart removido: ${restartFile}`);
         
       } catch (fileErr) {
         // Arquivo não existe ou erro ao ler - normal se não houve restart
         if (fileErr.code !== 'ENOENT') {
-          console.warn('⚠️ Erro ao verificar arquivo de restart:', fileErr.message);
+          logger.warn('⚠️ Erro ao verificar arquivo de restart', { message: fileErr.message });
         }
       }
       
     } catch (err) {
-      console.error('❌ Erro ao verificar notificação de restart:', err);
+      logger.error('❌ Erro ao verificar notificação de restart', err);
     }
   }
 
@@ -207,15 +208,15 @@ class WhatsAppBot {
   setMode(contactId, mode) {
     if (mode) {
       this.chatModes.set(contactId, mode);
-      console.log(`🔧 Modo para ${contactId} definido para: ${mode}`);
+      logger.log(`🔧 Modo para ${contactId} definido para: ${mode}`);
     } else {
       const currentMode = this.chatModes.get(contactId);
       if (currentMode) {
           this.llmService.clearContext(contactId, currentMode);
-          console.log(`🧹 Contexto LLM para modo ${currentMode} de ${contactId} limpo.`);
+          logger.service(`🧹 Contexto LLM para modo ${currentMode} de ${contactId} limpo.`);
       }
       this.chatModes.delete(contactId);
-      console.log(`🔧 Modo para ${contactId} removido.`);
+      logger.log(`🔧 Modo para ${contactId} removido.`);
     }
   }
 
@@ -227,10 +228,10 @@ class WhatsAppBot {
   setNavigationState(contactId, state) {
     if (state === NAVIGATION_STATES.MAIN_MENU) {
       this.navigationStates.delete(contactId);
-      console.log(`📍 Estado de navegação para ${contactId} resetado para menu principal.`);
+      logger.log(`📍 Estado de navegação para ${contactId} resetado para menu principal.`);
     } else {
       this.navigationStates.set(contactId, state);
-      console.log(`📍 Estado de navegação para ${contactId} definido para: ${state}`);
+      logger.log(`📍 Estado de navegação para ${contactId} definido para: ${state}`);
     }
   }
 
@@ -496,15 +497,15 @@ class WhatsAppBot {
     // CORREÇÃO: A verificação 'this.ttsService' garante que o serviço foi injetado
     if (useVoice && this.ttsService && (this.ttsService.client || this.ttsService.piperEnabled)) { // Verifica também Piper
       try {
-        console.log(`🗣️ Gerando resposta em áudio para ${contactId}...`);
+        logger.service(`🗣️ Gerando resposta em áudio para ${contactId}...`);
         const audioBuffer = await this.ttsService.generateAudio(textContent);
         const audioBase64 = audioBuffer.toString('base64');
         // Tentar enviar como audio/ogg (opus) primeiro, pode ser mais compatível
         const media = new MessageMedia('audio/ogg; codecs=opus', audioBase64, 'response.ogg');
         await this.client.sendMessage(contactId, media, { sendAudioAsVoice: true });
-        console.log(`✅ Áudio enviado para ${contactId}`);
+        logger.success(`✅ Áudio enviado para ${contactId}`);
       } catch (ttsError) {
-        console.error(`❌ Erro ao gerar/enviar áudio TTS para ${contactId}:`, ttsError);
+        logger.error(`❌ Erro ao gerar/enviar áudio TTS para ${contactId}`, ttsError);
         // Fallback para texto se TTS falhar
         await this.client.sendMessage(contactId, ERROR_MESSAGES.TTS_FAILED); // Envia erro em texto
         await this.client.sendMessage(contactId, textContent); // Envia conteúdo original em texto
@@ -525,7 +526,7 @@ class WhatsAppBot {
     const text = msg.body?.trim() || '';
     const lowerText = text.toLowerCase();
 
-    console.log(`💬 Mensagem de ${contactId}: ${text || '[Mídia]'}`);
+    logger.verbose(`💬 Mensagem de ${contactId}: ${text || '[Mídia]'}`);
 
     if (this.awaitingLinkedinCreds.get(contactId)) {
       const [user, pass] = text.split(/[:\s]+/);
@@ -561,7 +562,7 @@ class WhatsAppBot {
 
     if (!currentMode && NUMERIC_SHORTCUTS[text]) {
       const command = NUMERIC_SHORTCUTS[text];
-      console.log(`🔢 Atalho numérico ${text} mapeado para ${command}`);
+      logger.log(`🔢 Atalho numérico ${text} mapeado para ${command}`);
       
       // Se for um submenu, mostrar o submenu
       if (command.startsWith('submenu_')) {
@@ -593,7 +594,7 @@ class WhatsAppBot {
         return;
     }
 
-    console.log(`❓ Mensagem não reconhecida de ${contactId}, exibindo menu.`);
+    logger.log(`❓ Mensagem não reconhecida de ${contactId}, exibindo menu.`);
     await this.sendResponse(contactId, MENU_MESSAGE);
   }
 
@@ -636,13 +637,13 @@ class WhatsAppBot {
       const sortedHandlers = Object.entries(commandHandlers).sort((a, b) => b[0].length - a[0].length);
       for (const [command, handler] of sortedHandlers) {
           if (lowerText.startsWith(command)) {
-              console.log(`⚙️ Executando comando ${command} para ${contactId}`);
+              logger.log(`⚙️ Executando comando ${command} para ${contactId}`);
               await handler();
               return;
           }
       }
 
-      console.warn(`⚠️ Comando ${lowerText} não encontrado nos handlers.`);
+      logger.warn(`⚠️ Comando ${lowerText} não encontrado nos handlers.`);
       await this.sendResponse(contactId, MENU_MESSAGE);
   }
 
@@ -705,7 +706,7 @@ class WhatsAppBot {
       await this.sendResponse(contactId, message);
       
     } catch (err) {
-      console.error(`❌ Erro ao listar modelos para ${contactId}:`, err);
+      logger.error(`❌ Erro ao listar modelos para ${contactId}`, err);
       await this.sendResponse(contactId, '❌ Erro ao acessar modelos do Ollama.\n\nVerifique se o serviço está rodando e tente novamente.');
     }
   }
@@ -756,7 +757,7 @@ class WhatsAppBot {
       await this.sendResponse(contactId, message);
       
     } catch (err) {
-      console.error(`❌ Erro ao preparar troca de modelo para ${contactId}:`, err);
+      logger.error(`❌ Erro ao preparar troca de modelo para ${contactId}`, err);
       await this.sendResponse(contactId, '❌ Erro ao acessar modelos do Ollama.\n\nVerifique se o serviço está rodando e tente novamente.');
     }
   }
@@ -810,7 +811,7 @@ class WhatsAppBot {
       await this.sendResponse(contactId, message);
       
     } catch (err) {
-      console.error(`❌ Erro ao listar modelos Whisper para ${contactId}:`, err);
+      logger.error(`❌ Erro ao listar modelos Whisper para ${contactId}`, err);
       await this.sendResponse(contactId, '❌ Erro ao listar modelos Whisper.\n\nTente novamente mais tarde.');
     }
   }
@@ -861,7 +862,7 @@ class WhatsAppBot {
       await this.sendResponse(contactId, message);
       
     } catch (err) {
-      console.error(`❌ Erro ao preparar troca de modelo Whisper para ${contactId}:`, err);
+      logger.error(`❌ Erro ao preparar troca de modelo Whisper para ${contactId}`, err);
       await this.sendResponse(contactId, '❌ Erro ao acessar modelos Whisper.\n\nTente novamente mais tarde.');
     }
   }
@@ -1040,7 +1041,7 @@ async handleRecursoCommand(contactId) {
     await this.sendResponse(contactId, message);
     
   } catch (err) {
-    console.error('❌ Erro ao obter recursos detalhados do sistema:', err);
+    logger.error('❌ Erro ao obter recursos detalhados do sistema', err);
     await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
   }
 }
@@ -1075,11 +1076,11 @@ async handleRecursoCommand(contactId) {
           const type = msg.mimetype;
           
           // Debug info
-          console.log(`🔍 Debug arquivo - Contato: ${contactId}`);
-          console.log(`📁 Filename: ${msg.filename}`);
-          console.log(`📁 Filename lowercase: ${filename}`);
-          console.log(`🏷️ MIME type: ${type}`);
-          console.log(`📏 Buffer size: ${buffer.length} bytes`);
+          logger.verbose(`🔍 Debug arquivo - Contato: ${contactId}`);
+          logger.verbose(`📁 Filename: ${msg.filename}`);
+          logger.verbose(`📁 Filename lowercase: ${filename}`);
+          logger.verbose(`🏷️ MIME type: ${type}`);
+          logger.verbose(`📏 Buffer size: ${buffer.length} bytes`);
           
           try {
               // Função para detectar PDF por magic bytes
@@ -1108,11 +1109,11 @@ async handleRecursoCommand(contactId) {
                             type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
                             (type === 'application/octet-stream' && detectDocxByHeader(buffer) && filename.includes('docx'));
               
-              console.log(`🔍 Detecção de tipo:`);
-              console.log(`📄 isPdf: ${isPdf} (magic: ${detectPdfByHeader(buffer)})`);
-              console.log(`📄 isTxt: ${isTxt}`);
-              console.log(`📄 isCsv: ${isCsv}`);
-              console.log(`📄 isDocx: ${isDocx} (magic: ${detectDocxByHeader(buffer)})`);
+              logger.verbose(`🔍 Detecção de tipo:`);
+              logger.verbose(`📄 isPdf: ${isPdf} (magic: ${detectPdfByHeader(buffer)})`);
+              logger.verbose(`📄 isTxt: ${isTxt}`);
+              logger.verbose(`📄 isCsv: ${isCsv}`);
+              logger.verbose(`📄 isDocx: ${isDocx} (magic: ${detectDocxByHeader(buffer)})`);
               
               if (isPdf) {
                   fileType = 'PDF';
@@ -1132,12 +1133,12 @@ async handleRecursoCommand(contactId) {
                   const result = await mammoth.extractRawText({ buffer });
                   textContent = result.value;
               } else {
-                  console.log(`❌ Tipo de arquivo não reconhecido`);
+                  logger.warn(`❌ Tipo de arquivo não reconhecido`);
                   await this.sendResponse(contactId, `❌ *Tipo de arquivo não suportado*\n\n📎 **Arquivo recebido:**\n• Nome: ${msg.filename || 'sem nome'}\n• Tipo: ${type || 'desconhecido'}\n• Tamanho: ${buffer.length} bytes\n\n📎 **Formatos aceitos:**\n• PDF (.pdf)\n• Word (.docx)\n• Texto (.txt)\n• CSV (.csv)\n\n🔄 Envie um arquivo válido ou !voltar para cancelar`);
                   return;
               }
           } catch (err) {
-              console.error(`❌ Erro ao ler arquivo ${fileType} para ${contactId}:`, err);
+              logger.error(`❌ Erro ao ler arquivo ${fileType} para ${contactId}`, err);
               await this.sendErrorMessage(contactId, `❌ Erro ao processar arquivo ${fileType}. Verifique se o arquivo não está corrompido e tente novamente.`);
               return;
           }
@@ -1182,7 +1183,7 @@ async handleRecursoCommand(contactId) {
           await this.sendResponse(contactId, finalResponse);
           
       } catch (err) {
-          console.error(`❌ Erro ao gerar resumo para ${contactId}:`, err);
+          logger.error(`❌ Erro ao gerar resumo para ${contactId}`, err);
           await this.sendErrorMessage(contactId, '❌ Erro ao gerar o resumo. Tente novamente em alguns instantes.');
       }
   }
@@ -1216,7 +1217,7 @@ async handleRecursoCommand(contactId) {
           try {
             summary = await this.llmService.getAssistantResponse(contactId, summaryPrompt);
           } catch (llmError) {
-            console.error(`❌ Erro no LLM ao processar vídeo para ${contactId}:`, llmError);
+            logger.error(`❌ Erro no LLM ao processar vídeo para ${contactId}`, llmError);
             if (llmError.message && llmError.message.includes('timeout')) {
               await this.sendResponse(contactId, '⏱️ O processamento do vídeo demorou mais que o esperado. Tente novamente com um vídeo menor ou aguarde alguns minutos.');
               return;
@@ -1233,7 +1234,7 @@ async handleRecursoCommand(contactId) {
           await this.sendResponse(contactId, finalResponse);
           
       } catch (err) {
-          console.error(`❌ Erro ao processar vídeo para ${contactId}:`, err);
+          logger.error(`❌ Erro ao processar vídeo para ${contactId}`, err);
           
           if (err.message?.includes('falhou após') && err.message?.includes('tentativas')) {
             await this.sendErrorMessage(contactId, '⏱️ O processamento do vídeo demorou mais que o esperado. O sistema tentou por até 1 hora, mas não conseguiu completar. Tente novamente mais tarde ou com um vídeo menor.');
@@ -1250,19 +1251,19 @@ async handleRecursoCommand(contactId) {
           return;
       }
 
-      console.log(`▶️ Iniciando resumo via Whisper para ${contactId}. Link recebido: ${link}`);
-      console.log('📥 Enviando confirmação de transcrição ao usuário');
+      logger.flow(`▶️ Iniciando resumo via Whisper para ${contactId}. Link recebido: ${link}`);
+      logger.flow('📥 Enviando confirmação de transcrição ao usuário');
 
       try {
           await this.sendResponse(contactId, '⏳ Transcrevendo vídeo via Whisper...', true);
-          console.log('🎙️ Chamando serviço YouTubeService.fetchTranscriptWhisperOnly');
+          logger.service('🎙️ Chamando serviço YouTubeService.fetchTranscriptWhisperOnly');
           const transcript = await YouTubeService.fetchTranscriptWhisperOnly(link);
 
-          console.log(`📝 Transcrição concluída (${transcript.length} caracteres). Trecho inicial: "${transcript.slice(0, 80)}..."`);
-          console.log(`📊 Tamanho total da transcrição: ${transcript.length}`);
+          logger.verbose(`📝 Transcrição concluída (${transcript.length} caracteres). Trecho inicial: "${transcript.slice(0, 80)}..."`);
+          logger.verbose(`📊 Tamanho total da transcrição: ${transcript.length}`);
 
           if (!transcript || transcript.trim().length === 0) {
-              console.warn(`⚠️ Transcrição vazia para ${contactId}`);
+              logger.warn(`⚠️ Transcrição vazia para ${contactId}`);
               await this.sendResponse(contactId, '❌ Não foi possível transcrever o vídeo. Verifique se o link está correto.');
               return;
           }
@@ -1272,21 +1273,21 @@ async handleRecursoCommand(contactId) {
           const truncated = transcriptLength > 15000;
 
           if (truncated) {
-              console.log('⚠️ Transcrição grande, aplicando truncamento para 15k caracteres');
+              logger.verbose('⚠️ Transcrição grande, aplicando truncamento para 15k caracteres');
           }
 
           await this.sendResponse(contactId, `📝 *Gerando resumo...*\n\n📊 Caracteres transcritos: ${transcriptLength.toLocaleString()}${truncated ? '\n⚠️ Texto truncado para processamento' : ''}`, true);
 
           const summaryPrompt = `Resuma em português o texto a seguir em tópicos claros e objetivos, em até 30 linhas:\n\n${truncatedTranscript}`;
 
-          console.log(`📨 Prompt preparado com ${summaryPrompt.length} caracteres. Enviando ao LLM`);
+          logger.flow(`📨 Prompt preparado com ${summaryPrompt.length} caracteres. Enviando ao LLM`);
 
           let summary;
           try {
-            console.log('💬 Chamando LLM para gerar resumo');
+            logger.api('💬 Chamando LLM para gerar resumo');
             summary = await this.llmService.getAssistantResponse(contactId, summaryPrompt);
           } catch (llmError) {
-            console.error(`❌ Erro no LLM ao processar vídeo para ${contactId}:`, llmError);
+            logger.error(`❌ Erro no LLM ao processar vídeo para ${contactId}`, llmError);
             if (llmError.message && llmError.message.includes('timeout')) {
               await this.sendResponse(contactId, '⏱️ O processamento do vídeo demorou mais que o esperado. Tente novamente com um vídeo menor ou aguarde alguns minutos.');
               return;
@@ -1294,8 +1295,8 @@ async handleRecursoCommand(contactId) {
             throw llmError;
           }
 
-          console.log(`✅ Resumo gerado com ${summary.length} caracteres. Trecho inicial: "${summary.slice(0, 80)}..."`);
-          console.log('📤 Enviando resumo final ao usuário');
+          logger.verbose(`✅ Resumo gerado com ${summary.length} caracteres. Trecho inicial: "${summary.slice(0, 80)}..."`);
+          logger.flow('📤 Enviando resumo final ao usuário');
 
           let finalResponse = `📑 *Resumo do Vídeo*\n\n${summary}`;
           if (truncated) {
@@ -1303,22 +1304,22 @@ async handleRecursoCommand(contactId) {
           }
 
           await this.sendResponse(contactId, finalResponse);
-          console.log('🏁 Processo de resumo finalizado com sucesso');
+          logger.success('🏁 Processo de resumo finalizado com sucesso');
 
       } catch (err) {
-          console.error(`❌ Erro ao processar vídeo para ${contactId}:`, err);
+          logger.error(`❌ Erro ao processar vídeo para ${contactId}`, err);
           
           if (err.message?.includes('falhou após') && err.message?.includes('tentativas')) {
             await this.sendErrorMessage(contactId, '⏱️ O processamento do vídeo demorou mais que o esperado. O sistema tentou por até 1 hora, mas não conseguiu completar. Tente novamente mais tarde ou com um vídeo menor.');
           } else {
             await this.sendErrorMessage(contactId, '❌ Erro ao processar o vídeo. Verifique se o link é válido e tente novamente.');
           }
-          console.log('📛 Processo de resumo via Whisper finalizado com erro');
+          logger.error('📛 Processo de resumo via Whisper finalizado com erro');
       }
   }
 
   async handleImageMessage(msg, contactId, lowerText) {
-    console.log(`🖼️ Recebida imagem de ${contactId}`);
+    logger.verbose(`🖼️ Recebida imagem de ${contactId}`);
     let media = await Utils.downloadMediaWithRetry(msg);
     if (!media) {
       await this.sendErrorMessage(contactId, '❌ Não foi possível baixar a imagem.');
@@ -1329,7 +1330,7 @@ async handleRecursoCommand(contactId) {
     const imagePath = path.join(__dirname, `image_${timestamp}.jpg`);
     try {
       await fs.writeFile(imagePath, buffer);
-      console.log(`💾 Imagem salva temporariamente em ${imagePath}`);
+      logger.file(`💾 Imagem salva temporariamente em ${imagePath}`);
       let prompt;
       let processingMessage;
       let mode;
@@ -1354,7 +1355,7 @@ async handleRecursoCommand(contactId) {
         stream: false
       });
       const description = response.response.trim();
-      console.log(`🤖 Resposta da análise de imagem (${mode}): ${description.substring(0, 100)}...`);
+      logger.verbose(`🤖 Resposta da análise de imagem (${mode}): ${description.substring(0, 100)}...`);
 
       if (mode === 'calories') {
         let foods = [];
@@ -1363,7 +1364,7 @@ async handleRecursoCommand(contactId) {
           const obj = JSON.parse(jsonText);
           foods = Array.isArray(obj.foods) ? obj.foods : [];
         } catch (e) {
-          console.error('❌ Erro ao analisar JSON de alimentos:', e);
+          logger.error('❌ Erro ao analisar JSON de alimentos', e);
         }
 
         if (!foods.length) {
@@ -1385,7 +1386,7 @@ async handleRecursoCommand(contactId) {
         await this.sendResponse(contactId, description);
       }
     } catch (err) {
-        console.error(`❌ Erro ao processar imagem de ${contactId}:`, err);
+        logger.error(`❌ Erro ao processar imagem de ${contactId}`, err);
         
         if (err.message?.includes('falhou após') && err.message?.includes('tentativas')) {
           await this.sendErrorMessage(contactId, '⏱️ A análise da imagem demorou mais que o esperado. O sistema tentou por até 1 hora, mas não conseguiu completar. Tente novamente mais tarde ou com uma imagem menor.');
@@ -1394,7 +1395,7 @@ async handleRecursoCommand(contactId) {
         }
     } finally {
       await Utils.cleanupFile(imagePath);
-      console.log(`🗑️ Arquivo de imagem temporário ${imagePath} removido.`);
+      logger.file(`🗑️ Arquivo de imagem temporário ${imagePath} removido.`);
     }
   }
 
@@ -1464,7 +1465,7 @@ async handleRecursoCommand(contactId) {
   }
 
   async handleAudioMessage(msg, contactId) {
-    console.log(`🎤 Recebido áudio de ${contactId}`);
+    logger.verbose(`🎤 Recebido áudio de ${contactId}`);
     const media = await msg.downloadMedia();
     if (!media) {
       await this.sendErrorMessage(contactId, '❌ Desculpe, não consegui baixar seu áudio.');
@@ -1476,14 +1477,14 @@ async handleRecursoCommand(contactId) {
       const transcription = await this.transcriber.transcribe(
         Buffer.from(media.data, 'base64')
       );
-      console.log(`📝 Transcrição para ${contactId}: ${transcription}`);
+      logger.service(`📝 Transcrição para ${contactId}: ${transcription}`);
       if (currentMode === CHAT_MODES.TRANSCRICAO) {
         await this.sendResponse(contactId, `📝 *Transcrição:*\n\n${transcription}`);
         await this.sendResponse(contactId, SUCCESS_MESSAGES.TRANSCRIPTION_COMPLETE);
       } else if (currentMode) {
         await this.processMessageByMode(contactId, transcription, msg);
       } else {
-        console.log(`🎤 Áudio recebido no menu. Mapeando transcrição "${transcription}" para comando...`);
+        logger.flow(`🎤 Áudio recebido no menu. Mapeando transcrição "${transcription}" para comando...`);
         await this.sendResponse(contactId, '🤔 Interpretando comando de áudio...', true);
         const commandPrompt = PROMPTS.audioCommandMapping(transcription);
         const response = await ollamaClient.chat({
@@ -1492,7 +1493,7 @@ async handleRecursoCommand(contactId) {
             options: { temperature: 0.2 }
         });
         const mappedCommand = response.message.content.trim();
-        console.log(`🤖 LLM mapeou áudio para: ${mappedCommand}`);
+        logger.api(`🤖 LLM mapeou áudio para: ${mappedCommand}`);
         if (mappedCommand !== 'INVALIDO' && Object.values(COMMANDS).includes(mappedCommand)) {
             await this.sendResponse(contactId, `Comando de áudio entendido como: ${mappedCommand}`, true);
             await this.handleMessage({ ...msg, body: mappedCommand });
@@ -1502,7 +1503,7 @@ async handleRecursoCommand(contactId) {
         }
       }
     } catch (err) {
-      console.error(`❌ Erro no processamento de áudio para ${contactId}:`, err);
+      logger.error(`❌ Erro no processamento de áudio para ${contactId}`, err);
       
       if (err.message?.includes('falhou após') && err.message?.includes('tentativas')) {
         await this.sendErrorMessage(contactId, '⏱️ O processamento do áudio demorou mais que o esperado. Tente novamente mais tarde.');
@@ -1514,7 +1515,7 @@ async handleRecursoCommand(contactId) {
 
   async processMessageByMode(contactId, text, msg) {
     const currentMode = this.getCurrentMode(contactId);
-    console.log(`🔄 Processando mensagem no modo ${currentMode} para ${contactId}`);
+    logger.flow(`🔄 Processando mensagem no modo ${currentMode} para ${contactId}`);
     if (!currentMode) {
       await this.sendResponse(contactId, MENU_MESSAGE);
       return;
@@ -1561,7 +1562,7 @@ async handleRecursoCommand(contactId) {
         await this.processTrocarModeloWhisperMessage(contactId, text);
         break;
       default:
-          console.warn(`⚠️ Modo desconhecido encontrado: ${currentMode}`);
+          logger.warn(`⚠️ Modo desconhecido encontrado: ${currentMode}`);
           this.setMode(contactId, null);
           await this.sendResponse(contactId, MENU_MESSAGE);
           break;
@@ -1586,11 +1587,11 @@ async handleRecursoCommand(contactId) {
         await this.sendResponse(contactId, SUCCESS_MESSAGES.SCHEDULE_CREATED);
         this.llmService.clearContext(contactId, CHAT_MODES.AGENDABOT);
       } catch (parseError) {
-        console.log('LLM não retornou JSON, enviando como texto.');
+        logger.verbose('LLM não retornou JSON, enviando como texto.');
         await this.sendResponse(contactId, responseText);
       }
     } catch (err) {
-      console.error(`❌ Erro ao processar mensagem Agendabot para ${contactId}:`, err);
+      logger.error(`❌ Erro ao processar mensagem Agendabot para ${contactId}`, err);
       await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
     }
   }
@@ -1634,19 +1635,19 @@ async handleRecursoCommand(contactId) {
       
       // Tentar descarregar modelo anterior
       try {
-        console.log(`🔄 Tentando descarregar modelo anterior: ${oldModel}`);
+        logger.service(`🔄 Tentando descarregar modelo anterior: ${oldModel}`);
         await this.unloadModel(oldModel);
       } catch (unloadError) {
-        console.warn(`⚠️ Aviso ao descarregar modelo ${oldModel}:`, unloadError.message);
+        logger.warn(`⚠️ Aviso ao descarregar modelo ${oldModel}`, { message: unloadError.message });
       }
       
       // Aplicar novo modelo
       if (isImageModel) {
         CONFIG.llm.imageModel = selectedModel.name;
-        console.log(`🖼️ Modelo de imagem alterado para: ${selectedModel.name}`);
+        logger.service(`🖼️ Modelo de imagem alterado para: ${selectedModel.name}`);
       } else {
         CONFIG.llm.model = selectedModel.name;
-        console.log(`📝 Modelo de texto alterado para: ${selectedModel.name}`);
+        logger.service(`📝 Modelo de texto alterado para: ${selectedModel.name}`);
       }
       
       // Testar novo modelo
@@ -1682,7 +1683,7 @@ async handleRecursoCommand(contactId) {
           CONFIG.llm.model = oldModel;
         }
         
-        console.error(`❌ Erro ao testar novo modelo ${selectedModel.name}:`, testError);
+        logger.error(`❌ Erro ao testar novo modelo ${selectedModel.name}`, testError);
         await this.sendResponse(contactId, `❌ *Erro ao ativar modelo!*\n\n🚫 **Modelo:** ${selectedModel.name}\n❗ **Erro:** ${testError.message}\n\n🔄 **Modelo anterior mantido:** ${oldModel}\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`);
       }
       
@@ -1692,7 +1693,7 @@ async handleRecursoCommand(contactId) {
       this.setUserPreference(contactId, 'availableModels', []);
       
     } catch (err) {
-      console.error(`❌ Erro ao processar troca de modelo para ${contactId}:`, err);
+      logger.error(`❌ Erro ao processar troca de modelo para ${contactId}`, err);
       await this.sendErrorMessage(contactId, '❌ Erro interno ao trocar modelo. Tente novamente.');
       this.setMode(contactId, null);
     }
@@ -1736,15 +1737,15 @@ async handleRecursoCommand(contactId) {
       try {
         // Aplicar novo modelo Whisper
         CONFIG.audio.model = selectedModel;
-        console.log(`🎤 Modelo Whisper alterado de ${oldModel} para: ${selectedModel}`);
+        logger.service(`🎤 Modelo Whisper alterado de ${oldModel} para: ${selectedModel}`);
         
         // Notificar transcriber se disponível sobre mudança de modelo
         if (this.transcriber && typeof this.transcriber.onModelChange === 'function') {
           try {
             await this.transcriber.onModelChange(selectedModel);
-            console.log(`📡 Transcriber notificado sobre mudança de modelo para: ${selectedModel}`);
+            logger.service(`📡 Transcriber notificado sobre mudança de modelo para: ${selectedModel}`);
           } catch (notifyError) {
-            console.warn(`⚠️ Erro ao notificar transcriber sobre mudança:`, notifyError.message);
+            logger.warn(`⚠️ Erro ao notificar transcriber sobre mudança`, { message: notifyError.message });
           }
         }
         
@@ -1781,7 +1782,7 @@ async handleRecursoCommand(contactId) {
       } catch (err) {
         // Reverter em caso de erro
         CONFIG.audio.model = oldModel;
-        console.error(`❌ Erro ao aplicar modelo Whisper ${selectedModel}:`, err);
+        logger.error(`❌ Erro ao aplicar modelo Whisper ${selectedModel}`, err);
         await this.sendResponse(contactId, `❌ *ERRO AO TROCAR MODELO WHISPER*\n\n🚫 **Falha:** Não foi possível ativar o modelo "${selectedModel}"\n\n💡 **Modelo anterior mantido:** ${oldModel}\n\n⚠️ **Erro:** ${err.message}\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`);
       }
       
@@ -1791,7 +1792,7 @@ async handleRecursoCommand(contactId) {
       this.setUserPreference(contactId, 'availableWhisperModels', []);
       
     } catch (err) {
-      console.error(`❌ Erro ao processar troca de modelo Whisper para ${contactId}:`, err);
+      logger.error(`❌ Erro ao processar troca de modelo Whisper para ${contactId}`, err);
       await this.sendErrorMessage(contactId, '❌ Erro interno ao trocar modelo Whisper. Tente novamente.');
       this.setMode(contactId, null);
     }
@@ -1810,10 +1811,10 @@ async handleRecursoCommand(contactId) {
         model: modelName,
         keep_alive: 0 // Força descarregamento imediato
       });
-      console.log(`✅ Modelo ${modelName} descarregado com sucesso`);
+      logger.success(`✅ Modelo ${modelName} descarregado com sucesso`);
     } catch (err) {
       if (err.message?.includes('not found') || err.message?.includes('404')) {
-        console.log(`ℹ️ Modelo ${modelName} já estava descarregado`);
+        logger.info(`ℹ️ Modelo ${modelName} já estava descarregado`);
       } else {
         throw err;
       }
@@ -1823,12 +1824,12 @@ async handleRecursoCommand(contactId) {
   async testModel(modelName, isImageModel) {
     if (isImageModel) {
       // Teste simples para modelo de imagem (sem imagem real)
-      console.log(`🧪 Testando modelo de imagem: ${modelName}`);
+      logger.service(`🧪 Testando modelo de imagem: ${modelName}`);
       // Para modelos de imagem, apenas verificamos se está carregado
       await ollamaClient.show({ model: modelName });
     } else {
       // Teste simples para modelo de texto
-      console.log(`🧪 Testando modelo de texto: ${modelName}`);
+      logger.service(`🧪 Testando modelo de texto: ${modelName}`);
       const testResponse = await ollamaClient.chat({
         model: modelName,
         messages: [{ role: 'user', content: 'Responda apenas: OK' }],
@@ -1845,8 +1846,8 @@ async handleRecursoCommand(contactId) {
     try {
       await this.sendResponse(contactId, '🔄 *REINICIAR APLICAÇÃO (OLLAMA)*\n\n⚠️ **ATENÇÃO:** Esta operação irá:\n• Reiniciar toda a aplicação SecreBot\n• Descarregar todos os modelos Ollama\n• Limpar todas as conexões ativas\n• Recarregar configurações\n\n⏳ A aplicação será reiniciada em 10 segundos...\n\n📱 **Você receberá uma confirmação** quando o sistema voltar online.', true);
       
-      console.log(`🔄 REINÍCIO DA APLICAÇÃO solicitado por ${contactId}`);
-      console.log(`⚠️ A aplicação será reiniciada em 10 segundos para permitir limpeza do Ollama`);
+      logger.flow(`🔄 REINÍCIO DA APLICAÇÃO solicitado por ${contactId}`);
+      logger.flow(`⚠️ A aplicação será reiniciada em 10 segundos para permitir limpeza do Ollama`);
       
       // Salvar informação do usuário que solicitou restart para notificar depois
       const restartInfo = {
@@ -1862,46 +1863,46 @@ async handleRecursoCommand(contactId) {
       
       try {
         await fs.writeFile(restartFile, JSON.stringify(restartInfo, null, 2));
-        console.log(`💾 Informações de restart salvas em ${restartFile}`);
+        logger.file(`💾 Informações de restart salvas em ${restartFile}`);
       } catch (err) {
-        console.warn('⚠️ Não foi possível salvar informações de restart:', err.message);
+        logger.warn('⚠️ Não foi possível salvar informações de restart', { message: err.message });
       }
       
       // Aguardar 10 segundos para dar tempo da mensagem chegar
       setTimeout(async () => {
-        console.log('🔄 Iniciando reinício da aplicação...');
+        logger.flow('🔄 Iniciando reinício da aplicação...');
         
         try {
           // Tentar descarregar modelos rapidamente antes do restart
           const models = await ollamaClient.list();
           if (models && models.models) {
-            console.log(`📊 Tentando descarregar ${models.models.length} modelos antes do restart...`);
+            logger.flow(`📊 Tentando descarregar ${models.models.length} modelos antes do restart...`);
             for (const model of models.models.slice(0, 3)) { // Apenas os 3 primeiros para não demorar
               try {
                 await this.unloadModel(model.name);
-                console.log(`✅ Modelo ${model.name} descarregado`);
+                logger.success(`✅ Modelo ${model.name} descarregado`);
               } catch (err) {
-                console.warn(`⚠️ Erro ao descarregar ${model.name}:`, err.message);
+                logger.warn(`⚠️ Erro ao descarregar ${model.name}`, { message: err.message });
               }
             }
           }
         } catch (err) {
-          console.warn('⚠️ Erro ao descarregar modelos pre-restart:', err.message);
+          logger.warn('⚠️ Erro ao descarregar modelos pre-restart', { message: err.message });
         }
         
         // Detectar ambiente e executar restart apropriado
         if (process.env.PM2_HOME || process.env.name || process.env.PM_ID || process.env.pm_id || process.env.PM2_JSON_PROCESSING) {
           // Executando via PM2
-          console.log('🔄 Executando restart via PM2...');
-          console.log(`📊 PM2 vars: PM2_HOME=${process.env.PM2_HOME}, name=${process.env.name}, PM_ID=${process.env.PM_ID}`);
+          logger.flow('🔄 Executando restart via PM2...');
+          logger.verbose(`📊 PM2 vars: PM2_HOME=${process.env.PM2_HOME}, name=${process.env.name}, PM_ID=${process.env.PM_ID}`);
           process.exit(0); // PM2 irá reiniciar automaticamente
         } else if (process.env.DOCKER_CONTAINER) {
           // Executando em container Docker
-          console.log('🔄 Executando restart em container Docker...');
+          logger.flow('🔄 Executando restart em container Docker...');
           process.exit(0); // Docker restart policy irá reiniciar
         } else {
           // Executando diretamente - tentar restart gracioso
-          console.log('🔄 Executando restart direto...');
+          logger.flow('🔄 Executando restart direto...');
           
           // Tentar usar processo pai se disponível
           if (process.send) {
@@ -1917,7 +1918,7 @@ async handleRecursoCommand(contactId) {
       }, 10000); // 10 segundos de delay
       
     } catch (err) {
-      console.error(`❌ Erro ao preparar reinício para ${contactId}:`, err);
+      logger.error(`❌ Erro ao preparar reinício para ${contactId}`, err);
       await this.sendResponse(contactId, `❌ *ERRO AO REINICIAR APLICAÇÃO*\n\n🚫 **Erro:** ${err.message}\n\n⚠️ **Recomendação:** Tente reiniciar manualmente usando PM2 ou Docker.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`);
     }
   }
@@ -1926,7 +1927,7 @@ async handleRecursoCommand(contactId) {
     try {
       await this.sendResponse(contactId, '🎤 *REINICIAR WHISPER*\n\n⚠️ **Atenção:** Esta operação irá:\n• Limpar cache de transcrições\n• Reinicializar serviço Whisper\n• Resetar modos de transcrição\n\n⏳ Iniciando processo...', true);
       
-      console.log(`🎤 Iniciando reinicialização do Whisper solicitada por ${contactId}`);
+      logger.flow(`🎤 Iniciando reinicialização do Whisper solicitada por ${contactId}`);
       
       // 1. Limpar modos de transcrição
       let clearedTranscriptionModes = 0;
@@ -1936,7 +1937,7 @@ async handleRecursoCommand(contactId) {
           clearedTranscriptionModes++;
         }
       }
-      console.log(`🧹 ${clearedTranscriptionModes} modos de transcrição limpos`);
+      logger.service(`🧹 ${clearedTranscriptionModes} modos de transcrição limpos`);
       
       // 2. Reinicializar transcriber se disponível
       let transcriberStatus = 'N/A';
@@ -1945,10 +1946,10 @@ async handleRecursoCommand(contactId) {
           // Se o transcriber tem método de cleanup, usar
           if (typeof this.transcriber.cleanup === 'function') {
             await this.transcriber.cleanup();
-            console.log('🧹 Cache do transcriber limpo');
+            logger.service('🧹 Cache do transcriber limpo');
             transcriberStatus = 'Cache limpo';
           } else {
-            console.log('ℹ️ Transcriber não possui método de cleanup');
+            logger.info('ℹ️ Transcriber não possui método de cleanup');
             transcriberStatus = 'Sem cache para limpar';
           }
           
@@ -1961,7 +1962,7 @@ async handleRecursoCommand(contactId) {
           }
           
         } catch (err) {
-          console.warn('⚠️ Erro ao reinicializar transcriber:', err.message);
+          logger.warn('⚠️ Erro ao reinicializar transcriber', { message: err.message });
           transcriberStatus = `Erro: ${err.message}`;
         }
       } else {
@@ -1999,16 +2000,16 @@ async handleRecursoCommand(contactId) {
       
       await this.sendResponse(contactId, successMessage);
       
-      console.log(`✅ Reinicialização do Whisper concluída com sucesso para ${contactId}`);
+      logger.success(`✅ Reinicialização do Whisper concluída com sucesso para ${contactId}`);
       
     } catch (err) {
-      console.error(`❌ Erro ao reiniciar Whisper para ${contactId}:`, err);
+      logger.error(`❌ Erro ao reiniciar Whisper para ${contactId}`, err);
       await this.sendResponse(contactId, `❌ *ERRO AO REINICIAR WHISPER*\n\n🚫 **Erro:** ${err.message}\n\n⚠️ **Recomendação:** Verifique a configuração do Whisper e tente novamente.\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`);
     }
   }
 
   async createSchedule(contactId, scheduleDataRaw) {
-    console.log('🔧 Criando agendamento com dados:', scheduleDataRaw);
+    logger.verbose('🔧 Criando agendamento com dados:', scheduleDataRaw);
     if (!scheduleDataRaw || typeof scheduleDataRaw !== 'object' || !scheduleDataRaw.message || !scheduleDataRaw.scheduledTime || !scheduleDataRaw.scheduledTime.$date) {
         throw new Error('Dados de agendamento inválidos recebidos do LLM.');
     }
@@ -2027,14 +2028,14 @@ async handleRecursoCommand(contactId) {
         if (isNaN(scheduledUTC.getTime())) {
             throw new Error('Formato de data inválido em scheduledTime.$date.');
         }
-        console.log('🔧 Passo1:', scheduledUTC);
+        logger.verbose('🔧 Passo1:', scheduledUTC);
         scheduleData.scheduledTime = Utils.toLocalTime(scheduledUTC);
-        console.log('🔧 Passo2:', scheduleData.scheduledTime);
+        logger.verbose('🔧 Passo2:', scheduleData.scheduledTime);
         const expiryUTC = new Date(scheduledUTC);
         expiryUTC.setMonth(expiryUTC.getMonth() + 1);
         scheduleData.expiryTime = Utils.toLocalTime(expiryUTC);
     } catch (dateError) {
-        console.error('Erro ao processar datas do agendamento:', dateError);
+        logger.error('Erro ao processar datas do agendamento', dateError);
         throw new Error(`Erro ao processar data do agendamento: ${dateError.message}`);
     }
     const errors = this.validateScheduleData(scheduleData);
@@ -2045,7 +2046,7 @@ async handleRecursoCommand(contactId) {
       throw new Error('Serviço de agendamento não está pronto.');
     }
     await this.scheduler.insertSchedule(scheduleData);
-    console.log(`✅ Agendamento criado para ${contactId} às ${scheduleData.scheduledTime}`);
+    logger.success(`✅ Agendamento criado para ${contactId} às ${scheduleData.scheduledTime}`);
   }
 
   validateScheduleData(data) {
@@ -2073,7 +2074,7 @@ async handleRecursoCommand(contactId) {
       await icsService.importFromBuffer(buffer, contactId.replace(/\D/g, ''));
       await this.sendResponse(contactId, '✅ Eventos importados com sucesso!');
     } catch (err) {
-      console.error('Erro ao importar agenda:', err);
+      logger.error('Erro ao importar agenda', err);
       await this.sendResponse(contactId, ERROR_MESSAGES.GENERIC);
     }
   }

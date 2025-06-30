@@ -9,6 +9,11 @@ process.env.UNDICI_HEADERS_TIMEOUT = OLLAMA_TIMEOUT_MS;
 process.env.UNDICI_BODY_TIMEOUT = OLLAMA_TIMEOUT_MS;
 
 export const CONFIG = {
+  debug: {
+    enabled: process.env.DEBUG_ENABLED === 'true' || process.env.NODE_ENV === 'development',
+    verbose: process.env.DEBUG_VERBOSE === 'true',
+    logLevel: process.env.LOG_LEVEL || 'info'
+  },
   mongo: {
     uri: process.env.MONGO_URI || 'mongodb://bot:senha@127.0.0.1:27017/bot?authSource=sched',
     dbName: 'sched',
@@ -25,7 +30,7 @@ export const CONFIG = {
     dynamic: {
       enabled: process.env.DYNAMIC_CONCURRENCY === 'true',
       min: parseInt(process.env.SCHED_DYNAMIC_MIN || '1', 10),
-      max: parseInt(process.env.SCHED_MAX_CONCURRENCY || '10', 10),
+      max: parseInt(process.env.SCHED_DYNAMIC_MAX || process.env.SCHED_MAX_CONCURRENCY || '10', 10),
       cpuThreshold: parseFloat(process.env.SCHED_CPU_THRESHOLD || '0.7'),
       memThreshold: parseFloat(process.env.SCHED_MEM_THRESHOLD || '0.8')
     }

@@ -5,6 +5,7 @@ import fsSync from 'fs';
 import { spawn } from 'child_process';
 import path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
+import logger from '../utils/logger.js';
 
 class TtsService {
   validatePiperPaths() {
@@ -24,21 +25,21 @@ class TtsService {
         this.client = new ElevenLabsClient({
           apiKey: CONFIG.elevenlabs.apiKey,
         });
-        console.log("✅ Cliente ElevenLabs inicializado.");
+        logger.success("✅ Cliente ElevenLabs inicializado.");
       } catch (error) {
-        console.error("❌ Erro ao inicializar cliente ElevenLabs:", error);
+        logger.error("❌ Erro ao inicializar cliente ElevenLabs:", error);
         this.client = null;
       }
     } else if (CONFIG.piper.enabled) {
       if (this.validatePiperPaths()) {
-        console.log("✅ Uso do TTS local Piper habilitado.");
+        logger.success("✅ Uso do TTS local Piper habilitado.");
         this.piperEnabled = true;
       } else {
-        console.error("❌ Caminhos do Piper ou modelo inválidos. TTS local desativado.");
+        logger.error("❌ Caminhos do Piper ou modelo inválidos. TTS local desativado.");
       }
       this.client = null;
     } else {
-      console.warn("⚠️ Nenhuma configuração de TTS encontrada. Respostas por voz estarão desabilitadas.");
+      logger.warn("⚠️ Nenhuma configuração de TTS encontrada. Respostas por voz estarão desabilitadas.");
       this.client = null;
     }
   }
@@ -48,7 +49,7 @@ class TtsService {
       throw new Error("Texto inválido fornecido para geração de áudio.");
     }
 
-    console.log(`🎙️ Solicitando TTS para: "${text.substring(0, 50)}..."`);
+    logger.service(`🎙️ Solicitando TTS para: "${text.substring(0, 50)}..."`);
 
     if (this.client) {
       try {
@@ -68,10 +69,10 @@ class TtsService {
         }
         const audioBuffer = Buffer.concat(chunks);
 
-        console.log(`✅ Áudio gerado (${(audioBuffer.length / 1024).toFixed(2)} KB)`);
+        logger.success(`✅ Áudio gerado (${(audioBuffer.length / 1024).toFixed(2)} KB)`);
         return audioBuffer;
       } catch (error) {
-        console.error("❌ Erro na API ElevenLabs:", error);
+        logger.error("❌ Erro na API ElevenLabs:", error);
         const errorMessage = error.message || "Erro desconhecido ao gerar áudio";
         throw new Error(`Falha ao gerar áudio TTS: ${errorMessage}`);
       }
@@ -115,10 +116,10 @@ class TtsService {
         const audioBuffer = await fs.readFile(oggPath);
         await fs.unlink(wavPath);
         await fs.unlink(oggPath);
-        console.log(`✅ Áudio gerado pelo Piper (${(audioBuffer.length / 1024).toFixed(2)} KB)`);
+        logger.success(`✅ Áudio gerado pelo Piper (${(audioBuffer.length / 1024).toFixed(2)} KB)`);
         return audioBuffer;
       } catch (error) {
-        console.error('❌ Erro ao executar Piper:', error);
+        logger.error('❌ Erro ao executar Piper:', error);
         try {
           await fs.unlink(wavPath);
           await fs.unlink(oggPath);

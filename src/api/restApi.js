@@ -15,6 +15,7 @@ import CalorieService from '../services/calorieService.js';
 import GoogleCalendarService from '../services/googleCalendarService.js';
 import Utils from '../utils/index.js';
 import { CONFIG, COMMANDS, CONFIG_DESCRIPTIONS, CONFIG_ENV_MAP } from '../config/index.js';
+import logger from '../utils/logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -42,7 +43,7 @@ class RestAPI {
     this.app.use(express.static(path.join(__dirname, '../public')));
     this.app.use((req, res, next) => {
       // Log simples de requisições
-      console.log(`🌐 ${req.method} ${req.path} - IP: ${req.ip}`);
+      logger.info(`🌐 ${req.method} ${req.path} - IP: ${req.ip}`);
       next();
     });
   }
@@ -60,7 +61,7 @@ class RestAPI {
 
       try {
         const recipientId = Utils.formatRecipientId(phone);
-        console.log(`📲 Enviando mensagem via API para: ${recipientId}`);
+        logger.info(`📲 Enviando mensagem via API para: ${recipientId}`);
         await this.bot.getClient().sendMessage(recipientId, message);
 
         res.json({
@@ -70,7 +71,7 @@ class RestAPI {
           timestamp: new Date().toISOString()
         });
       } catch (err) {
-        console.error('❌ Erro ao enviar mensagem via API:', err);
+        logger.error('❌ Erro ao enviar mensagem via API', err);
         res.status(500).json({
           error: '❌ Erro ao enviar mensagem',
           details: err.message || 'Erro desconhecido'
@@ -222,7 +223,7 @@ class RestAPI {
         const answer = await this.bot.llmService.getAssistantResponse('web', message);
         res.render('chat', { result: answer, message });
       } catch (err) {
-        console.error('Erro em /chat:', err);
+        logger.error('Erro em /chat', err);
         res.render('chat', { result: 'Erro ao processar mensagem.', message });
       }
     });
@@ -237,7 +238,7 @@ class RestAPI {
         const text = await this.bot.transcriber.transcribe(req.file.buffer);
         res.render('transcribe', { result: text });
       } catch (err) {
-        console.error('Erro em /transcribe:', err);
+        logger.error('Erro em /transcribe', err);
         res.render('transcribe', { result: 'Erro ao transcrever áudio.' });
       }
     });
@@ -280,7 +281,7 @@ class RestAPI {
         const text = await processImage(req.file.buffer, 'description');
         res.render('describe', { result: text });
       } catch (err) {
-        console.error('Erro em /describe:', err);
+        logger.error('Erro em /describe', err);
         res.render('describe', { result: 'Erro ao processar imagem.' });
       }
     });
@@ -295,7 +296,7 @@ class RestAPI {
         const text = await processImage(req.file.buffer, 'calories');
         res.render('calories', { result: text });
       } catch (err) {
-        console.error('Erro em /calories:', err);
+        logger.error('Erro em /calories', err);
         res.render('calories', { result: 'Erro ao processar imagem.' });
       }
     });
@@ -312,7 +313,7 @@ class RestAPI {
         const response = await this.bot.llmService.getAssistantResponseLinkedin('web', url, liAt);
         res.render('linkedin', { result: response, url });
       } catch (err) {
-        console.error('Erro em /linkedin:', err);
+        logger.error('Erro em /linkedin', err);
         res.render('linkedin', { result: 'Erro ao analisar perfil.', url });
       }
     });
@@ -340,7 +341,7 @@ class RestAPI {
             return res.render('summarize', { result: 'Tipo de arquivo não suportado.' });
           }
         } catch (err) {
-          console.error('Erro ao ler arquivo:', err);
+          logger.error('Erro ao ler arquivo', err);
           return res.render('summarize', { result: 'Erro ao ler arquivo.' });
         }
       }
@@ -350,7 +351,7 @@ class RestAPI {
         const summary = await this.bot.llmService.getAssistantResponse('web', `Resuma em português o texto a seguir:\n\n${truncated}`);
         res.render('summarize', { result: summary });
       } catch (err) {
-        console.error('Erro em /summarize:', err);
+        logger.error('Erro em /summarize', err);
         res.render('summarize', { result: 'Erro ao resumir texto.' });
       }
     });
@@ -366,7 +367,7 @@ class RestAPI {
         const transcript = await YouTubeService.fetchTranscript(url);
         res.render('video', { result: transcript, url });
       } catch (err) {
-        console.error('Erro em /video:', err);
+        logger.error('Erro em /video', err);
         res.render('video', { result: 'Erro ao processar vídeo.', url });
       }
     });
@@ -506,7 +507,7 @@ class RestAPI {
         const info = await getSystemInfoText();
         res.render('resources', { result: info });
       } catch (err) {
-        console.error('Erro em /resources:', err);
+        logger.error('Erro em /resources', err);
         res.render('resources', { result: 'Erro ao coletar informações.' });
       }
     });
@@ -569,7 +570,7 @@ class RestAPI {
       await this.configService.setConfig(saved);
       this.configService.applyToRuntime(saved);
       res.send('Configurações salvas. Reiniciando...');
-      console.log('♻️  Reiniciando aplicação para aplicar novas configurações');
+      logger.info('♻️  Reiniciando aplicação para aplicar novas configurações');
       setTimeout(() => process.exit(0), 500);
     });
 
@@ -581,10 +582,10 @@ class RestAPI {
 
   start() {
     this.app.listen(CONFIG.server.port, () => {
-      console.log(`🌐 API REST iniciada e ouvindo na porta ${CONFIG.server.port}`);
-      console.log(`📊 Interface disponível em http://localhost:${CONFIG.server.port}/`);
+      logger.startup(`🌐 API REST iniciada e ouvindo na porta ${CONFIG.server.port}`);
+      logger.info(`📊 Interface disponível em http://localhost:${CONFIG.server.port}/`);
     }).on('error', (err) => {
-        console.error(`❌ Falha ao iniciar servidor na porta ${CONFIG.server.port}:`, err);
+        logger.error(`❌ Falha ao iniciar servidor na porta ${CONFIG.server.port}`, err);
         process.exit(1);
     });
   }

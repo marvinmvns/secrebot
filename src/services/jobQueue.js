@@ -1,6 +1,7 @@
 import pLimit from 'p-limit';
 import si from 'systeminformation';
 import { CONFIG } from '../config/index.js';
+import logger from '../utils/logger.js';
 
 class JobQueue {
   constructor(concurrency = 1, memoryThresholdGB = 0) {
@@ -16,7 +17,7 @@ class JobQueue {
         const used = mem.total - mem.available;
         if (used < this.memoryThreshold) break;
       } catch (err) {
-        console.error('Erro ao verificar memória:', err);
+        logger.error('Erro ao verificar memória', err);
         break;
       }
       await new Promise(res => setTimeout(res, CONFIG.queues.memoryCheckInterval));

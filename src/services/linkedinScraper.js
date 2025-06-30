@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import logger from '../utils/logger.js';
 
 /**
  * Fetch raw text and HTML from a LinkedIn profile page.
@@ -190,7 +191,7 @@ export async function fetchProfileStructured(url, options = {}) {
           };
 
         } catch (error) {
-          console.error('Error extracting profile data:', error);
+          logger.error('Error extracting profile data', error);
         }
 
         return data;
@@ -211,7 +212,7 @@ export async function fetchProfileStructured(url, options = {}) {
       };
 
     } catch (err) {
-      console.error(`Attempt ${attempt} failed:`, err.message);
+      logger.error(`Attempt ${attempt} failed`, { message: err.message });
       
       if (attempt === retries) {
         return {

@@ -9,6 +9,7 @@ import { Innertube } from 'youtubei.js';
 import AudioTranscriber from './audioTranscriber.js';
 import Utils from '../utils/index.js';
 import { CONFIG } from '../config/index.js';
+import logger from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -134,7 +135,7 @@ async function fetchTranscript(url) {
       return segments.map((s) => s.snippet?.text ?? s.text).join(' ');
     }
   } catch (err) {
-    console.warn('Transcrição via YouTube.js falhou, utilizando Whisper:', err.message);
+    logger.warn('Transcrição via YouTube.js falhou, utilizando Whisper:', err.message);
   }
   const { buffer, format } = await downloadAudioBuffer(url);
   const transcript = await transcriber.transcribe(buffer, format);

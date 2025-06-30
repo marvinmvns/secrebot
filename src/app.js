@@ -1,4 +1,5 @@
 import { ApplicationFactory } from './core/applicationFactory.js';
+import logger from './utils/logger.js';
 
 async function main() {
   const appFactory = new ApplicationFactory();
@@ -7,7 +8,7 @@ async function main() {
     const services = await appFactory.initializeApplication();
     await appFactory.startAPI();
   } catch (error) {
-    console.error('Failed to start application:', error);
+    logger.error('Failed to start application', error);
     process.exit(1);
   }
 }

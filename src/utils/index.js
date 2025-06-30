@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { encode } from 'gpt-3-encoder';
 import { CONFIG, COMMANDS } from '../config/index.js'; // Ajustar caminho se necessário
+import logger from './logger.js';
 
 // ============ Classe de Utilitários ============
 class Utils {
@@ -69,7 +70,7 @@ class Utils {
     } catch (err) {
       // Ignora erro se o arquivo não existir, mas loga outros erros
       if (err.code !== 'ENOENT') {
-          console.error(`Erro ao deletar arquivo ${filePath}:`, err.message);
+          logger.error(`Erro ao deletar arquivo ${filePath}`, { message: err.message });
       }
     }
   }

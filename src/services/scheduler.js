@@ -3,6 +3,7 @@ import pLimit from 'p-limit';
 import si from 'systeminformation';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, ERROR_MESSAGES, SUCCESS_MESSAGES, COMMANDS } from '../config/index.js'; // Ajustar caminho se necessário
+import logger from '../utils/logger.js';
 
 // ============ Scheduler ============
 class Scheduler {
@@ -43,7 +44,7 @@ class Scheduler {
       }
 
       if (newConcurrency !== this.currentConcurrency) {
-        console.log(`⚙️ Concurrency ajustada para ${newConcurrency} (CPU: ${(
+        logger.info(`⚙️ Concurrency ajustada para ${newConcurrency} (CPU: ${(
           cpuUsage * 100
         ).toFixed(1)}%, MEM: ${(memUsage * 100).toFixed(1)}%)`);
         this.currentConcurrency = newConcurrency;
@@ -51,27 +52,27 @@ class Scheduler {
 
       return this.currentConcurrency;
     } catch (err) {
-      console.error('❌ Erro ao verificar uso de hardware:', err);
+      logger.error('❌ Erro ao verificar uso de hardware:', err);
       return this.currentConcurrency;
     }
   }
 
   async connect() {
     try {
-      console.log(CONFIG.mongo.uri);
+      logger.verbose(CONFIG.mongo.uri);
       this.client = new MongoClient(CONFIG.mongo.uri);
       await this.client.connect();
-      console.log('✅ Conectado ao MongoDB.');
+      logger.success('✅ Conectado ao MongoDB.');
       this.db = this.client.db(CONFIG.mongo.dbName);
       this.schedCollection = this.db.collection(CONFIG.mongo.collectionName);
 
       // Garantir índices (pode ser feito uma vez na inicialização)
       await this.schedCollection.createIndex({ recipient: 1, status: 1 });
       await this.schedCollection.createIndex({ scheduledTime: 1, status: 1, sentAt: 1 });
-      console.log('📊 Índices do MongoDB garantidos.');
+      logger.info('📊 Índices do MongoDB garantidos.');
 
     } catch (err) {
-      console.error('❌ Erro ao conectar ao MongoDB:', err);
+      logger.error('❌ Erro ao conectar ao MongoDB:', err);
       throw err;
     }
   }
@@ -80,7 +81,7 @@ class Scheduler {
     if (this.client) {
       await this.client.close();
       this.client = null;
-      console.log('🔌 Conexão com MongoDB encerrada.');
+      logger.info('🔌 Conexão com MongoDB encerrada.');
     }
   }
 
@@ -113,7 +114,7 @@ class Scheduler {
 
       return `📋 *Seus Próximos Agendamentos:*\n\n${lista}\n\n🔙 Para voltar: ${COMMANDS.VOLTAR}`;
     } catch (err) {
-      console.error('❌ Erro ao listar agendamentos:', err);
+      logger.error('❌ Erro ao listar agendamentos:', err);
       return ERROR_MESSAGES.GENERIC;
     }
   }
@@ -148,7 +149,7 @@ class Scheduler {
         schedules: schedules // Retorna para referência se necessário
       };
     } catch (err) {
-      console.error('❌ Erro ao listar agendamentos para deleção:', err);
+      logger.error('❌ Erro ao listar agendamentos para deleção:', err);
       return { message: ERROR_MESSAGES.GENERIC, schedules: [] };
     }
   }
@@ -187,7 +188,7 @@ class Scheduler {
         return ERROR_MESSAGES.GENERIC;
       }
     } catch (err) {
-      console.error('❌ Erro ao deletar agendamento:', err);
+      logger.error('❌ Erro ao deletar agendamento:', err);
       // Limpar cache em caso de erro
       this.userSchedules.delete(contactId);
       return ERROR_MESSAGES.GENERIC;
@@ -198,17 +199,17 @@ class Scheduler {
     if (!this.schedCollection) throw new Error('Conexão com DB não estabelecida para inserir agendamento.');
     try {
       const result = await this.schedCollection.insertOne(scheduleData);
-      console.log(`💾 Agendamento inserido: ${result.insertedId}`);
+      logger.verbose(`💾 Agendamento inserido: ${result.insertedId}`);
       return result.acknowledged;
     } catch (err) {
-      console.error('❌ Erro ao inserir agendamento:', err);
+      logger.error('❌ Erro ao inserir agendamento:', err);
       throw err;
     }
   }
 
   async processScheduledMessages(client) {
     if (!this.schedCollection) {
-      console.warn('⚠️ Scheduler: Coleção do MongoDB não disponível.');
+      logger.warn('⚠️ Scheduler: Coleção do MongoDB não disponível.');
       return;
     }
 
@@ -228,7 +229,7 @@ class Scheduler {
       }).toArray();
 
       if (messages.length > 0) {
-        console.log(`⏰ Processando ${messages.length} mensagens agendadas...`);
+        logger.service(`⏰ Processando ${messages.length} mensagens agendadas...`);
       }
 
       const concurrency = await this.getDynamicConcurrency();
@@ -241,11 +242,11 @@ class Scheduler {
 
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
-          console.error(`❌ Erro ao processar mensagem agendada ${messages[index]._id}:`, result.reason);
+          logger.error(`❌ Erro ao processar mensagem agendada ${messages[index]._id}:`, result.reason);
         }
       });
     } catch (err) {
-      console.error('❌ Erro geral ao processar agendamentos:', err);
+      logger.error('❌ Erro geral ao processar agendamentos:', err);
     }
   }
 
@@ -254,7 +255,7 @@ class Scheduler {
     const messageId = message._id;
     try {
       const recipientId = Utils.formatRecipientId(message.recipient); // Usar Utils
-      console.log(`📤 Enviando mensagem agendada para ${recipientId}...`);
+      logger.service(`📤 Enviando mensagem agendada para ${recipientId}...`);
       await client.sendMessage(recipientId, `⏰ *Lembrete Agendado:*\n\n${message.message}`);
 
       await this.schedCollection.updateOne(
@@ -266,9 +267,9 @@ class Scheduler {
           }
         }
       );
-      console.log(`✅ Mensagem agendada ${messageId} enviada e marcada como 'sent'.`);
+      logger.success(`✅ Mensagem agendada ${messageId} enviada e marcada como 'sent'.`);
     } catch (err) {
-      console.error(`❌ Falha ao enviar mensagem agendada ${messageId}:`, err);
+      logger.error(`❌ Falha ao enviar mensagem agendada ${messageId}:`, err);
       const attempts = (message.attempts || 0) + 1;
       const now = Utils.getCurrentDateInGMTMinus3(); // Usar Utils
 
@@ -282,15 +283,15 @@ class Scheduler {
       if (attempts >= CONFIG.scheduler.maxAttempts || (expiryTime && expiryTime <= now)) {
         updateFields.$set.status = 'failed';
         updateFields.$set.error = err.message || 'Erro desconhecido no envio';
-        console.warn(`⚠️ Mensagem agendada ${messageId} marcada como 'failed'.`);
+        logger.warn(`⚠️ Mensagem agendada ${messageId} marcada como 'failed'.`);
       } else {
-        console.warn(`⚠️ Tentativa ${attempts} falhou para mensagem agendada ${messageId}. Tentará novamente mais tarde.`);
+        logger.warn(`⚠️ Tentativa ${attempts} falhou para mensagem agendada ${messageId}. Tentará novamente mais tarde.`);
       }
 
       try {
         await this.schedCollection.updateOne({ _id: messageId }, updateFields);
       } catch (updateError) {
-        console.error(`❌ Falha CRÍTICA ao atualizar status da mensagem agendada ${messageId} após erro de envio:`, updateError);
+        logger.error(`❌ Falha CRÍTICA ao atualizar status da mensagem agendada ${messageId} após erro de envio:`, updateError);
       }
 
       // Re-lança o erro original para ser logado no processScheduledMessages ok
@@ -332,7 +333,7 @@ class Scheduler {
         }))
       };
     } catch (err) {
-      console.error('❌ Erro ao obter estatísticas do scheduler:', err);
+      logger.error('❌ Erro ao obter estatísticas do scheduler:', err);
       return {
         total: 0,
         pending: 0,

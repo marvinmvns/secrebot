@@ -3,6 +3,7 @@ import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, CHAT_MODES, PROMPTS } from '../config/index.js'; // Ajustar caminho se necessário
 import { fetchProfileStructured } from './linkedinScraper.js';
 import JobQueue from './jobQueue.js';
+import logger from '../utils/logger.js';
 
 // ============ Serviço LLM ============
 class LLMService {
@@ -43,7 +44,7 @@ class LLMService {
       const timeoutLabel = this.formatTimeout(timeoutMs);
       
       try {
-        console.log(`🔄 LLM Tentativa ${attempt + 1}/${maxRetries} (timeout: ${timeoutLabel}) para ${contactId}`);
+        logger.service(`🔄 LLM Tentativa ${attempt + 1}/${maxRetries} (timeout: ${timeoutLabel}) para ${contactId}`);
         
         const response = await this.queue.add(() => 
           this.chatWithTimeout({
@@ -58,12 +59,12 @@ class LLMService {
           : response.message.content;
         
         context.push({ role: 'assistant', content });
-        console.log(`✅ LLM resposta obtida em tentativa ${attempt + 1} para ${contactId}`);
+        logger.success(`✅ LLM resposta obtida em tentativa ${attempt + 1} para ${contactId}`);
         return content;
       } catch (err) {
         const isTimeout = err.code === 'UND_ERR_HEADERS_TIMEOUT' || err.name === 'TimeoutError' || err.message?.includes('timeout');
         
-        console.error(`❌ LLM (${type}) - Tentativa ${attempt + 1}/${maxRetries} [${timeoutLabel}]:`, {
+        logger.error(`❌ LLM (${type}) - Tentativa ${attempt + 1}/${maxRetries} [${timeoutLabel}]:`, {
           error: err.message,
           code: err.code,
           isTimeout,
@@ -73,13 +74,13 @@ class LLMService {
         if (attempt === maxRetries - 1) {
           // Remove the failed user message from context on final failure
           context.pop();
-          console.error(`🚫 LLM falhou definitivamente após ${maxRetries} tentativas para ${contactId}`);
+          logger.error(`🚫 LLM falhou definitivamente após ${maxRetries} tentativas para ${contactId}`);
           throw new Error(`LLM falhou após ${maxRetries} tentativas. Último erro: ${err.message}`);
         }
         
         // Delay progressivo entre tentativas
         const delayMs = Math.min(2000 * Math.pow(1.5, attempt), 30000);
-        console.log(`⏳ Aguardando ${this.formatTimeout(delayMs)} antes da próxima tentativa...`);
+        logger.info(`⏳ Aguardando ${this.formatTimeout(delayMs)} antes da próxima tentativa...`);
         await new Promise(resolve => setTimeout(resolve, delayMs));
       }
     }
@@ -153,7 +154,7 @@ ${structuredText}`;
 
       return await this.chat(contactId, enhancedPrompt, CHAT_MODES.LINKEDIN, PROMPTS.linkedin);
     } catch (err) {
-      console.error('Erro ao raspar LinkedIn:', err);
+      logger.error('Erro ao raspar LinkedIn:', err);
       return '❌ Erro interno ao processar perfil LinkedIn.';
     }
   }

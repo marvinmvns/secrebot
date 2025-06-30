@@ -1,4 +1,5 @@
 import { CONFIG } from '../config/index.js';
+import logger from '../utils/logger.js';
 
 class CalorieService {
   static async getCalories(food) {
@@ -8,7 +9,7 @@ class CalorieService {
         headers: CONFIG.calorieApi.key ? { 'X-Api-Key': CONFIG.calorieApi.key } : {}
       });
       if (!response.ok) {
-        console.error(`⚠️ Erro na API de calorias: ${response.status}`);
+        logger.warn(`⚠️ Erro na API de calorias: ${response.status}`);
         return null;
       }
       const data = await response.json();
@@ -16,7 +17,7 @@ class CalorieService {
         return data[0].calories;
       }
     } catch (err) {
-      console.error('❌ Erro ao consultar API de calorias:', err);
+      logger.error('❌ Erro ao consultar API de calorias', err);
     }
     return null;
   }

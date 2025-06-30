@@ -7,6 +7,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, __dirname } from '../config/index.js'; // Ajustar caminho se necessário
 import JobQueue from './jobQueue.js';
+import logger from '../utils/logger.js';
 
 // ============ Transcritor de Áudio ============
 class AudioTranscriber {
@@ -51,7 +52,7 @@ class AudioTranscriber {
 
   async transcribe(audioBuffer, inputFormat = 'ogg') {
     return this.queue.add(async () => {
-      console.log('🎤 Iniciando transcrição de áudio...');
+      logger.service('🎤 Iniciando transcrição de áudio...');
       const timestamp = Date.now();
       const tempOutputPath = path.join(__dirname, `audio_${timestamp}.wav`);
 
@@ -63,7 +64,7 @@ class AudioTranscriber {
             .outputOptions(`-ar ${CONFIG.audio.sampleRate}`)
             .toFormat('wav')
             .on('error', (err) => {
-              console.error('Erro no FFMPEG:', err);
+              logger.error('Erro no FFMPEG:', err);
               reject(err);
             })
             .on('end', resolve)
@@ -92,10 +93,10 @@ class AudioTranscriber {
       await Utils.cleanupFile(tempOutputPath);
       await Utils.cleanupFile(transcriptionPath);
       
-      console.log('✅ Transcrição concluída.');
+      logger.success('✅ Transcrição concluída.');
       return transcription.trim();
     } catch (err) {
-      console.error('❌ Erro na transcrição de áudio:', err);
+      logger.error('❌ Erro na transcrição de áudio:', err);
       // Tenta limpar o arquivo temporário mesmo em caso de erro
       await Utils.cleanupFile(tempOutputPath);
       throw err; // Re-lança o erro para ser tratado no nível superior

@@ -6,10 +6,10 @@ import  LinkedInScraper  from './linkedinScraper.js';
 import  YouTubeService  from './youtubeService.js';
 import  Scheduler from './scheduler.js';
 import logger from '../utils/logger.js';
-import  config  from '../config/config.js';
+import { config } from '../config/config.js';
 import fs from 'fs';
 import path from 'path';
-import  fileURLToPath  from 'url';
+import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

@@ -1,5 +1,6 @@
 import { chromium } from 'playwright';
 import logger from '../utils/logger.js';
+import { CONFIG } from '../config/index.js';
 
 /**
  * Fetch raw text and HTML from a LinkedIn profile page.
@@ -284,3 +285,41 @@ export async function loginAndGetLiAt(email, password, timeoutMs = 30000) {
     await browser.close().catch(() => {});
   }
 }
+
+class LinkedInScraper {
+  constructor(options = {}) {
+    this.liAt = options.liAt || CONFIG.linkedin.liAt;
+    this.timeoutMs = options.timeoutMs || CONFIG.linkedin.timeoutMs;
+  }
+
+  async analyzeProfile(url) {
+    const result = await fetchProfileStructured(url, {
+      liAt: this.liAt,
+      timeoutMs: this.timeoutMs,
+      retries: 3
+    });
+
+    if (!result.success || !result.data) {
+      logger.error('LinkedIn profile scrape failed', {
+        url,
+        error: result.error
+      });
+      return null;
+    }
+
+    const data = result.data;
+    const profile = data.profile || {};
+    const firstExp = Array.isArray(data.experience) ? data.experience[0] || {} : {};
+
+    return {
+      name: profile.name || '',
+      title: profile.headline || firstExp.title || '',
+      company: firstExp.company || '',
+      location: profile.location || '',
+      summary: data.about || '',
+      skills: Array.isArray(data.skills) ? data.skills : []
+    };
+  }
+}
+
+export default LinkedInScraper;

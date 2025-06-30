@@ -123,6 +123,30 @@ check_memory() {
     fi
 }
 
+# Verifica se comandos essenciais estão disponíveis
+check_basic_commands() {
+    local missing=()
+    for cmd in curl wget git tar; do
+        if ! check_command "$cmd"; then
+            missing+=("$cmd")
+        fi
+    done
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        local suggestion="${missing[*]}"
+        case "$PACKAGE_MANAGER" in
+            apt)   suggestion="sudo apt install -y $suggestion" ;;
+            dnf|yum) suggestion="sudo $PACKAGE_MANAGER install -y $suggestion" ;;
+            pacman) suggestion="sudo pacman -S --noconfirm $suggestion" ;;
+        esac
+
+        log_error "Dependências básicas ausentes: ${missing[*]}"
+        log_info "Instale-as executando: $suggestion"
+        exit 1
+    fi
+}
+
+
 # =============================================================================
 # 🔒 VERIFICAÇÕES PRELIMINARES
 # =============================================================================
@@ -182,8 +206,11 @@ check_requirements() {
             exit 1
             ;;
     esac
-    
+
     log_info "Gerenciador de pacotes: $PACKAGE_MANAGER"
+
+    # Verificar comandos básicos antes de prosseguir
+    check_basic_commands
 }
 
 # =============================================================================

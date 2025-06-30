@@ -123,6 +123,40 @@ check_memory() {
     fi
 }
 
+# Verifica se comandos essenciais estão disponíveis
+check_basic_commands() {
+    local missing=()
+    for cmd in curl wget git tar; do
+        if ! check_command "$cmd"; then
+            missing+=("$cmd")
+        fi
+    done
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        local suggestion="${missing[*]}"
+        case "$PACKAGE_MANAGER" in
+            apt)   suggestion="sudo apt install -y $suggestion" ;;
+            dnf|yum) suggestion="sudo $PACKAGE_MANAGER install -y $suggestion" ;;
+            pacman) suggestion="sudo pacman -S --noconfirm $suggestion" ;;
+        esac
+
+        log_error "Dependências básicas ausentes: ${missing[*]}"
+        log_info "Instale-as executando: $suggestion"
+        exit 1
+    fi
+}
+
+# Verifica se MongoDB já está instalado
+check_mongo_installed() {
+    if check_command mongosh || check_command mongo || check_command mongod; then
+        return 0
+    fi
+    if systemctl list-unit-files 2>/dev/null | grep -q -E "mongod\.service|mongodb\.service"; then
+        return 0
+    fi
+    return 1
+}
+
 # =============================================================================
 # 🔒 VERIFICAÇÕES PRELIMINARES
 # =============================================================================
@@ -182,8 +216,11 @@ check_requirements() {
             exit 1
             ;;
     esac
-    
+
     log_info "Gerenciador de pacotes: $PACKAGE_MANAGER"
+
+    # Verificar comandos básicos antes de prosseguir
+    check_basic_commands
 }
 
 # =============================================================================
@@ -216,7 +253,9 @@ install_system_deps() {
             fi
             
             # MongoDB
-            if ! check_command mongosh && ! check_command mongo; then
+            if check_mongo_installed; then
+                log_info "MongoDB já está instalado, pulando instalação"
+            else
                 log_info "Instalando MongoDB..."
                 wget -qO - https://www.mongodb.org/static/pgp/server-7.0.asc | sudo apt-key add -
                 echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
@@ -245,7 +284,9 @@ install_system_deps() {
             fi
             
             # MongoDB
-            if ! check_command mongosh && ! check_command mongo; then
+            if check_mongo_installed; then
+                log_info "MongoDB já está instalado, pulando instalação"
+            else
                 log_info "Instalando MongoDB..."
                 cat > /tmp/mongodb-org-7.0.repo << 'EOF'
 [mongodb-org-7.0]
@@ -279,7 +320,9 @@ EOF
             fi
             
             # MongoDB
-            if ! check_command mongosh && ! check_command mongo; then
+            if check_mongo_installed; then
+                log_info "MongoDB já está instalado, pulando instalação"
+            else
                 log_info "Instalando MongoDB..."
                 sudo pacman -S --noconfirm mongodb-bin mongodb-tools
             fi

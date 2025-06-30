@@ -146,16 +146,6 @@ check_basic_commands() {
     fi
 }
 
-# Verifica se MongoDB já está instalado
-check_mongo_installed() {
-    if check_command mongosh || check_command mongo || check_command mongod; then
-        return 0
-    fi
-    if systemctl list-unit-files 2>/dev/null | grep -q -E "mongod\.service|mongodb\.service"; then
-        return 0
-    fi
-    return 1
-}
 
 # =============================================================================
 # 🔒 VERIFICAÇÕES PRELIMINARES

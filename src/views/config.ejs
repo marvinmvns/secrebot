@@ -6,7 +6,10 @@
       <% if (descriptions[key]) { %>
         <small class="form-text text-muted"><%= descriptions[key] %></small>
       <% } %>
-      <input type="text" class="form-control" name="<%= key %>" value="<%= env[key] %>">
+      <input type="text" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
+      <% if (examples[key]) { %>
+        <small class="form-text">Ex: <code><%= examples[key] %></code></small>
+      <% } %>
     </div>
   <% } %>
   <button type="submit" class="btn btn-primary mt-3">Salvar</button>

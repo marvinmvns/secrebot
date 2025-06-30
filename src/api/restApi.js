@@ -14,7 +14,7 @@ import YouTubeService from '../services/youtubeService.js';
 import CalorieService from '../services/calorieService.js';
 import GoogleCalendarService from '../services/googleCalendarService.js';
 import Utils from '../utils/index.js';
-import { CONFIG, COMMANDS, CONFIG_DESCRIPTIONS, CONFIG_ENV_MAP } from '../config/index.js';
+import { CONFIG, COMMANDS, CONFIG_DESCRIPTIONS, CONFIG_ENV_MAP, CONFIG_EXAMPLES } from '../config/index.js';
 import logger from '../utils/logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -525,12 +525,14 @@ class RestAPI {
 
       const env = {};
       const descriptions = {};
+      const examples = {};
       for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
         env[envVar] = getNested(saved, cfgPath);
         descriptions[envVar] = CONFIG_DESCRIPTIONS[cfgPath];
+        examples[envVar] = CONFIG_EXAMPLES[cfgPath];
       }
 
-      res.render('config', { env, descriptions });
+      res.render('config', { env, descriptions, examples });
     });
 
     this.app.post('/config', async (req, res) => {

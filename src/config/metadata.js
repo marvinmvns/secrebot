@@ -40,7 +40,23 @@ export const CONFIG_DESCRIPTIONS = {
   'linkedin.user': 'Usuário do LinkedIn',
   'linkedin.pass': 'Senha do LinkedIn',
   'linkedin.liAt': 'Cookie li_at',
-  'linkedin.timeoutMs': 'Timeout do LinkedIn (ms)'
+  'linkedin.timeoutMs': 'Timeout do LinkedIn (ms)',
+  'telegram.botToken': 'Token do bot do Telegram',
+  'telegram.enableTTS': 'Habilita TTS no Telegram',
+  'telegram.maxFileSize': 'Tamanho máximo de arquivo (bytes)',
+  'telegram.webhookUrl': 'URL de webhook do Telegram',
+  'telegram.features.aiChat': 'Feature IA Chat',
+  'telegram.features.scheduler': 'Feature Agendamentos',
+  'telegram.features.audioTranscription': 'Feature Transcrição de Áudio',
+  'telegram.features.imageAnalysis': 'Feature Análise de Imagens',
+  'telegram.features.videoSummary': 'Feature Resumo de Vídeos',
+  'telegram.features.textSummary': 'Feature Resumo de Texto',
+  'telegram.features.tts': 'Feature Text-to-Speech',
+  'telegram.features.calorieCounter': 'Feature Contador de Calorias',
+  'telegram.features.linkedinAnalysis': 'Feature Análise LinkedIn',
+  'telegram.features.mediaProcessing': 'Feature Processamento de Mídia',
+  'telegram.features.professionalAnalysis': 'Feature Análise Profissional',
+  'telegram.features.systemResources': 'Feature Recursos do Sistema'
 };
 
 export const CONFIG_ENV_MAP = {
@@ -83,5 +99,21 @@ export const CONFIG_ENV_MAP = {
   'linkedin.user': 'LINKEDIN_USER',
   'linkedin.pass': 'LINKEDIN_PASS',
   'linkedin.liAt': 'LINKEDIN_LI_AT',
-  'linkedin.timeoutMs': 'LINKEDIN_TIMEOUT_MS'
+  'linkedin.timeoutMs': 'LINKEDIN_TIMEOUT_MS',
+  'telegram.botToken': 'TELEGRAM_BOT_TOKEN',
+  'telegram.enableTTS': 'TELEGRAM_ENABLE_TTS',
+  'telegram.maxFileSize': 'TELEGRAM_MAX_FILE_SIZE',
+  'telegram.webhookUrl': 'TELEGRAM_WEBHOOK_URL',
+  'telegram.features.aiChat': 'TELEGRAM_FEATURE_AI_CHAT',
+  'telegram.features.scheduler': 'TELEGRAM_FEATURE_SCHEDULER',
+  'telegram.features.audioTranscription': 'TELEGRAM_FEATURE_AUDIO_TRANSCRIPTION',
+  'telegram.features.imageAnalysis': 'TELEGRAM_FEATURE_IMAGE_ANALYSIS',
+  'telegram.features.videoSummary': 'TELEGRAM_FEATURE_VIDEO_SUMMARY',
+  'telegram.features.textSummary': 'TELEGRAM_FEATURE_TEXT_SUMMARY',
+  'telegram.features.tts': 'TELEGRAM_FEATURE_TTS',
+  'telegram.features.calorieCounter': 'TELEGRAM_FEATURE_CALORIE_COUNTER',
+  'telegram.features.linkedinAnalysis': 'TELEGRAM_FEATURE_LINKEDIN_ANALYSIS',
+  'telegram.features.mediaProcessing': 'TELEGRAM_FEATURE_MEDIA_PROCESSING',
+  'telegram.features.professionalAnalysis': 'TELEGRAM_FEATURE_PROFESSIONAL_ANALYSIS',
+  'telegram.features.systemResources': 'TELEGRAM_FEATURE_SYSTEM_RESOURCES'
 };

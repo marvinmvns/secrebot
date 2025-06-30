@@ -22,6 +22,115 @@
 
 ---
 
+## 📦 Instalação Automática
+
+### 🚀 Scripts de Instalação Disponíveis
+
+**🐧 `install-secrebot-linux.sh`**
+- **Plataformas:** Ubuntu, Debian, CentOS, RHEL, Fedora, Arch Linux
+- **Requisitos:** Bash, sudo, conexão à internet
+- **Tempo estimado:** 10-20 minutos
+
+**🪟 `install-secrebot-windows.bat`**
+- **Plataformas:** Windows 10/11, Windows Server 2019/2022
+- **Requisitos:** Privilégios de administrador, conexão à internet
+- **Tempo estimado:** 15-25 minutos
+
+### 🐧 Instalação Automática Linux
+
+```bash
+# 1. Baixar o script
+wget https://raw.githubusercontent.com/seu-usuario/secrebot/main/install-secrebot-linux.sh
+
+# 2. Dar permissão de execução
+chmod +x install-secrebot-linux.sh
+
+# 3. Executar (NÃO usar sudo)
+./install-secrebot-linux.sh
+```
+
+**📋 O que o script Linux faz automaticamente:**
+1. ✅ **Verificações preliminares** - Privilegios, internet, espaço em disco, memória
+2. 📦 **Dependências** - Node.js, MongoDB, Python, FFmpeg, Git
+3. 🗄️ **MongoDB** - Instalação, configuração de usuário, teste de conectividade  
+4. 🤖 **Ollama** - Instalação e download dos modelos LLM essenciais
+5. 🎤 **Whisper** - Configuração automática para transcrição de áudio
+6. 📱 **SecreBot** - Clone do projeto, instalação NPM, configuração .env
+7. 🎤 **Piper TTS** - Instalação local gratuita para text-to-speech
+8. ✅ **Validação** - Testes de todos os serviços e conectividade
+
+### 🪟 Instalação Automática Windows
+
+1. **Baixar:** `install-secrebot-windows.bat`
+2. **Executar como Administrador:** Clique com botão direito > "Executar como administrador"
+
+**📋 O que o script Windows faz automaticamente:**
+1. ✅ **Verificações preliminares** - Privilégios admin, internet, espaço, memória
+2. 📦 **Chocolatey** - Instalação do gerenciador de pacotes
+3. 📦 **Dependências** - Node.js, Python, Git, FFmpeg, MongoDB
+4. 🗄️ **MongoDB** - Configuração como serviço Windows
+5. 🤖 **Ollama** - Instalação Windows e download de modelos
+6. 🎤 **Whisper** - Configuração automática para transcrição
+7. 📱 **SecreBot** - Setup completo do projeto
+8. 🎤 **Piper TTS** - Download automático com voz Cadu (português)
+9. ✅ **Validação** - Verificação de todos os componentes
+
+**✅ Novo:** Piper TTS agora está disponível no Windows com instalação automática!
+
+### 🎯 Distribuições/Versões Suportadas
+
+| Sistema | Versões | Status |
+|---------|---------|---------|
+| Ubuntu | 18.04+ | ✅ Testado |
+| Debian | 10+ | ✅ Testado |
+| CentOS | 8+ | ✅ Suportado |
+| RHEL | 8+ | ✅ Suportado |
+| Fedora | 35+ | ✅ Suportado |
+| Arch Linux | Rolling | ✅ Suportado |
+| Windows 11 | - | ✅ Recomendado |
+| Windows 10 | 1903+ | ✅ Suportado |
+| Windows Server | 2019/2022 | ✅ Suportado |
+
+### ✅ Verificação Pós-Instalação
+
+**Linux:**
+```bash
+# Status dos serviços
+systemctl status mongod
+pgrep -f "ollama serve"
+
+# Testar conectividade
+curl -s http://127.0.0.1:11434/api/tags
+mongosh --eval "db.runCommand({ping: 1})"
+```
+
+**Windows:**
+```batch
+# Status dos serviços
+sc query MongoDB
+tasklist | findstr ollama
+
+# Testar conectividade
+curl -s http://127.0.0.1:11434/api/tags
+mongosh --eval "db.runCommand({ping: 1})"
+```
+
+### 🚀 Primeiro Uso Após Instalação
+
+```bash
+# Navegar para o diretório
+cd ~/secrebot        # Linux
+cd /d %USERPROFILE%\secrebot  # Windows
+
+# Iniciar o SecreBot
+npm start
+
+# Escanear QR Code com WhatsApp
+# Testar com: !menu
+```
+
+---
+
 ## 📋 Índice
 
 <details>

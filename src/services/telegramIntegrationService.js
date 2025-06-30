@@ -71,7 +71,7 @@ class TelegramIntegrationService {
             const fileId = photo.file_id;
             
             // Download da imagem
-            const file = await this.bot.getFile(fileId);
+            const file = await this.bot.telegram.getFile(fileId);
             const filePath = file.file_path;
             const imageUrl = `https://api.telegram.org/file/bot${this.bot.token}/${filePath}`;
             
@@ -110,7 +110,7 @@ class TelegramIntegrationService {
             const photo = photos[photos.length - 1];
             const fileId = photo.file_id;
             
-            const file = await this.bot.getFile(fileId);
+            const file = await this.bot.telegram.getFile(fileId);
             const filePath = file.file_path;
             const imageUrl = `https://api.telegram.org/file/bot${this.bot.token}/${filePath}`;
             
@@ -157,7 +157,7 @@ class TelegramIntegrationService {
             await this.bot.sendMessage(chatId, '🎤 Transcrevendo áudio...');
             
             const fileId = voice.file_id;
-            const file = await this.bot.getFile(fileId);
+            const file = await this.bot.telegram.getFile(fileId);
             const filePath = file.file_path;
             const audioUrl = `https://api.telegram.org/file/bot${this.bot.token}/${filePath}`;
             
@@ -357,7 +357,7 @@ class TelegramIntegrationService {
                 return;
             }
 
-            const file = await this.bot.getFile(fileId);
+            const file = await this.bot.telegram.getFile(fileId);
             const filePath = file.file_path;
             const fileUrl = `https://api.telegram.org/file/bot${this.bot.token}/${filePath}`;
             

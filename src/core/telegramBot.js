@@ -1,4 +1,4 @@
-import TelegramBot from 'node-telegram-bot-api';
+import { Telegraf } from 'telegraf';
 import logger from '../utils/logger.js';
 import { config } from '../config/config.js';
 import { TELEGRAM_COMMANDS, TELEGRAM_MESSAGES } from '../constants/telegramCommands.js';
@@ -26,13 +26,14 @@ class TelegramBotService {
                 return;
             }
 
-            this.bot = new TelegramBot(config.telegram.botToken, { polling: true });
+            this.bot = new Telegraf(config.telegram.botToken);
             this.featureToggles = await createFeatureToggleManager();
             this.integrationService = new TelegramIntegrationService(this.bot);
-            
+
             this.setupEventHandlers();
+            await this.bot.launch();
             this.isInitialized = true;
-            
+
             logger.info('Bot do Telegram inicializado com sucesso');
         } catch (error) {
             logger.error('Erro ao inicializar bot do Telegram:', error);
@@ -41,46 +42,46 @@ class TelegramBotService {
 
     setupEventHandlers() {
         // Comando /start
-        this.bot.onText(/\/start/, (msg) => {
-            this.handleStart(msg);
+        this.bot.command('start', (ctx) => {
+            this.handleStart(ctx);
         });
 
         // Callback queries (botões inline)
-        this.bot.on('callback_query', (query) => {
-            this.handleCallbackQuery(query);
+        this.bot.on('callback_query', (ctx) => {
+            this.handleCallbackQuery(ctx);
         });
 
         // Mensagens de texto
-        this.bot.on('message', (msg) => {
-            if (msg.text && !msg.text.startsWith('/')) {
-                this.handleTextMessage(msg);
+        this.bot.on('text', (ctx) => {
+            if (ctx.message.text && !ctx.message.text.startsWith('/')) {
+                this.handleTextMessage(ctx);
             }
         });
 
         // Mensagens de áudio
-        this.bot.on('voice', (msg) => {
-            this.handleVoiceMessage(msg);
+        this.bot.on('voice', (ctx) => {
+            this.handleVoiceMessage(ctx);
         });
 
         // Imagens
-        this.bot.on('photo', (msg) => {
-            this.handlePhotoMessage(msg);
+        this.bot.on('photo', (ctx) => {
+            this.handlePhotoMessage(ctx);
         });
 
         // Documentos
-        this.bot.on('document', (msg) => {
-            this.handleDocumentMessage(msg);
+        this.bot.on('document', (ctx) => {
+            this.handleDocumentMessage(ctx);
         });
 
         // Tratamento de erros
-        this.bot.on('error', (error) => {
+        this.bot.catch((error) => {
             logger.error('Erro no bot do Telegram:', error);
         });
     }
 
-    async handleStart(msg) {
-        const chatId = msg.chat.id;
-        const userId = msg.from.id;
+    async handleStart(ctx) {
+        const chatId = ctx.chat.id;
+        const userId = ctx.from.id;
         
         // Resetar estado do usuário
         this.userStates.delete(userId);
@@ -88,7 +89,7 @@ class TelegramBotService {
         const welcomeMessage = TELEGRAM_MESSAGES.welcome;
         const mainMenu = await this.buildMainMenu(userId);
         
-        await this.bot.sendMessage(chatId, welcomeMessage, {
+        await this.bot.telegram.sendMessage(chatId, welcomeMessage, {
             reply_markup: mainMenu,
             parse_mode: 'HTML'
         });
@@ -193,57 +194,57 @@ class TelegramBotService {
         };
     }
 
-    async handleCallbackQuery(query) {
-        const chatId = query.message.chat.id;
-        const userId = query.from.id;
-        const data = query.data;
+    async handleCallbackQuery(ctx) {
+        const chatId = ctx.chat.id;
+        const userId = ctx.from.id;
+        const data = ctx.callbackQuery.data;
 
         try {
-            await this.bot.answerCallbackQuery(query.id);
+            await ctx.answerCbQuery();
 
             if (data.startsWith('menu_')) {
                 const menuType = data.replace('menu_', '');
                 const subMenu = await this.buildSubMenu(menuType, userId);
                 const message = TELEGRAM_MESSAGES.menus[menuType] || `Menu ${menuType}:`;
                 
-                await this.bot.editMessageText(message, {
+                await ctx.editMessageText(message, {
                     chat_id: chatId,
-                    message_id: query.message.message_id,
+                    message_id: ctx.callbackQuery.message.message_id,
                     reply_markup: subMenu,
                     parse_mode: 'HTML'
                 });
 
             } else if (data.startsWith('action_')) {
-                await this.handleAction(query, data);
+                await this.handleAction(ctx, data);
                 
             } else if (data.startsWith('config_')) {
-                await this.handleConfigAction(query, data);
+                await this.handleConfigAction(ctx, data);
                 
             } else if (data === 'back_main') {
                 const mainMenu = await this.buildMainMenu(userId);
                 
-                await this.bot.editMessageText(TELEGRAM_MESSAGES.welcome, {
+                await ctx.editMessageText(TELEGRAM_MESSAGES.welcome, {
                     chat_id: chatId,
-                    message_id: query.message.message_id,
+                    message_id: ctx.callbackQuery.message.message_id,
                     reply_markup: mainMenu,
                     parse_mode: 'HTML'
                 });
                 
             } else if (data === 'help') {
-                await this.bot.sendMessage(chatId, TELEGRAM_MESSAGES.help, {
+                await this.bot.telegram.sendMessage(chatId, TELEGRAM_MESSAGES.help, {
                     parse_mode: 'HTML'
                 });
             }
 
         } catch (error) {
             logger.error('Erro ao processar callback query:', error);
-            await this.bot.sendMessage(chatId, 'Ocorreu um erro. Tente novamente.');
+            await this.bot.telegram.sendMessage(chatId, 'Ocorreu um erro. Tente novamente.');
         }
     }
 
-    async handleAction(query, action) {
-        const chatId = query.message.chat.id;
-        const userId = query.from.id;
+    async handleAction(ctx, action) {
+        const chatId = ctx.chat.id;
+        const userId = ctx.from.id;
         
         // Definir estado do usuário
         this.userStates.set(userId, { 
@@ -264,12 +265,12 @@ class TelegramBotService {
         };
 
         const message = actionMessages[action.replace('action_', '')] || 'Aguardando entrada...';
-        await this.bot.sendMessage(chatId, message);
+        await this.bot.telegram.sendMessage(chatId, message);
     }
 
-    async handleConfigAction(query, configAction) {
-        const chatId = query.message.chat.id;
-        const userId = query.from.id;
+    async handleConfigAction(ctx, configAction) {
+        const chatId = ctx.chat.id;
+        const userId = ctx.from.id;
 
         switch (configAction) {
             case 'config_ai_models':
@@ -284,10 +285,10 @@ class TelegramBotService {
         }
     }
 
-    async handleTextMessage(msg) {
-        const chatId = msg.chat.id;
-        const userId = msg.from.id;
-        const text = msg.text;
+    async handleTextMessage(ctx) {
+        const chatId = ctx.chat.id;
+        const userId = ctx.from.id;
+        const text = ctx.message.text;
 
         const userState = this.userStates.get(userId);
         if (!userState) {
@@ -296,7 +297,7 @@ class TelegramBotService {
             if (features.ai_chat) {
                 await this.processAIChat(chatId, text);
             } else {
-                await this.bot.sendMessage(chatId, 'Use /start para ver o menu principal.');
+                await this.bot.telegram.sendMessage(chatId, 'Use /start para ver o menu principal.');
             }
             return;
         }
@@ -305,47 +306,47 @@ class TelegramBotService {
         await this.processUserInput(chatId, userId, userState, text);
     }
 
-    async handleVoiceMessage(msg) {
-        const chatId = msg.chat.id;
-        const userId = msg.from.id;
+    async handleVoiceMessage(ctx) {
+        const chatId = ctx.chat.id;
+        const userId = ctx.from.id;
         
         const features = await this.featureToggles.getUserFeatures(userId);
         if (!features.audio_transcription) {
-            await this.bot.sendMessage(chatId, 'Funcionalidade de transcrição de áudio não disponível.');
+            await this.bot.telegram.sendMessage(chatId, 'Funcionalidade de transcrição de áudio não disponível.');
             return;
         }
 
-        await this.integrationService.processVoiceTranscription(chatId, msg.voice);
+        await this.integrationService.processVoiceTranscription(chatId, ctx.message.voice);
     }
 
-    async handlePhotoMessage(msg) {
-        const chatId = msg.chat.id;
-        const userId = msg.from.id;
+    async handlePhotoMessage(ctx) {
+        const chatId = ctx.chat.id;
+        const userId = ctx.from.id;
         const userState = this.userStates.get(userId);
 
         const features = await this.featureToggles.getUserFeatures(userId);
         
         if (userState?.action === 'analyze_image' && features.image_analysis) {
-            await this.integrationService.processImageAnalysis(chatId, msg.photo);
+            await this.integrationService.processImageAnalysis(chatId, ctx.message.photo);
         } else if (userState?.action === 'calories' && features.calorie_counter) {
-            await this.integrationService.processCalorieCount(chatId, msg.photo);
+            await this.integrationService.processCalorieCount(chatId, ctx.message.photo);
         } else if (features.image_analysis) {
             // Análise geral de imagem
-            await this.integrationService.processImageAnalysis(chatId, msg.photo);
+            await this.integrationService.processImageAnalysis(chatId, ctx.message.photo);
         } else {
-            await this.bot.sendMessage(chatId, 'Funcionalidade de análise de imagem não disponível.');
+            await this.bot.telegram.sendMessage(chatId, 'Funcionalidade de análise de imagem não disponível.');
         }
     }
 
-    async handleDocumentMessage(msg) {
-        const chatId = msg.chat.id;
-        const userId = msg.from.id;
+    async handleDocumentMessage(ctx) {
+        const chatId = ctx.chat.id;
+        const userId = ctx.from.id;
         const userState = this.userStates.get(userId);
 
         if (userState?.action === 'summarize') {
-            await this.integrationService.processDocumentSummary(chatId, msg.document);
+            await this.integrationService.processDocumentSummary(chatId, ctx.message.document);
         } else {
-            await this.bot.sendMessage(chatId, 'Envie um documento após selecionar "Resumir Texto".');
+            await this.bot.telegram.sendMessage(chatId, 'Envie um documento após selecionar "Resumir Texto".');
         }
     }
 
@@ -376,17 +377,17 @@ class TelegramBotService {
                 await this.integrationService.processTextSummary(chatId, input);
                 break;
             default:
-                await this.bot.sendMessage(chatId, 'Ação não reconhecida.');
+                await this.bot.telegram.sendMessage(chatId, 'Ação não reconhecida.');
         }
     }
 
     // Métodos auxiliares de configuração
     async showAIModels(chatId) {
-        await this.bot.sendMessage(chatId, '🤖 Modelos de IA disponíveis:\n\n(Implementar listagem de modelos)');
+        await this.bot.telegram.sendMessage(chatId, '🤖 Modelos de IA disponíveis:\n\n(Implementar listagem de modelos)');
     }
 
     async showWhisperModels(chatId) {
-        await this.bot.sendMessage(chatId, '🎤 Modelos Whisper disponíveis:\n\n(Implementar listagem de modelos)');
+        await this.bot.telegram.sendMessage(chatId, '🎤 Modelos Whisper disponíveis:\n\n(Implementar listagem de modelos)');
     }
 
     async showFeatureToggles(chatId, userId) {
@@ -399,36 +400,36 @@ class TelegramBotService {
             message += `${icon} ${name}\n`;
         }
 
-        await this.bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+        await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
     }
 
     // Métodos de processamento específicos (placeholders)
     async processCreateReminder(chatId, text) {
-        await this.bot.sendMessage(chatId, `📅 Lembrete criado: ${text}`);
+        await this.bot.telegram.sendMessage(chatId, `📅 Lembrete criado: ${text}`);
     }
 
     async processVideoSummary(chatId, url) {
-        await this.bot.sendMessage(chatId, `🎥 Processando vídeo: ${url}`);
+        await this.bot.telegram.sendMessage(chatId, `🎥 Processando vídeo: ${url}`);
     }
 
     async processLinkedInAnalysis(chatId, url) {
-        await this.bot.sendMessage(chatId, `🔗 Analisando LinkedIn: ${url}`);
+        await this.bot.telegram.sendMessage(chatId, `🔗 Analisando LinkedIn: ${url}`);
     }
 
     async processVoiceMessage(chatId, voice) {
-        await this.bot.sendMessage(chatId, '🎤 Transcrevendo áudio...');
+        await this.bot.telegram.sendMessage(chatId, '🎤 Transcrevendo áudio...');
     }
 
     async processImageAnalysis(chatId, photos) {
-        await this.bot.sendMessage(chatId, '🖼️ Analisando imagem...');
+        await this.bot.telegram.sendMessage(chatId, '🖼️ Analisando imagem...');
     }
 
     async processCalorieCount(chatId, photos) {
-        await this.bot.sendMessage(chatId, '🍎 Calculando calorias...');
+        await this.bot.telegram.sendMessage(chatId, '🍎 Calculando calorias...');
     }
 
     async processDocumentSummary(chatId, document) {
-        await this.bot.sendMessage(chatId, '📄 Resumindo documento...');
+        await this.bot.telegram.sendMessage(chatId, '📄 Resumindo documento...');
     }
 
     // Método público para enviar mensagens
@@ -439,7 +440,7 @@ class TelegramBotService {
         }
 
         try {
-            await this.bot.sendMessage(chatId, text, options);
+            await this.bot.telegram.sendMessage(chatId, text, options);
             return true;
         } catch (error) {
             logger.error('Erro ao enviar mensagem Telegram:', error);

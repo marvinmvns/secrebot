@@ -18,7 +18,7 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly LOG_FILE="/tmp/secrebot-install-$(date +%Y%m%d_%H%M%S).log"
 readonly INSTALL_DIR="$HOME/secrebot"
 readonly MONGO_DB_NAME="sched"
-readonly MONGO_USER="bot"
+readonly MONGO_USER="secrebot"
 readonly MONGO_PASSWORD="$(openssl rand -base64 32 2>/dev/null || head -c 32 /dev/urandom | base64)"
 
 # Cores para output

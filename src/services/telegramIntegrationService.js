@@ -1,10 +1,10 @@
-import  LLMService  from './llmService.js';
-import  AudioTranscriber  from './audioTranscriber.js';
-import  TTSService  from './ttsService.js';
-import  CalorieService  from './calorieService.js';
-import  LinkedInScraper  from './linkedinScraper.js';
-import  YouTubeService  from './youtubeService.js';
-import  Scheduler from './scheduler.js';
+import LLMService from './llmService.js';
+import AudioTranscriber from './audioTranscriber.js';
+import TTSService from './ttsService.js';
+import CalorieService from './calorieService.js';
+import LinkedInScraper from './linkedinScraper.js';
+import YouTubeService from './youtubeService.js';
+import Scheduler from './scheduler.js';
 import logger from '../utils/logger.js';
 import { config } from '../config/config.js';
 import fs from 'fs';
@@ -181,6 +181,60 @@ class TelegramIntegrationService {
         } catch (error) {
             logger.error('Erro na transcrição Telegram:', error);
             await this.bot.sendMessage(chatId, 'Erro ao transcrever o áudio.');
+        }
+    }
+
+    async processVoiceTranscriptionSummary(chatId, voice) {
+        try {
+            await this.bot.sendMessage(chatId, '🎤 Transcrevendo e resumindo áudio...');
+            
+            const fileId = voice.file_id;
+            const file = await this.bot.telegram.getFile(fileId);
+            const filePath = file.file_path;
+            const audioUrl = `https://api.telegram.org/file/bot${this.bot.token}/${filePath}`;
+            
+            const tempAudioPath = await this.downloadFile(audioUrl, 'audio');
+            
+            try {
+                // Step 1: Transcribe the audio using Whisper
+                const transcription = await this.audioTranscriber.transcribeAudio(tempAudioPath);
+                
+                if (!transcription) {
+                    await this.bot.sendMessage(chatId, 'Não foi possível transcrever o áudio.');
+                    return;
+                }
+
+                // Step 2: Generate summary using LLM
+                await this.bot.sendMessage(chatId, '📄 Gerando resumo...');
+                
+                const summary = await this.llmService.generateResponse(
+                    `Resuma o seguinte texto transcrito de forma clara e organizada, destacando os pontos principais:\n\n${transcription}`,
+                    { maxTokens: 2000, temperature: 0.7 }
+                );
+                
+                if (summary) {
+                    let message = `🎤📄 <b>Transcrição e Resumo:</b>\n\n`;
+                    message += `<b>📝 Transcrição:</b>\n${transcription}\n\n`;
+                    message += `<b>📄 Resumo:</b>\n${summary}`;
+                    
+                    const chunks = this.splitMessage(message);
+                    for (const chunk of chunks) {
+                        await this.bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
+                    }
+                } else {
+                    // If summary fails, at least send the transcription
+                    await this.bot.sendMessage(chatId, `🎤 <b>Transcrição:</b>\n\n${transcription}\n\n❌ Não foi possível gerar o resumo.`, {
+                        parse_mode: 'HTML'
+                    });
+                }
+            } finally {
+                if (fs.existsSync(tempAudioPath)) {
+                    fs.unlinkSync(tempAudioPath);
+                }
+            }
+        } catch (error) {
+            logger.error('Erro na transcrição e resumo Telegram:', error);
+            await this.bot.sendMessage(chatId, 'Erro ao processar o áudio.');
         }
     }
 

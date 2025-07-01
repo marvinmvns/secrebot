@@ -161,6 +161,7 @@ class TelegramBotService {
             case 'media':
                 if (features.audio_transcription) {
                     keyboard.push([{ text: '🎤 Transcrever Áudio', callback_data: 'action_transcribe' }]);
+                    keyboard.push([{ text: '🎤📄 Transcrever e Resumir', callback_data: 'action_transcribe_summary' }]);
                 }
                 if (features.tts) {
                     keyboard.push([{ text: '🔊 Configurar Voz', callback_data: 'action_tts_config' }]);
@@ -260,6 +261,7 @@ class TelegramBotService {
             'video_summary': 'Envie o link do vídeo do YouTube:',
             'create_reminder': 'Descreva o lembrete (ex: "Reunião amanhã às 14h"):',
             'transcribe': 'Envie um áudio para transcrever:',
+            'transcribe_summary': 'Envie um áudio para transcrever e resumir:',
             'calories': 'Envie uma foto da comida para calcular calorias:',
             'linkedin': 'Envie o link do perfil do LinkedIn:'
         };
@@ -309,6 +311,7 @@ class TelegramBotService {
     async handleVoiceMessage(ctx) {
         const chatId = ctx.chat.id;
         const userId = ctx.from.id;
+        const userState = this.userStates.get(userId);
         
         const features = await this.featureToggles.getUserFeatures(userId);
         if (!features.audio_transcription) {
@@ -316,7 +319,17 @@ class TelegramBotService {
             return;
         }
 
-        await this.integrationService.processVoiceTranscription(chatId, ctx.message.voice);
+        // Check if user is in transcribe_summary state
+        if (userState?.action === 'transcribe_summary') {
+            this.userStates.delete(userId); // Clear state after processing
+            await this.integrationService.processVoiceTranscriptionSummary(chatId, ctx.message.voice);
+        } else if (userState?.action === 'transcribe') {
+            this.userStates.delete(userId); // Clear state after processing
+            await this.integrationService.processVoiceTranscription(chatId, ctx.message.voice);
+        } else {
+            // Default behavior - just transcribe
+            await this.integrationService.processVoiceTranscription(chatId, ctx.message.voice);
+        }
     }
 
     async handlePhotoMessage(ctx) {

@@ -532,7 +532,11 @@ class RestAPI {
         examples[envVar] = CONFIG_EXAMPLES[cfgPath];
       }
 
-      res.render('config', { env, descriptions, examples });
+      // Adicionar dados de feature toggles
+      const featureToggles = saved?.featureToggles || { enabled: false, features: {} };
+      const globalFeatures = featureToggles.features || {};
+
+      res.render('config', { env, descriptions, examples, featureToggles, globalFeatures });
     });
 
     this.app.post('/config', async (req, res) => {
@@ -557,7 +561,38 @@ class RestAPI {
         const currentVal = getNested(CONFIG, cfgPath);
         if (typeof currentVal === 'number') val = Number(val);
         if (typeof currentVal === 'boolean') val = val === 'true';
+        if (cfgPath === 'featureToggles.features' && typeof val === 'string') {
+          try {
+            val = JSON.parse(val);
+          } catch (e) {
+            val = {};
+          }
+        }
         setNested(saved, cfgPath, val);
+      }
+
+      // Processar feature toggles globais
+      const globalFeatures = saved?.featureToggles?.features || {};
+      for (const key in req.body) {
+        if (key.startsWith('global_feature_')) {
+          const featureName = key.replace('global_feature_', '');
+          globalFeatures[featureName] = true;
+        }
+      }
+
+      // Desmarcar features não enviadas (checkboxes não marcados não são enviados)
+      const allFeatureKeys = Object.keys(req.body).filter(k => k.startsWith('global_feature_'));
+      const currentFeatures = saved?.featureToggles?.features || {};
+      
+      for (const featureName of Object.keys(currentFeatures)) {
+        const checkboxKey = `global_feature_${featureName}`;
+        if (!allFeatureKeys.includes(checkboxKey)) {
+          globalFeatures[featureName] = false;
+        }
+      }
+
+      if (saved.featureToggles) {
+        saved.featureToggles.features = globalFeatures;
       }
 
       if (saved.piper?.enabled) {

@@ -60,7 +60,9 @@ export const CONFIG_DESCRIPTIONS = {
   'telegram.features.linkedinAnalysis': 'Feature Análise LinkedIn',
   'telegram.features.mediaProcessing': 'Feature Processamento de Mídia',
   'telegram.features.professionalAnalysis': 'Feature Análise Profissional',
-  'telegram.features.systemResources': 'Feature Recursos do Sistema'
+  'telegram.features.systemResources': 'Feature Recursos do Sistema',
+  'featureToggles.enabled': 'Ativa sistema de feature toggles',
+  'featureToggles.features': 'Features toggles ativas'
 };
 
 export const CONFIG_ENV_MAP = {
@@ -125,7 +127,8 @@ export const CONFIG_ENV_MAP = {
   'telegram.features.linkedinAnalysis': 'TELEGRAM_FEATURE_LINKEDIN_ANALYSIS',
   'telegram.features.mediaProcessing': 'TELEGRAM_FEATURE_MEDIA_PROCESSING',
   'telegram.features.professionalAnalysis': 'TELEGRAM_FEATURE_PROFESSIONAL_ANALYSIS',
-  'telegram.features.systemResources': 'TELEGRAM_FEATURE_SYSTEM_RESOURCES'
+  'telegram.features.systemResources': 'TELEGRAM_FEATURE_SYSTEM_RESOURCES',
+  'featureToggles.enabled': 'FEATURE_TOGGLES_ENABLED'
 };
 
 export const CONFIG_EXAMPLES = {
@@ -190,5 +193,7 @@ export const CONFIG_EXAMPLES = {
   'telegram.features.linkedinAnalysis': 'false',
   'telegram.features.mediaProcessing': 'true',
   'telegram.features.professionalAnalysis': 'false',
-  'telegram.features.systemResources': 'true'
+  'telegram.features.systemResources': 'true',
+  'featureToggles.enabled': 'true',
+  'featureToggles.features': '{}'
 };

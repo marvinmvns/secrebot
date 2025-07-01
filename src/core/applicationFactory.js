@@ -6,6 +6,7 @@ import WhatsAppBot from './whatsAppBot.js';
 import { TelegramBotService } from './telegramBot.js';
 import RestAPI from '../api/restApi.js';
 import ConfigService from '../services/configService.js';
+import { createFeatureToggleManager } from '../services/featureToggleService.js';
 import { config, applyConfig } from '../config/config.js';
 import logger from '../utils/logger.js';
 import { handleError, setupGlobalErrorHandlers, gracefulShutdown } from '../utils/errorHandler.js';
@@ -48,6 +49,21 @@ export class ApplicationFactory {
       return configService;
     } catch (error) {
       throw handleError(error, 'ConfigService initialization');
+    }
+  }
+
+  async createFeatureToggleService(configService) {
+    if (this.services.has('featureToggleService')) {
+      return this.services.get('featureToggleService');
+    }
+
+    try {
+      const featureToggleService = await createFeatureToggleManager(configService);
+      this.services.set('featureToggleService', featureToggleService);
+      logger.info('Feature Toggle service initialized');
+      return featureToggleService;
+    } catch (error) {
+      throw handleError(error, 'FeatureToggleService initialization');
     }
   }
 
@@ -146,6 +162,7 @@ export class ApplicationFactory {
 
       const scheduler = await this.createScheduler();
       const configService = await this.createConfigService(scheduler);
+      const featureToggleService = await this.createFeatureToggleService(configService);
       const llmService = this.createLLMService();
       const transcriber = this.createAudioTranscriber();
       const ttsService = this.createTtsService();
@@ -174,6 +191,7 @@ export class ApplicationFactory {
     return {
       scheduler: this.services.get('scheduler'),
       configService: this.services.get('configService'),
+      featureToggleService: this.services.get('featureToggleService'),
       llmService: this.services.get('llmService'),
       audioTranscriber: this.services.get('audioTranscriber'),
       ttsService: this.services.get('ttsService'),

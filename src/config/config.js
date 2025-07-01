@@ -100,6 +100,10 @@ export const config = {
       professionalAnalysis: process.env.TELEGRAM_FEATURE_PROFESSIONAL_ANALYSIS === 'true',
       systemResources: process.env.TELEGRAM_FEATURE_SYSTEM_RESOURCES !== 'false'
     }
+  },
+  featureToggles: {
+    enabled: process.env.FEATURE_TOGGLES_ENABLED === 'true',
+    features: {}
   }
 };
 

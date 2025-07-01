@@ -6,11 +6,42 @@
       <% if (descriptions[key]) { %>
         <small class="form-text text-muted"><%= descriptions[key] %></small>
       <% } %>
-      <input type="text" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
+      <% if (key === 'featureToggles.features') { %>
+        <textarea class="form-control" name="<%= key %>" placeholder="<%= examples[key] %>" rows="4"><%= typeof env[key] === 'object' ? JSON.stringify(env[key], null, 2) : env[key] %></textarea>
+        <small class="form-text">JSON com features toggles globais. Ex: {"feature1": true, "feature2": false}</small>
+      <% } else if (key.includes('featureToggles.enabled') || key.includes('.enabled') || key.includes('.verbose') || key.includes('.dynamic.enabled') || key.includes('.enableTTS') || key.includes('.piper.enabled')) { %>
+        <select class="form-control" name="<%= key %>">
+          <option value="true" <%= env[key] === 'true' || env[key] === true ? 'selected' : '' %>>Ativado</option>
+          <option value="false" <%= env[key] === 'false' || env[key] === false ? 'selected' : '' %>>Desativado</option>
+        </select>
+      <% } else { %>
+        <input type="text" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
+      <% } %>
       <% if (examples[key]) { %>
         <small class="form-text">Ex: <code><%= examples[key] %></code></small>
       <% } %>
     </div>
   <% } %>
+  
+  <% if (featureToggles && featureToggles.enabled) { %>
+    <div class="mt-4">
+      <h4>Feature Toggles Globais</h4>
+      <div class="alert alert-info">
+        <small>Essas configurações afetam o comportamento global das features, independentemente das configurações de usuário individual.</small>
+      </div>
+      
+      <% if (globalFeatures) { %>
+        <% for(const [featureName, isEnabled] of Object.entries(globalFeatures)){ %>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="global_feature_<%= featureName %>" id="global_<%= featureName %>" <%= isEnabled ? 'checked' : '' %>>
+            <label class="form-check-label" for="global_<%= featureName %>">
+              <%= featureName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) %>
+            </label>
+          </div>
+        <% } %>
+      <% } %>
+    </div>
+  <% } %>
+  
   <button type="submit" class="btn btn-primary mt-3">Salvar</button>
 </form>

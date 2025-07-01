@@ -3,6 +3,7 @@ export const COMMANDS = {
   DEEP: '!deep',
   AGENDA: '!agendabot',
   TRANSCREVER: '!transcrever',
+  TRANSCREVER_RESUMIR: '!transcreveresumir',
   FOTO: '!foto',
   CALORIAS: '!calorias',
   LISTAR: '!listaragendamentos',
@@ -45,6 +46,7 @@ export const NUMERIC_SHORTCUTS = {
   '2.2': COMMANDS.RESUMIR,
   '2.3': 'submenu_video',
   '2.4': COMMANDS.FOTO,
+  '2.5': COMMANDS.TRANSCREVER_RESUMIR,
   
   // Mídia & Conteúdo
   '3.1': COMMANDS.TRANSCREVER,
@@ -77,6 +79,7 @@ export const CHAT_MODES = {
   ASSISTANT: 'assistant',
   AGENDABOT: 'agendabot',
   TRANSCRICAO: 'transcricao',
+  TRANSCREVER_RESUMIR: 'transcrever_resumir',
   LINKEDIN: 'linkedin',
   DELETAR: 'deletar',
   RESUMIR: 'resumir',

@@ -197,37 +197,24 @@ class TelegramIntegrationService {
             const tempAudioPath = await this.downloadFile(audioUrl, 'audio');
             
             try {
-                // Step 1: Transcribe the audio using Whisper
+                // Use the new transcribeAndSummarize method
                 const audioBuffer = fs.readFileSync(tempAudioPath);
-                const transcription = await this.audioTranscriber.transcribe(audioBuffer, 'ogg');
+                const result = await this.audioTranscriber.transcribeAndSummarize(audioBuffer, 'ogg');
                 
-                if (!transcription) {
+                if (!result || !result.transcription) {
                     await this.bot.sendMessage(chatId, 'Não foi possível transcrever o áudio.');
                     return;
                 }
 
-                // Step 2: Generate summary using LLM
-                await this.bot.sendMessage(chatId, '📄 Gerando resumo...');
+                // Format the combined result for Telegram
+                const formattedMessage = result.combined
+                    .replace(/\*\*/g, '<b>')
+                    .replace(/\*\*/g, '</b>')
+                    .replace(/\n---\n/g, '\n\n━━━━━━━━━━━━━━━━━━━\n\n');
                 
-                const summary = await this.llmService.generateResponse(
-                    `Resuma o seguinte texto transcrito de forma clara e organizada, destacando os pontos principais:\n\n${transcription}`,
-                    { maxTokens: 2000, temperature: 0.7 }
-                );
-                
-                if (summary) {
-                    let message = `🎤📄 <b>Transcrição e Resumo:</b>\n\n`;
-                    message += `<b>📝 Transcrição:</b>\n${transcription}\n\n`;
-                    message += `<b>📄 Resumo:</b>\n${summary}`;
-                    
-                    const chunks = this.splitMessage(message);
-                    for (const chunk of chunks) {
-                        await this.bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
-                    }
-                } else {
-                    // If summary fails, at least send the transcription
-                    await this.bot.sendMessage(chatId, `🎤 <b>Transcrição:</b>\n\n${transcription}\n\n❌ Não foi possível gerar o resumo.`, {
-                        parse_mode: 'HTML'
-                    });
+                const chunks = this.splitMessage(formattedMessage);
+                for (const chunk of chunks) {
+                    await this.bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
                 }
             } finally {
                 if (fs.existsSync(tempAudioPath)) {

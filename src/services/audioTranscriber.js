@@ -8,6 +8,7 @@ import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, __dirname } from '../config/index.js'; // Ajustar caminho se necessário
 import JobQueue from './jobQueue.js';
 import logger from '../utils/logger.js';
+import { Ollama } from 'ollama';
 
 // ============ Transcritor de Áudio ============
 class AudioTranscriber {
@@ -16,6 +17,7 @@ class AudioTranscriber {
       CONFIG.queues.whisperConcurrency,
       CONFIG.queues.memoryThresholdGB
     );
+    this.ollamaClient = new Ollama({ host: CONFIG.llm.host });
   }
 
   async runWhisper(filePath, options) {
@@ -102,6 +104,57 @@ class AudioTranscriber {
       throw err; // Re-lança o erro para ser tratado no nível superior
     }
     });
+  }
+
+  async transcribeAndSummarize(audioBuffer, inputFormat = 'ogg') {
+    try {
+      logger.service('🎤 Iniciando transcrição e resumo de áudio...');
+      
+      const transcription = await this.transcribe(audioBuffer, inputFormat);
+      
+      logger.service('🧠 Gerando resumo com LLM...');
+      const summaryPrompt = `Analise a seguinte transcrição de áudio e crie um resumo estruturado e claro:
+
+TRANSCRIÇÃO:
+"${transcription}"
+
+Por favor, organize o conteúdo da seguinte forma:
+
+📝 **RESUMO EXECUTIVO**
+• [Principais pontos em bullet points]
+
+🎯 **TÓPICOS ABORDADOS**
+• [Lista dos temas discutidos]
+
+⏰ **PONTOS-CHAVE TEMPORAIS** (se houver)
+• [Datas, prazos, compromissos mencionados]
+
+📋 **AÇÕES/TAREFAS** (se houver)
+• [Ações ou tarefas mencionadas]
+
+💡 **OBSERVAÇÕES IMPORTANTES**
+• [Detalhes relevantes ou contexto adicional]
+
+Mantenha o resumo conciso mas informativo, destacando os pontos mais importantes do áudio.`;
+
+      const summary = await this.ollamaClient.generate({
+        model: CONFIG.llm.model,
+        prompt: summaryPrompt,
+        stream: false
+      });
+
+      logger.success('✅ Transcrição e resumo concluídos.');
+      
+      return {
+        transcription: transcription,
+        summary: summary.response,
+        combined: `🎤 **TRANSCRIÇÃO COMPLETA:**\n\n${transcription}\n\n---\n\n${summary.response}`
+      };
+      
+    } catch (err) {
+      logger.error('❌ Erro na transcrição e resumo de áudio:', err);
+      throw err;
+    }
   }
 }
 

@@ -29,6 +29,7 @@ export const SUBMENU_MESSAGES = {
 2.2 📄 Resumir Texto/Arquivo
 2.3 🎥 Resumir Vídeo
 2.4 🖼️ Analisar Imagem
+2.5 🎤 Transcrever e Resumir Áudio
 
 0️⃣ Voltar ao menu principal`,
 
@@ -82,6 +83,8 @@ export const MODE_MESSAGES = {
   [CHAT_MODES.AGENDABOT]: `📅 *Modo Agendamento Ativado!*\n\n📝 Me diga o que você quer agendar e quando.\n🗣️ Você pode digitar ou enviar um áudio!\n\n💡 Exemplo: "Lembrar de reunião amanhã às 14h"\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
 
   [CHAT_MODES.TRANSCRICAO]: `🎤 *Modo Transcrição Ativado!*\n\n🎙️ Envie um áudio para eu transcrever em texto.\n📝 O áudio será convertido automaticamente!\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
+
+  [CHAT_MODES.TRANSCREVER_RESUMIR]: `🎤 *Modo Transcrição e Resumo Ativado!*\n\n🎙️ Envie um áudio para eu transcrever e resumir.\n🧠 Vou converter em texto e criar um resumo estruturado!\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
 
   [CHAT_MODES.LINKEDIN]: `💼 *Modo LinkedIn Ativado!*\n\n🔗 Envie o link do perfil que deseja analisar.\n📊 Vou estruturar as informações para você!\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`,
   

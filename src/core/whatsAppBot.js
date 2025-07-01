@@ -611,6 +611,7 @@ class WhatsAppBot {
           [COMMANDS.DEEP]: () => this.handleDeepCommand(contactId, originalText),
           [COMMANDS.AGENDA]: () => this.handleAgendabotCommand(contactId, originalText),
           [COMMANDS.TRANSCREVER]: () => this.handleTranscreverCommand(contactId),
+          [COMMANDS.TRANSCREVER_RESUMIR]: () => this.handleTranscreverResumir(contactId),
           [COMMANDS.LINKEDIN]: () => this.handleLinkedinCommand(contactId, originalText),
           [COMMANDS.LISTAR]: () => this.handleListarCommand(contactId),
           [COMMANDS.DELETAR]: () => this.handleDeletarCommand(contactId),
@@ -1426,6 +1427,11 @@ async handleRecursoCommand(contactId) {
     await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.TRANSCRICAO]);
   }
 
+  async handleTranscreverResumir(contactId) {
+    this.setMode(contactId, CHAT_MODES.TRANSCREVER_RESUMIR);
+    await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.TRANSCREVER_RESUMIR]);
+  }
+
   async handleLinkedinCommand(contactId, text) {
     const arg = text.substring(COMMANDS.LINKEDIN.length).trim();
     if (arg.toLowerCase() === 'login') {
@@ -1481,6 +1487,13 @@ async handleRecursoCommand(contactId) {
       if (currentMode === CHAT_MODES.TRANSCRICAO) {
         await this.sendResponse(contactId, `📝 *Transcrição:*\n\n${transcription}`);
         await this.sendResponse(contactId, SUCCESS_MESSAGES.TRANSCRIPTION_COMPLETE);
+      } else if (currentMode === CHAT_MODES.TRANSCREVER_RESUMIR) {
+        await this.sendResponse(contactId, '🧠 Gerando resumo...', true);
+        const result = await this.transcriber.transcribeAndSummarize(
+          Buffer.from(media.data, 'base64')
+        );
+        await this.sendResponse(contactId, result.combined);
+        await this.sendResponse(contactId, `✅ *Transcrição e Resumo Concluídos!*\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`);
       } else if (currentMode) {
         await this.processMessageByMode(contactId, transcription, msg);
       } else {
@@ -1527,6 +1540,9 @@ async handleRecursoCommand(contactId) {
         await this.sendResponse(contactId, assistantResponse);
         break;
       case CHAT_MODES.TRANSCRICAO:
+        await this.sendResponse(contactId, ERROR_MESSAGES.AUDIO_REQUIRED);
+        break;
+      case CHAT_MODES.TRANSCREVER_RESUMIR:
         await this.sendResponse(contactId, ERROR_MESSAGES.AUDIO_REQUIRED);
         break;
       case CHAT_MODES.LINKEDIN:

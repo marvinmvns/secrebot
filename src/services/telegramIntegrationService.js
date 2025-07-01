@@ -164,7 +164,8 @@ class TelegramIntegrationService {
             const tempAudioPath = await this.downloadFile(audioUrl, 'audio');
             
             try {
-                const transcription = await this.audioTranscriber.transcribeAudio(tempAudioPath);
+                const audioBuffer = fs.readFileSync(tempAudioPath);
+                const transcription = await this.audioTranscriber.transcribe(audioBuffer, 'ogg');
                 
                 if (transcription) {
                     await this.bot.sendMessage(chatId, `🎤 <b>Transcrição:</b>\n\n${transcription}`, {
@@ -197,7 +198,8 @@ class TelegramIntegrationService {
             
             try {
                 // Step 1: Transcribe the audio using Whisper
-                const transcription = await this.audioTranscriber.transcribeAudio(tempAudioPath);
+                const audioBuffer = fs.readFileSync(tempAudioPath);
+                const transcription = await this.audioTranscriber.transcribe(audioBuffer, 'ogg');
                 
                 if (!transcription) {
                     await this.bot.sendMessage(chatId, 'Não foi possível transcrever o áudio.');

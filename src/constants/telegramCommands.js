@@ -2,7 +2,8 @@ export const TELEGRAM_COMMANDS = {
     START: '/start',
     HELP: '/help',
     MENU: '/menu',
-    CONFIG: '/config'
+    CONFIG: '/config',
+    TRANSCREVER_RESUME: '!transcreveresume'
 };
 
 export const TELEGRAM_MESSAGES = {
@@ -31,11 +32,13 @@ Escolha uma opção abaixo para começar:
 <b>🔧 Comandos:</b>
 /start - Menu principal
 /help - Esta ajuda
+!transcreveresume - Transcrever e resumir áudio
 
 <b>💡 Dicas:</b>
 • Cada usuário tem configurações personalizáveis
 • Use o botão "Voltar" para navegar
 • Algumas funcionalidades podem estar desabilitadas
+• O comando !transcreveresume aceita áudios e gera resumos inteligentes
     `,
 
     menus: {

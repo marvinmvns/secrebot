@@ -51,9 +51,17 @@ class TelegramBotService {
             this.handleCallbackQuery(ctx);
         });
 
+        // Comando !transcreveresume
+        this.bot.command('transcreveresume', (ctx) => {
+            this.handleTranscreveresume(ctx);
+        });
+
         // Mensagens de texto
         this.bot.on('text', (ctx) => {
-            if (ctx.message.text && !ctx.message.text.startsWith('/')) {
+            const text = ctx.message.text;
+            if (text && text.startsWith('!transcreveresume')) {
+                this.handleTranscreveresume(ctx);
+            } else if (text && !text.startsWith('/')) {
                 this.handleTextMessage(ctx);
             }
         });
@@ -93,6 +101,39 @@ class TelegramBotService {
             reply_markup: mainMenu,
             parse_mode: 'HTML'
         });
+    }
+
+    async handleTranscreveresume(ctx) {
+        const chatId = ctx.chat.id;
+        const userId = ctx.from.id;
+        
+        try {
+            // Verificar se o usuário tem permissão para usar transcrição de áudio
+            const features = await this.featureToggles.getUserFeatures(userId);
+            if (!features.audio_transcription) {
+                await this.bot.telegram.sendMessage(chatId, 
+                    '❌ Funcionalidade de transcrição de áudio não disponível para seu usuário.'
+                );
+                return;
+            }
+
+            // Definir estado do usuário para aguardar áudio
+            this.userStates.set(userId, { 
+                action: 'transcreveresume',
+                chatId: chatId,
+                step: 'waiting_audio'
+            });
+
+            await this.bot.telegram.sendMessage(chatId, 
+                '🎤📄 <b>Transcrever e Resumir Áudio</b>\n\n' +
+                'Envie um áudio para transcrever e receber um resumo inteligente do conteúdo.\n\n' +
+                '💡 <i>O áudio será processado usando Whisper para transcrição e IA para resumo.</i>',
+                { parse_mode: 'HTML' }
+            );
+        } catch (error) {
+            logger.error('Erro no comando !transcreveresume:', error);
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao processar comando. Tente novamente.');
+        }
     }
 
     async buildMainMenu(userId) {
@@ -321,6 +362,9 @@ class TelegramBotService {
 
         // Check if user is in transcribe_summary state
         if (userState?.action === 'transcribe_summary') {
+            this.userStates.delete(userId); // Clear state after processing
+            await this.integrationService.processVoiceTranscriptionSummary(chatId, ctx.message.voice);
+        } else if (userState?.action === 'transcreveresume') {
             this.userStates.delete(userId); // Clear state after processing
             await this.integrationService.processVoiceTranscriptionSummary(chatId, ctx.message.voice);
         } else if (userState?.action === 'transcribe') {

@@ -214,6 +214,50 @@ ${structuredText}`;
     const key = `${contactId}_${type}`;
     this.contexts.delete(key);
   }
+
+  // Método para gerar resposta genérica (usado pelo Telegram)
+  async generateResponse(prompt, options = {}) {
+    const contactId = 'telegram_' + Date.now();
+    const maxTokens = options.maxTokens || 2000;
+    const temperature = options.temperature || 0.7;
+    
+    try {
+      const response = await this.ollama.chat({
+        model: CONFIG.llm.model,
+        messages: [{ role: 'user', content: prompt }],
+        options: {
+          temperature: temperature
+        }
+      });
+      
+      return response.message.content;
+    } catch (error) {
+      logger.error('Erro ao gerar resposta LLM:', error);
+      throw error;
+    }
+  }
+
+  // Método para análise de imagem (usado pelo Telegram)
+  async analyzeImage(imagePath, prompt) {
+    try {
+      // Para Ollama com suporte a vision, usar o modelo multimodal
+      const visionModel = CONFIG.llm.visionModel || 'llava';
+      
+      const response = await this.ollama.chat({
+        model: visionModel,
+        messages: [{
+          role: 'user',
+          content: prompt,
+          images: [imagePath]
+        }]
+      });
+      
+      return response.message.content;
+    } catch (error) {
+      logger.error('Erro ao analisar imagem:', error);
+      return null;
+    }
+  }
 }
 
 export default LLMService;

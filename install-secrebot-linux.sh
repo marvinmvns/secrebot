@@ -370,37 +370,7 @@ EOF
 setup_mongodb() {
     log_step "Configurando MongoDB"
     
-    # Inicializar MongoDB
-    log_info "Iniciando serviço MongoDB..."
-    if systemctl list-unit-files | grep -q mongodb.service; then
-        sudo systemctl enable mongodb
-        sudo systemctl start mongodb
-    elif systemctl list-unit-files | grep -q mongod.service; then
-        sudo systemctl enable mongod
-        sudo systemctl start mongod
-    else
-        log_error "Serviço MongoDB não encontrado"
-        exit 1
-    fi
-    
-    # Aguardar MongoDB inicializar
-    log_info "Aguardando MongoDB inicializar..."
-    sleep 5
-    
-    # Verificar se MongoDB está rodando
-    for i in {1..30}; do
-        if check_service mongodb || check_service mongod; then
-            log_info "MongoDB iniciado com sucesso"
-            break
-        fi
-        if [[ $i -eq 30 ]]; then
-            log_error "MongoDB falhou ao inicializar"
-            sudo systemctl status mongodb || sudo systemctl status mongod
-            exit 1
-        fi
-        sleep 2
-    done
-    
+   
     # Criar usuário do banco
     log_info "Criando usuário do banco de dados..."
     

@@ -139,7 +139,11 @@ export class ApplicationFactory {
       const telegramBot = new TelegramBotService();
       
       // Wait for initialization to complete
-      await telegramBot.waitForInitialization();
+      //await telegramBot.waitForInitialization();
+
+      if (typeof telegramBot.initialize === 'function') {
+          await telegramBot.initialize();
+        }
       
       if (!telegramBot.isActive()) {
         throw new Error('Bot do Telegram falhou ao inicializar - verifique o token e conectividade');

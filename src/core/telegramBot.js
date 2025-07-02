@@ -4,6 +4,10 @@ import { config } from '../config/config.js';
 import { TELEGRAM_COMMANDS, TELEGRAM_MESSAGES } from '../constants/telegramCommands.js';
 import { createFeatureToggleManager } from '../services/featureToggleService.js';
 import { TelegramIntegrationService } from '../services/telegramIntegrationService.js';
+import { Ollama } from 'ollama';
+import { CONFIG, WHISPER_MODELS_LIST, NAVIGATION_STATES } from '../config/index.js';
+import si from 'systeminformation';
+import TtsService from '../services/ttsService.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -15,7 +19,11 @@ class TelegramBotService {
         this.isInitialized = false;
         this.featureToggles = null;
         this.userStates = new Map(); // Armazena estado de navegação por usuário
+        this.userPreferences = new Map(); // Armazena preferências do usuário
+        this.navigationStates = new Map(); // Armazena estado de navegação hierárquica
         this.integrationService = null;
+        this.ollamaClient = new Ollama({ host: CONFIG.llm.host });
+        this.ttsService = new TtsService();
         this.initPromise = this.init(); // Armazena a Promise de inicialização
     }
 
@@ -110,8 +118,9 @@ class TelegramBotService {
         
         // Resetar estado do usuário
         this.userStates.delete(userId);
+        this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
         
-        const welcomeMessage = TELEGRAM_MESSAGES.welcome;
+        const welcomeMessage = this.buildEnhancedWelcomeMessage();
         const mainMenu = await this.buildMainMenu(userId);
         
         await ctx.reply(welcomeMessage, {
@@ -208,9 +217,11 @@ class TelegramBotService {
 
             case 'agenda':
                 if (features.scheduler) {
-                    keyboard.push([{ text: '➕ Criar Lembrete', callback_data: 'action_create_reminder' }]);
+                    keyboard.push([{ text: '➕ Agendamento Inteligente', callback_data: 'action_smart_scheduling' }]);
                     keyboard.push([{ text: '📋 Listar Lembretes', callback_data: 'action_list_reminders' }]);
                     keyboard.push([{ text: '🗑️ Deletar Lembrete', callback_data: 'action_delete_reminder' }]);
+                    keyboard.push([{ text: '📅 Importar Agenda (ICS)', callback_data: 'action_import_ics' }]);
+                    keyboard.push([{ text: '🔗 Google Calendar', callback_data: 'action_google_calendar' }]);
                 }
                 break;
 
@@ -291,6 +302,8 @@ class TelegramBotService {
                 await this.bot.telegram.sendMessage(chatId, TELEGRAM_MESSAGES.help, {
                     parse_mode: 'HTML'
                 });
+            } else if (data === 'toggle_voice') {
+                await this.toggleVoicePreference(chatId, userId);
             }
 
         } catch (error) {
@@ -319,7 +332,11 @@ class TelegramBotService {
             'transcribe': 'Envie um áudio para transcrever:',
             'transcribe_summary': 'Envie um áudio para transcrever e resumir:',
             'calories': 'Envie uma foto da comida para calcular calorias:',
-            'linkedin': 'Envie o link do perfil do LinkedIn:'
+            'linkedin': 'Envie o link do perfil do LinkedIn:',
+            'tts_config': 'Configurando preferências de voz...',
+            'smart_scheduling': 'Descreva o que deseja agendar (ex: "Reunião com cliente amanhã às 14h"):',
+            'import_ics': 'Envie um arquivo .ics para importar eventos do calendário:',
+            'google_calendar': 'Configurando integração com Google Calendar...'
         };
 
         const message = actionMessages[action.replace('action_', '')] || 'Aguardando entrada...';
@@ -340,6 +357,18 @@ class TelegramBotService {
             case 'config_features':
                 await this.showFeatureToggles(chatId, userId);
                 break;
+            case 'action_tts_config':
+                await this.handleTTSConfig(chatId, userId);
+                break;
+            case 'action_system_resources':
+                await this.showSystemResources(chatId);
+                break;
+            case 'action_import_ics':
+                await this.handleICSImportAction(chatId, userId);
+                break;
+            case 'action_google_calendar':
+                await this.integrationService.processGoogleCalendarIntegration(chatId, userId);
+                break;
         }
     }
 
@@ -348,12 +377,18 @@ class TelegramBotService {
         const userId = ctx.from.id;
         const text = ctx.message.text;
 
+        // Primeiro, verificar se é navegação hierárquica
+        const navigationState = this.getNavigationState(userId);
+        if (await this.handleHierarchicalNavigation(ctx, userId, text, navigationState)) {
+            return; // Navegação hierárquica processada
+        }
+
         const userState = this.userStates.get(userId);
         if (!userState) {
             // Mensagem sem contexto - tratar como chat geral se IA estiver habilitada
             const features = await this.featureToggles.getUserFeatures(userId);
             if (features.ai_chat) {
-                await this.processAIChat(chatId, text);
+                await this.processAIChat(chatId, text, userId);
             } else {
                 await this.bot.telegram.sendMessage(chatId, 'Use /start para ver o menu principal.');
             }
@@ -417,8 +452,14 @@ class TelegramBotService {
 
         if (userState?.action === 'summarize') {
             await this.integrationService.processDocumentSummary(chatId, ctx.message.document);
+        } else if (userState?.action === 'import_ics') {
+            this.userStates.delete(userId); // Clear state after processing
+            await this.integrationService.processICSImport(chatId, ctx.message.document, userId);
+        } else if (ctx.message.document.file_name?.toLowerCase().endsWith('.ics')) {
+            // Auto-detect ICS files
+            await this.integrationService.processICSImport(chatId, ctx.message.document, userId);
         } else {
-            await this.bot.telegram.sendMessage(chatId, 'Envie um documento após selecionar "Resumir Texto".');
+            await this.bot.telegram.sendMessage(chatId, 'Envie um documento após selecionar uma ação ou use /start para ver o menu.');
         }
     }
 
@@ -436,7 +477,7 @@ class TelegramBotService {
                 await this.integrationService.processAIChat(chatId, input, userId);
                 break;
             case 'create_reminder':
-                await this.integrationService.processCreateReminder(chatId, input, userId);
+                await this.integrationService.processSmartScheduling(chatId, input, userId);
                 break;
             case 'video_summary':
                 await this.integrationService.processVideoSummary(chatId, input);
@@ -447,6 +488,12 @@ class TelegramBotService {
             case 'summarize':
                 // Para texto enviado diretamente
                 await this.integrationService.processTextSummary(chatId, input);
+                break;
+            case 'tts_config':
+                await this.handleTTSConfig(chatId, userId);
+                break;
+            case 'smart_scheduling':
+                await this.integrationService.processSmartScheduling(chatId, input, userId);
                 break;
             default:
                 await this.bot.telegram.sendMessage(chatId, 'Ação não reconhecida.');
@@ -504,20 +551,9 @@ class TelegramBotService {
         await this.bot.telegram.sendMessage(chatId, '📄 Resumindo documento...');
     }
 
-    // Método público para enviar mensagens
+    // Método público para enviar mensagens (mantido para compatibilidade)
     async sendMessage(chatId, text, options = {}) {
-        if (!this.isInitialized) {
-            logger.warn('Bot do Telegram não inicializado');
-            return false;
-        }
-
-        try {
-            await this.bot.telegram.sendMessage(chatId, text, options);
-            return true;
-        } catch (error) {
-            logger.error('Erro ao enviar mensagem Telegram:', error);
-            return false;
-        }
+        return await this.sendResponse(chatId, text, true); // Força texto para compatibilidade
     }
 
     // Método para aguardar inicialização
@@ -528,6 +564,448 @@ class TelegramBotService {
     // Método para verificar se está ativo
     isActive() {
         return this.isInitialized && this.bot;
+    }
+
+    // --- Métodos de preferências do usuário ---
+    getUserPreference(userId, key, defaultValue = false) {
+        const prefs = this.userPreferences.get(userId) || {};
+        return prefs[key] === undefined ? defaultValue : prefs[key];
+    }
+
+    setUserPreference(userId, key, value) {
+        const prefs = this.userPreferences.get(userId) || {};
+        prefs[key] = value;
+        this.userPreferences.set(userId, prefs);
+        logger.log(`🔧 Preferência [${key}=${value}] definida para usuário ${userId}`);
+    }
+
+    toggleVoicePreferenceForUser(userId) {
+        const currentValue = this.getUserPreference(userId, 'voiceResponse', false);
+        this.setUserPreference(userId, 'voiceResponse', !currentValue);
+        return !currentValue; // Retorna o novo valor
+    }
+
+    // Método unificado para envio de respostas (texto ou voz)
+    async sendResponse(chatId, textContent, forceText = false, userId = null) {
+        if (!this.isInitialized) {
+            logger.warn('Bot do Telegram não inicializado');
+            return false;
+        }
+
+        const useVoice = userId && this.getUserPreference(userId, 'voiceResponse', false) && !forceText;
+
+        // Verificação se serviço TTS foi configurado
+        if (useVoice && this.ttsService && (this.ttsService.client || this.ttsService.piperEnabled)) {
+            try {
+                logger.service(`🗣️ Gerando resposta em áudio para chat ${chatId}...`);
+                const audioBuffer = await this.ttsService.generateAudio(textContent);
+                
+                // Enviar como mensagem de voz
+                await this.bot.telegram.sendVoice(chatId, {
+                    source: audioBuffer,
+                    filename: 'response.ogg'
+                });
+                
+                logger.success(`✅ Áudio enviado para chat ${chatId}`);
+                return true;
+            } catch (ttsError) {
+                logger.error(`❌ Erro ao gerar/enviar áudio TTS para chat ${chatId}`, ttsError);
+                // Fallback para texto se TTS falhar
+                await this.bot.telegram.sendMessage(chatId, '❌ Erro ao gerar áudio. Enviando resposta em texto:');
+                await this.bot.telegram.sendMessage(chatId, textContent);
+                return true;
+            }
+        } else {
+            // Enviar como texto se preferência for texto, se TTS falhou na inicialização, ou se forçado
+            try {
+                await this.bot.telegram.sendMessage(chatId, textContent);
+                return true;
+            } catch (error) {
+                logger.error('Erro ao enviar mensagem Telegram:', error);
+                return false;
+            }
+        }
+    }
+
+    // Configuração de TTS
+    async handleTTSConfig(chatId, userId) {
+        const voiceEnabled = this.getUserPreference(userId, 'voiceResponse', false);
+        
+        let message = '🔊 <b>CONFIGURAÇÃO DE VOZ</b>\n\n';
+        message += `🎤 <b>Status atual:</b> ${voiceEnabled ? '✅ Ativado' : '❌ Desativado'}\n\n`;
+        
+        if (this.ttsService && (this.ttsService.client || this.ttsService.piperEnabled)) {
+            message += '📊 <b>Serviço TTS:</b> ✅ Disponível\n';
+            if (this.ttsService.client) {
+                message += '🌐 <b>Provedor:</b> ElevenLabs\n';
+            } else if (this.ttsService.piperEnabled) {
+                message += '🏠 <b>Provedor:</b> Piper (Local)\n';
+            }
+        } else {
+            message += '📊 <b>Serviço TTS:</b> ❌ Não disponível\n';
+            message += '⚠️ <i>Configure ElevenLabs ou Piper para usar respostas de voz</i>\n';
+        }
+        
+        message += '\n💡 <b>Como funciona:</b>\n';
+        message += '• Com voz ativada: Respostas serão enviadas como áudio\n';
+        message += '• Com voz desativada: Respostas serão enviadas como texto\n';
+        message += '• Fallback automático para texto se houver erro\n';
+        
+        const keyboard = {
+            inline_keyboard: [
+                [
+                    {
+                        text: voiceEnabled ? '🔇 Desativar Voz' : '🔊 Ativar Voz',
+                        callback_data: 'toggle_voice'
+                    }
+                ],
+                [{ text: '🔙 Voltar', callback_data: 'back_main' }]
+            ]
+        };
+        
+        await this.bot.telegram.sendMessage(chatId, message, {
+            parse_mode: 'HTML',
+            reply_markup: keyboard
+        });
+    }
+
+    // Toggle da preferência de voz
+    async toggleVoicePreference(chatId, userId) {
+        const voiceEnabled = this.toggleVoicePreferenceForUser(userId);
+        const message = voiceEnabled 
+            ? '🔊 <b>Respostas de voz ativadas!</b>\n\n🎤 Vou usar áudio para responder sempre que possível.'
+            : '💬 <b>Respostas de voz desativadas!</b>\n\n📝 Vou usar apenas texto para responder.';
+        
+        // Enviar confirmação sempre em texto para clareza
+        await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
+        
+        // Atualizar a interface de configuração
+        setTimeout(() => {
+            this.handleTTSConfig(chatId, userId);
+        }, 1500);
+    }
+
+    // Handler para importação de ICS
+    async handleICSImportAction(chatId, userId) {
+        this.userStates.set(userId, {
+            action: 'import_ics',
+            chatId: chatId,
+            step: 'waiting_file'
+        });
+        
+        let message = '📅 <b>IMPORTAR AGENDA (ICS)</b>\n\n';
+        message += '📎 <b>Envie um arquivo .ics</b> para importar eventos para seus lembretes.\n\n';
+        message += '💡 <b>Como obter arquivo ICS:</b>\n';
+        message += '• Google Calendar: Configurações > Importar/Exportar\n';
+        message += '• Outlook: Arquivo > Salvar Calendário\n';
+        message += '• Apple Calendar: Arquivo > Exportar\n\n';
+        message += '⚠️ <b>Importante:</b> Apenas arquivos .ics são aceitos';
+        
+        await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
+    }
+
+    buildEnhancedWelcomeMessage() {
+        let message = '🤖 <b>SecreBot - Telegram</b>\n\n';
+        message += '🎯 <b>MENU PRINCIPAL</b>\n\n';
+        message += '💡 <i>Clique nos botões abaixo ou digite o número correspondente:</i>\n\n';
+        message += '1️⃣ 📅 Agenda & Lembretes\n';
+        message += '2️⃣ 🧠 Inteligência Artificial\n';
+        message += '3️⃣ 🎬 Mídia & Conteúdo\n';
+        message += '4️⃣ 💼 Análise Profissional\n';
+        message += '5️⃣ ⚙️ Configurações\n';
+        message += '6️⃣ ❓ Suporte & Sistema\n\n';
+        message += '💡 <b>Navegação:</b> Use números para acesso rápido (ex: 1, 2.1, 2.3.1)';
+        return message;
+    }
+
+    // =========== HIERARCHICAL NAVIGATION SYSTEM ===========
+
+    getNavigationState(userId) {
+        return this.navigationStates.get(userId) || NAVIGATION_STATES.MAIN_MENU;
+    }
+
+    setNavigationState(userId, state) {
+        if (state === NAVIGATION_STATES.MAIN_MENU) {
+            this.navigationStates.delete(userId);
+            logger.log(`📍 Estado de navegação para usuário ${userId} resetado para menu principal.`);
+        } else {
+            this.navigationStates.set(userId, state);
+            logger.log(`📍 Estado de navegação para usuário ${userId} definido para: ${state}`);
+        }
+    }
+
+    async handleHierarchicalNavigation(ctx, userId, text, navigationState) {
+        const chatId = ctx.chat.id;
+        const numericInput = text.trim();
+        
+        // No menu principal (1-6)
+        if (navigationState === NAVIGATION_STATES.MAIN_MENU) {
+            switch (numericInput) {
+                case '1':
+                    this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_AGENDA);
+                    await this.sendSubmenuMessage(chatId, 'agenda', userId);
+                    return true;
+                case '2':
+                    this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_IA);
+                    await this.sendSubmenuMessage(chatId, 'ia', userId);
+                    return true;
+                case '3':
+                    this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_MIDIA);
+                    await this.sendSubmenuMessage(chatId, 'midia', userId);
+                    return true;
+                case '4':
+                    this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_PROFISSIONAL);
+                    await this.sendSubmenuMessage(chatId, 'profissional', userId);
+                    return true;
+                case '5':
+                    this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_CONFIG);
+                    await this.sendSubmenuMessage(chatId, 'config', userId);
+                    return true;
+                case '6':
+                    this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_SUPORTE);
+                    await this.sendSubmenuMessage(chatId, 'suporte', userId);
+                    return true;
+                case '0':
+                    this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                    await this.handleStart(ctx);
+                    return true;
+            }
+            return false;
+        }
+
+        // Nos submenus
+        return await this.handleSubmenuNavigation(ctx, userId, numericInput, navigationState);
+    }
+
+    async handleSubmenuNavigation(ctx, userId, numericInput, navigationState) {
+        const chatId = ctx.chat.id;
+        
+        switch (navigationState) {
+            case NAVIGATION_STATES.SUBMENU_AGENDA:
+                return await this.handleAgendaSubmenu(ctx, userId, numericInput);
+            case NAVIGATION_STATES.SUBMENU_IA:
+                return await this.handleIASubmenu(ctx, userId, numericInput);
+            case NAVIGATION_STATES.SUBMENU_MIDIA:
+                return await this.handleMidiaSubmenu(ctx, userId, numericInput);
+            case NAVIGATION_STATES.SUBMENU_PROFISSIONAL:
+                return await this.handleProfissionalSubmenu(ctx, userId, numericInput);
+            case NAVIGATION_STATES.SUBMENU_CONFIG:
+                return await this.handleConfigSubmenu(ctx, userId, numericInput);
+            case NAVIGATION_STATES.SUBMENU_SUPORTE:
+                return await this.handleSuporteSubmenu(ctx, userId, numericInput);
+            case NAVIGATION_STATES.SUBMENU_VIDEO:
+                return await this.handleVideoSubmenu(ctx, userId, numericInput);
+            default:
+                return false;
+        }
+    }
+
+    async sendSubmenuMessage(chatId, menuType, userId) {
+        const features = await this.featureToggles.getUserFeatures(userId);
+        const keyboard = await this.buildSubMenu(menuType, userId);
+        
+        const messages = {
+            'agenda': '📅 <b>AGENDA & LEMBRETES</b>\n\n🎯 Escolha uma opção ou digite o número correspondente:\n\n1.1 ➕ Agendamento Inteligente\n1.2 📋 Listar Lembretes\n1.3 🗑️ Deletar Lembrete\n1.4 📅 Importar Agenda (ICS)\n1.5 🔗 Google Calendar\n\n0️⃣ Voltar ao menu principal',
+            'ia': '🧠 <b>INTELIGÊNCIA ARTIFICIAL</b>\n\n🎯 Escolha uma opção ou digite o número correspondente:\n\n2.1 💬 Chat Assistente\n2.2 📄 Resumir Texto\n2.3 🎥 Resumir Vídeo\n2.4 🖼️ Analisar Imagem\n2.5 🎤📄 Transcrever e Resumir\n\n0️⃣ Voltar ao menu principal',
+            'midia': '🎬 <b>MÍDIA & CONTEÚDO</b>\n\n🎯 Escolha uma opção ou digite o número correspondente:\n\n3.1 🎤 Transcrever Áudio\n3.2 🔊 Configurar Voz\n3.3 🍎 Calcular Calorias\n\n0️⃣ Voltar ao menu principal',
+            'profissional': '💼 <b>ANÁLISE PROFISSIONAL</b>\n\n🎯 Escolha uma opção ou digite o número correspondente:\n\n4.1 🔗 Analisar LinkedIn\n4.2 📊 Recursos Sistema\n\n0️⃣ Voltar ao menu principal',
+            'config': '⚙️ <b>CONFIGURAÇÕES</b>\n\n🎯 Escolha uma opção ou digite o número correspondente:\n\n5.1 🤖 Modelos IA\n5.2 🎤 Modelos Whisper\n5.3 🔧 Feature Toggles\n\n0️⃣ Voltar ao menu principal',
+            'suporte': '❓ <b>SUPORTE & SISTEMA</b>\n\n🎯 Escolha uma opção ou digite o número correspondente:\n\n6.1 ❓ Ajuda\n6.2 📊 Recursos Sistema\n\n0️⃣ Voltar ao menu principal'
+        };
+
+        await this.bot.telegram.sendMessage(chatId, messages[menuType] || 'Menu não encontrado', {
+            parse_mode: 'HTML',
+            reply_markup: keyboard
+        });
+    }
+
+    async handleAgendaSubmenu(ctx, userId, input) {
+        const chatId = ctx.chat.id;
+        
+        switch (input) {
+            case '1.1':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleAction(ctx, 'action_smart_scheduling');
+                return true;
+            case '1.2':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.integrationService.processListReminders(chatId, userId);
+                return true;
+            case '1.3':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleAction(ctx, 'action_delete_reminder');
+                return true;
+            case '1.4':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleICSImportAction(chatId, userId);
+                return true;
+            case '1.5':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.integrationService.processGoogleCalendarIntegration(chatId, userId);
+                return true;
+            case '0':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleStart(ctx);
+                return true;
+        }
+        return false;
+    }
+
+    async handleIASubmenu(ctx, userId, input) {
+        const chatId = ctx.chat.id;
+        
+        switch (input) {
+            case '2.1':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleAction(ctx, 'action_chat');
+                return true;
+            case '2.2':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleAction(ctx, 'action_summarize');
+                return true;
+            case '2.3':
+                this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_VIDEO);
+                await this.sendVideoSubmenuMessage(chatId, userId);
+                return true;
+            case '2.4':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleAction(ctx, 'action_analyze_image');
+                return true;
+            case '2.5':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleAction(ctx, 'action_transcribe_summary');
+                return true;
+            case '0':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleStart(ctx);
+                return true;
+        }
+        return false;
+    }
+
+    async handleMidiaSubmenu(ctx, userId, input) {
+        const chatId = ctx.chat.id;
+        
+        switch (input) {
+            case '3.1':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleAction(ctx, 'action_transcribe');
+                return true;
+            case '3.2':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleTTSConfig(chatId, userId);
+                return true;
+            case '3.3':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleAction(ctx, 'action_calories');
+                return true;
+            case '0':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleStart(ctx);
+                return true;
+        }
+        return false;
+    }
+
+    async handleProfissionalSubmenu(ctx, userId, input) {
+        const chatId = ctx.chat.id;
+        
+        switch (input) {
+            case '4.1':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleAction(ctx, 'action_linkedin');
+                return true;
+            case '4.2':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.showSystemResources(chatId);
+                return true;
+            case '0':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleStart(ctx);
+                return true;
+        }
+        return false;
+    }
+
+    async handleConfigSubmenu(ctx, userId, input) {
+        const chatId = ctx.chat.id;
+        
+        switch (input) {
+            case '5.1':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.showAIModels(chatId);
+                return true;
+            case '5.2':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.showWhisperModels(chatId);
+                return true;
+            case '5.3':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.showFeatureToggles(chatId, userId);
+                return true;
+            case '0':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleStart(ctx);
+                return true;
+        }
+        return false;
+    }
+
+    async handleSuporteSubmenu(ctx, userId, input) {
+        const chatId = ctx.chat.id;
+        
+        switch (input) {
+            case '6.1':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.bot.telegram.sendMessage(chatId, TELEGRAM_MESSAGES.help, { parse_mode: 'HTML' });
+                return true;
+            case '6.2':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.showSystemResources(chatId);
+                return true;
+            case '0':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleStart(ctx);
+                return true;
+        }
+        return false;
+    }
+
+    async handleVideoSubmenu(ctx, userId, input) {
+        const chatId = ctx.chat.id;
+        
+        switch (input) {
+            case '2.3.1':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleAction(ctx, 'action_video_summary');
+                return true;
+            case '2.3.2':
+                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
+                await this.handleAction(ctx, 'action_video_summary'); // Both use the same handler
+                return true;
+            case '0':
+                this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_IA);
+                await this.sendSubmenuMessage(chatId, 'ia', userId);
+                return true;
+        }
+        return false;
+    }
+
+    async sendVideoSubmenuMessage(chatId, userId) {
+        const message = '🎥 <b>RESUMIR VÍDEO</b>\n\n🎯 Escolha uma opção ou digite o número correspondente:\n\n2.3.1 🎥 Resumir Vídeo (Método 1)\n2.3.2 🎥 Resumir Vídeo (Método 2)\n\n0️⃣ Voltar ao menu IA';
+        
+        const keyboard = {
+            inline_keyboard: [
+                [{ text: '🎥 Resumir Vídeo (Método 1)', callback_data: 'action_video_summary' }],
+                [{ text: '🎥 Resumir Vídeo (Método 2)', callback_data: 'action_video_summary' }],
+                [{ text: '🔙 Voltar ao IA', callback_data: 'menu_ia' }]
+            ]
+        };
+
+        await this.bot.telegram.sendMessage(chatId, message, {
+            parse_mode: 'HTML',
+            reply_markup: keyboard
+        });
     }
 }
 

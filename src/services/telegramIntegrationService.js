@@ -562,6 +562,227 @@ class TelegramIntegrationService {
             return null;
         }
     }
+
+    // =========== ADVANCED SCHEDULING FEATURES ===========
+
+    async processSmartScheduling(chatId, text, userId) {
+        try {
+            await this.bot.telegram.sendMessage(chatId, '📅 Processando agendamento inteligente...');
+            
+            // Use LLM to parse natural language into schedule data
+            const currentDate = new Date().toISOString();
+            const prompt = `Você é um assistente chamado Marvin Agenda.
+Seu objetivo é ajudar o usuário a agendar compromissos.
+A data e hora atuais são: ${currentDate}.
+Quando o usuário quiser agendar um compromisso, você deve coletar os dados obrigatórios "message" e "scheduledTime", completando os demais campos conforme o exemplo abaixo.
+Quando todos os dados forem fornecidos, responda apenas com o JSON estruturado:
+
+{
+  "message": "mensagem_de_texto",
+  "status": "approved",
+  "scheduledTime": {
+    "$date": "data_no_formato_ISO8601"
+  },
+  "expiryTime": {
+    "$date": "data_no_formato_ISO8601"
+  },
+  "sentAt": null,
+  "attempts": 0,
+  "lastAttemptAt": null
+}
+
+Importante: Quando responder com o JSON, não adicione nenhuma explicação ou texto adicional. sempre retornar um json em qualquer hipotese e as datas no formato esperado`;
+
+            const response = await this.llmService.generateResponse(text, {
+                maxTokens: 1000,
+                temperature: 0.3,
+                systemPrompt: prompt
+            });
+
+            try {
+                // Extract JSON from response
+                const jsonMatch = response.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) {
+                    throw new Error('No JSON found in response');
+                }
+                
+                const scheduleData = JSON.parse(jsonMatch[0]);
+                
+                // Validate required fields
+                if (!scheduleData.message || !scheduleData.scheduledTime || !scheduleData.scheduledTime.$date) {
+                    throw new Error('Dados de agendamento incompletos');
+                }
+
+                // Convert to scheduler format
+                const scheduleToInsert = {
+                    recipient: userId.toString(),
+                    message: scheduleData.message,
+                    status: 'approved',
+                    scheduledTime: new Date(scheduleData.scheduledTime.$date),
+                    expiryTime: scheduleData.expiryTime ? new Date(scheduleData.expiryTime.$date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days default
+                    sentAt: null,
+                    attempts: 0,
+                    lastAttemptAt: null
+                };
+
+                // Insert into scheduler
+                await this.scheduler.insertSchedule(scheduleToInsert);
+                
+                const scheduledDate = scheduleToInsert.scheduledTime.toLocaleString('pt-BR');
+                let message = '✅ <b>Lembrete criado com sucesso!</b>\n\n';
+                message += `📝 <b>Mensagem:</b> ${scheduleToInsert.message}\n`;
+                message += `📅 <b>Data/Hora:</b> ${scheduledDate}\n\n`;
+                message += '💡 Você receberá o lembrete no horário agendado.';
+                
+                await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
+                
+            } catch (parseError) {
+                logger.verbose('LLM não retornou JSON válido, enviando como texto de esclarecimento');
+                await this.bot.telegram.sendMessage(chatId, `🤖 ${response}`);
+            }
+            
+        } catch (error) {
+            logger.error('Erro no agendamento inteligente Telegram:', error);
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao processar o agendamento. Tente ser mais específico com data e hora.');
+        }
+    }
+
+    async processDeleteReminder(chatId, input, userId) {
+        try {
+            await this.bot.telegram.sendMessage(chatId, '🗑️ Processando exclusão...');
+            
+            // First, get user's reminders for deletion context
+            const reminders = await this.scheduler.listSchedules(userId.toString());
+            
+            if (!reminders || typeof reminders === 'string') {
+                await this.bot.telegram.sendMessage(chatId, 'Você não possui lembretes para deletar.');
+                return;
+            }
+
+            // Try to parse as number (position in list)
+            const reminderIndex = parseInt(input.trim()) - 1;
+            
+            if (!isNaN(reminderIndex) && reminderIndex >= 0) {
+                // Delete by position
+                const result = await this.scheduler.deleteSchedule(userId.toString(), (reminderIndex + 1).toString());
+                
+                if (result.startsWith('✅')) {
+                    await this.bot.telegram.sendMessage(chatId, '✅ <b>Lembrete deletado com sucesso!</b>', { parse_mode: 'HTML' });
+                } else {
+                    await this.bot.telegram.sendMessage(chatId, result);
+                }
+            } else {
+                // Try to match by message content
+                const matchingReminders = await this.findRemindersByText(userId.toString(), input);
+                
+                if (matchingReminders.length === 0) {
+                    await this.bot.telegram.sendMessage(chatId, 'Nenhum lembrete encontrado com esse texto. Tente usar o número do lembrete da lista.');
+                } else if (matchingReminders.length === 1) {
+                    // Delete the single match
+                    await this.deleteReminderById(matchingReminders[0]._id);
+                    await this.bot.telegram.sendMessage(chatId, '✅ <b>Lembrete deletado com sucesso!</b>', { parse_mode: 'HTML' });
+                } else {
+                    // Multiple matches, ask for clarification
+                    let message = '🎯 <b>Múltiplos lembretes encontrados:</b>\n\n';
+                    matchingReminders.forEach((reminder, index) => {
+                        const scheduledDate = new Date(reminder.scheduledTime).toLocaleString('pt-BR');
+                        message += `${index + 1}. <b>${reminder.message}</b>\n   📅 ${scheduledDate}\n\n`;
+                    });
+                    message += '🔢 Digite o número do lembrete que deseja deletar:';
+                    
+                    await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
+                }
+            }
+            
+        } catch (error) {
+            logger.error('Erro ao deletar lembrete Telegram:', error);
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao deletar o lembrete.');
+        }
+    }
+
+    async findRemindersByText(userId, searchText) {
+        try {
+            if (!this.scheduler.schedCollection) return [];
+            
+            const regex = new RegExp(searchText, 'i');
+            const reminders = await this.scheduler.schedCollection
+                .find({
+                    recipient: userId,
+                    status: 'approved',
+                    message: { $regex: regex }
+                })
+                .sort({ scheduledTime: 1 })
+                .toArray();
+                
+            return reminders;
+        } catch (error) {
+            logger.error('Erro ao buscar lembretes por texto:', error);
+            return [];
+        }
+    }
+
+    async deleteReminderById(reminderId) {
+        try {
+            if (!this.scheduler.schedCollection) return false;
+            
+            const result = await this.scheduler.schedCollection.deleteOne({ _id: reminderId });
+            return result.deletedCount > 0;
+        } catch (error) {
+            logger.error('Erro ao deletar lembrete por ID:', error);
+            return false;
+        }
+    }
+
+    async processICSImport(chatId, document, userId) {
+        try {
+            await this.bot.telegram.sendMessage(chatId, '📅 Importando agenda...');
+            
+            const fileId = document.file_id;
+            const fileName = document.file_name;
+            
+            // Verificar se é arquivo ICS
+            if (!fileName.toLowerCase().endsWith('.ics')) {
+                await this.bot.telegram.sendMessage(chatId, '❌ Arquivo deve ser do tipo .ics (calendário)');
+                return;
+            }
+
+            const file = await this.bot.telegram.getFile(fileId);
+            const filePath = file.file_path;
+            const fileUrl = `https://api.telegram.org/file/bot${config.telegram.botToken}/${filePath}`;
+            
+            const tempFilePath = await this.downloadFile(fileUrl, 'document', fileName);
+            
+            try {
+                const fileBuffer = fs.readFileSync(tempFilePath);
+                
+                // Dynamic import of ICS service
+                const { default: ICSImportService } = await import('./icsImportService.js');
+                const icsService = new ICSImportService(this.scheduler);
+                
+                await icsService.importFromBuffer(fileBuffer, userId.toString());
+                
+                await this.bot.telegram.sendMessage(chatId, '✅ <b>Eventos importados com sucesso!</b>\n\n📅 Use "Listar Lembretes" para ver os eventos adicionados.', { parse_mode: 'HTML' });
+                
+            } finally {
+                if (fs.existsSync(tempFilePath)) {
+                    fs.unlinkSync(tempFilePath);
+                }
+            }
+            
+        } catch (error) {
+            logger.error('Erro ao importar ICS Telegram:', error);
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao importar o arquivo de calendário.');
+        }
+    }
+
+    async processGoogleCalendarIntegration(chatId, userId) {
+        try {
+            await this.bot.telegram.sendMessage(chatId, '📅 <b>Integração com Google Calendar</b>\n\n⚠️ Funcionalidade em desenvolvimento.\n\nEm breve você poderá sincronizar seus eventos do Google Calendar!', { parse_mode: 'HTML' });
+        } catch (error) {
+            logger.error('Erro na integração Google Calendar:', error);
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao acessar integração com Google Calendar.');
+        }
+    }
 }
 
 export { TelegramIntegrationService };

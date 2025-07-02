@@ -5,7 +5,7 @@ import { TELEGRAM_COMMANDS, TELEGRAM_MESSAGES } from '../constants/telegramComma
 import { createFeatureToggleManager } from '../services/featureToggleService.js';
 import { TelegramIntegrationService } from '../services/telegramIntegrationService.js';
 import { Ollama } from 'ollama';
-import { CONFIG, WHISPER_MODELS_LIST, NAVIGATION_STATES } from '../config/index.js';
+import { CONFIG, WHISPER_MODELS_LIST } from '../config/index.js';
 import si from 'systeminformation';
 import TtsService from '../services/ttsService.js';
 import path from 'path';
@@ -20,7 +20,6 @@ class TelegramBotService {
         this.featureToggles = null;
         this.userStates = new Map(); // Armazena estado de navegação por usuário
         this.userPreferences = new Map(); // Armazena preferências do usuário
-        this.navigationStates = new Map(); // Armazena estado de navegação hierárquica
         this.integrationService = null;
         this.ollamaClient = new Ollama({ host: CONFIG.llm.host });
         this.ttsService = new TtsService();
@@ -118,7 +117,6 @@ class TelegramBotService {
         
         // Resetar estado do usuário
         this.userStates.delete(userId);
-        this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
         
         const welcomeMessage = this.buildEnhancedWelcomeMessage();
         const mainMenu = await this.buildMainMenu(userId);
@@ -150,8 +148,12 @@ class TelegramBotService {
 
             await ctx.reply(
                 '🎤📄 <b>Transcrever e Resumir Áudio</b>\n\n' +
-                'Envie um áudio para transcrever e receber um resumo inteligente do conteúdo.\n\n' +
-                '💡 <i>O áudio será processado usando Whisper para transcrição e IA para resumo.</i>',
+                '🎯 Envie um áudio para transcrição automática e resumo inteligente!\n\n' +
+                '✨ <b>Recursos:</b>\n' +
+                '• 🎤 Transcrição precisa com Whisper\n' +
+                '• 🧠 Resumo inteligente com IA\n' +
+                '• 📱 Suporte a diversos formatos de áudio\n\n' +
+                '🎵 <i>Aguardando seu áudio...</i>',
                 { parse_mode: 'HTML' }
             );
         } catch (error) {
@@ -377,12 +379,6 @@ class TelegramBotService {
         const userId = ctx.from.id;
         const text = ctx.message.text;
 
-        // Primeiro, verificar se é navegação hierárquica
-        const navigationState = this.getNavigationState(userId);
-        if (await this.handleHierarchicalNavigation(ctx, userId, text, navigationState)) {
-            return; // Navegação hierárquica processada
-        }
-
         const userState = this.userStates.get(userId);
         if (!userState) {
             // Mensagem sem contexto - tratar como chat geral se IA estiver habilitada
@@ -502,16 +498,18 @@ class TelegramBotService {
 
     // Métodos auxiliares de configuração
     async showAIModels(chatId) {
-        await this.bot.telegram.sendMessage(chatId, '🤖 Modelos de IA disponíveis:\n\n(Implementar listagem de modelos)');
+        const message = '🤖 <b>Modelos de IA Disponíveis</b>\n\n📊 <i>Esta funcionalidade estará disponível em breve!</i>\n\nVocê poderá visualizar e selecionar diferentes modelos de IA para suas consultas.';
+        await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
     }
 
     async showWhisperModels(chatId) {
-        await this.bot.telegram.sendMessage(chatId, '🎤 Modelos Whisper disponíveis:\n\n(Implementar listagem de modelos)');
+        const message = '🎤 <b>Modelos de Áudio Disponíveis</b>\n\n📊 <i>Esta funcionalidade estará disponível em breve!</i>\n\nVocê poderá escolher diferentes modelos para transcrição de áudio.';
+        await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
     }
 
     async showFeatureToggles(chatId, userId) {
         const features = await this.featureToggles.getUserFeatures(userId);
-        let message = '🔧 <b>Feature Toggles:</b>\n\n';
+        let message = '🔧 <b>Funcionalidades Disponíveis:</b>\n\n';
         
         for (const [key, value] of Object.entries(features)) {
             const icon = value ? '✅' : '❌';
@@ -520,6 +518,20 @@ class TelegramBotService {
         }
 
         await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
+    }
+
+    async showSystemResources(chatId) {
+        try {
+            const message = '📊 <b>Monitor de Sistema</b>\n\n📊 <i>Carregando informações do sistema...</i>';
+            await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
+            
+            // Implementar coleta de dados do sistema aqui
+            const systemInfo = '💻 <b>Recursos do Sistema:</b>\n\n📊 <i>Funcionalidade em desenvolvimento</i>\n\nEm breve você poderá monitorar:\n• CPU e Memória\n• Espaço em disco\n• Status dos serviços';
+            await this.bot.telegram.sendMessage(chatId, systemInfo, { parse_mode: 'HTML' });
+        } catch (error) {
+            logger.error('Erro ao mostrar recursos do sistema:', error);
+            await this.bot.telegram.sendMessage(chatId, '⚠️ Erro ao carregar informações do sistema.');
+        }
     }
 
     // Métodos de processamento específicos (placeholders)
@@ -705,308 +717,9 @@ class TelegramBotService {
     }
 
     buildEnhancedWelcomeMessage() {
-        let message = '🤖 <b>SecreBot - Telegram</b>\n\n';
-        message += '🎯 <b>MENU PRINCIPAL</b>\n\n';
-        message += '💡 <i>Clique nos botões abaixo ou digite o número correspondente:</i>\n\n';
-        message += '1️⃣ 📅 Agenda & Lembretes\n';
-        message += '2️⃣ 🧠 Inteligência Artificial\n';
-        message += '3️⃣ 🎬 Mídia & Conteúdo\n';
-        message += '4️⃣ 💼 Análise Profissional\n';
-        message += '5️⃣ ⚙️ Configurações\n';
-        message += '6️⃣ ❓ Suporte & Sistema\n\n';
-        message += '💡 <b>Navegação:</b> Use números para acesso rápido (ex: 1, 2.1, 2.3.1)';
-        return message;
+        return TELEGRAM_MESSAGES.welcome;
     }
 
-    // =========== HIERARCHICAL NAVIGATION SYSTEM ===========
-
-    getNavigationState(userId) {
-        return this.navigationStates.get(userId) || NAVIGATION_STATES.MAIN_MENU;
-    }
-
-    setNavigationState(userId, state) {
-        if (state === NAVIGATION_STATES.MAIN_MENU) {
-            this.navigationStates.delete(userId);
-            logger.log(`📍 Estado de navegação para usuário ${userId} resetado para menu principal.`);
-        } else {
-            this.navigationStates.set(userId, state);
-            logger.log(`📍 Estado de navegação para usuário ${userId} definido para: ${state}`);
-        }
-    }
-
-    async handleHierarchicalNavigation(ctx, userId, text, navigationState) {
-        const chatId = ctx.chat.id;
-        const numericInput = text.trim();
-        
-        // No menu principal (1-6)
-        if (navigationState === NAVIGATION_STATES.MAIN_MENU) {
-            switch (numericInput) {
-                case '1':
-                    this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_AGENDA);
-                    await this.sendSubmenuMessage(chatId, 'agenda', userId);
-                    return true;
-                case '2':
-                    this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_IA);
-                    await this.sendSubmenuMessage(chatId, 'ia', userId);
-                    return true;
-                case '3':
-                    this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_MIDIA);
-                    await this.sendSubmenuMessage(chatId, 'midia', userId);
-                    return true;
-                case '4':
-                    this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_PROFISSIONAL);
-                    await this.sendSubmenuMessage(chatId, 'profissional', userId);
-                    return true;
-                case '5':
-                    this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_CONFIG);
-                    await this.sendSubmenuMessage(chatId, 'config', userId);
-                    return true;
-                case '6':
-                    this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_SUPORTE);
-                    await this.sendSubmenuMessage(chatId, 'suporte', userId);
-                    return true;
-                case '0':
-                    this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                    await this.handleStart(ctx);
-                    return true;
-            }
-            return false;
-        }
-
-        // Nos submenus
-        return await this.handleSubmenuNavigation(ctx, userId, numericInput, navigationState);
-    }
-
-    async handleSubmenuNavigation(ctx, userId, numericInput, navigationState) {
-        const chatId = ctx.chat.id;
-        
-        switch (navigationState) {
-            case NAVIGATION_STATES.SUBMENU_AGENDA:
-                return await this.handleAgendaSubmenu(ctx, userId, numericInput);
-            case NAVIGATION_STATES.SUBMENU_IA:
-                return await this.handleIASubmenu(ctx, userId, numericInput);
-            case NAVIGATION_STATES.SUBMENU_MIDIA:
-                return await this.handleMidiaSubmenu(ctx, userId, numericInput);
-            case NAVIGATION_STATES.SUBMENU_PROFISSIONAL:
-                return await this.handleProfissionalSubmenu(ctx, userId, numericInput);
-            case NAVIGATION_STATES.SUBMENU_CONFIG:
-                return await this.handleConfigSubmenu(ctx, userId, numericInput);
-            case NAVIGATION_STATES.SUBMENU_SUPORTE:
-                return await this.handleSuporteSubmenu(ctx, userId, numericInput);
-            case NAVIGATION_STATES.SUBMENU_VIDEO:
-                return await this.handleVideoSubmenu(ctx, userId, numericInput);
-            default:
-                return false;
-        }
-    }
-
-    async sendSubmenuMessage(chatId, menuType, userId) {
-        const features = await this.featureToggles.getUserFeatures(userId);
-        const keyboard = await this.buildSubMenu(menuType, userId);
-        
-        const messages = {
-            'agenda': '📅 <b>AGENDA & LEMBRETES</b>\n\n🎯 Escolha uma opção ou digite o número correspondente:\n\n1.1 ➕ Agendamento Inteligente\n1.2 📋 Listar Lembretes\n1.3 🗑️ Deletar Lembrete\n1.4 📅 Importar Agenda (ICS)\n1.5 🔗 Google Calendar\n\n0️⃣ Voltar ao menu principal',
-            'ia': '🧠 <b>INTELIGÊNCIA ARTIFICIAL</b>\n\n🎯 Escolha uma opção ou digite o número correspondente:\n\n2.1 💬 Chat Assistente\n2.2 📄 Resumir Texto\n2.3 🎥 Resumir Vídeo\n2.4 🖼️ Analisar Imagem\n2.5 🎤📄 Transcrever e Resumir\n\n0️⃣ Voltar ao menu principal',
-            'midia': '🎬 <b>MÍDIA & CONTEÚDO</b>\n\n🎯 Escolha uma opção ou digite o número correspondente:\n\n3.1 🎤 Transcrever Áudio\n3.2 🔊 Configurar Voz\n3.3 🍎 Calcular Calorias\n\n0️⃣ Voltar ao menu principal',
-            'profissional': '💼 <b>ANÁLISE PROFISSIONAL</b>\n\n🎯 Escolha uma opção ou digite o número correspondente:\n\n4.1 🔗 Analisar LinkedIn\n4.2 📊 Recursos Sistema\n\n0️⃣ Voltar ao menu principal',
-            'config': '⚙️ <b>CONFIGURAÇÕES</b>\n\n🎯 Escolha uma opção ou digite o número correspondente:\n\n5.1 🤖 Modelos IA\n5.2 🎤 Modelos Whisper\n5.3 🔧 Feature Toggles\n\n0️⃣ Voltar ao menu principal',
-            'suporte': '❓ <b>SUPORTE & SISTEMA</b>\n\n🎯 Escolha uma opção ou digite o número correspondente:\n\n6.1 ❓ Ajuda\n6.2 📊 Recursos Sistema\n\n0️⃣ Voltar ao menu principal'
-        };
-
-        await this.bot.telegram.sendMessage(chatId, messages[menuType] || 'Menu não encontrado', {
-            parse_mode: 'HTML',
-            reply_markup: keyboard
-        });
-    }
-
-    async handleAgendaSubmenu(ctx, userId, input) {
-        const chatId = ctx.chat.id;
-        
-        switch (input) {
-            case '1.1':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleAction(ctx, 'action_smart_scheduling');
-                return true;
-            case '1.2':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.integrationService.processListReminders(chatId, userId);
-                return true;
-            case '1.3':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleAction(ctx, 'action_delete_reminder');
-                return true;
-            case '1.4':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleICSImportAction(chatId, userId);
-                return true;
-            case '1.5':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.integrationService.processGoogleCalendarIntegration(chatId, userId);
-                return true;
-            case '0':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleStart(ctx);
-                return true;
-        }
-        return false;
-    }
-
-    async handleIASubmenu(ctx, userId, input) {
-        const chatId = ctx.chat.id;
-        
-        switch (input) {
-            case '2.1':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleAction(ctx, 'action_chat');
-                return true;
-            case '2.2':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleAction(ctx, 'action_summarize');
-                return true;
-            case '2.3':
-                this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_VIDEO);
-                await this.sendVideoSubmenuMessage(chatId, userId);
-                return true;
-            case '2.4':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleAction(ctx, 'action_analyze_image');
-                return true;
-            case '2.5':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleAction(ctx, 'action_transcribe_summary');
-                return true;
-            case '0':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleStart(ctx);
-                return true;
-        }
-        return false;
-    }
-
-    async handleMidiaSubmenu(ctx, userId, input) {
-        const chatId = ctx.chat.id;
-        
-        switch (input) {
-            case '3.1':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleAction(ctx, 'action_transcribe');
-                return true;
-            case '3.2':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleTTSConfig(chatId, userId);
-                return true;
-            case '3.3':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleAction(ctx, 'action_calories');
-                return true;
-            case '0':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleStart(ctx);
-                return true;
-        }
-        return false;
-    }
-
-    async handleProfissionalSubmenu(ctx, userId, input) {
-        const chatId = ctx.chat.id;
-        
-        switch (input) {
-            case '4.1':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleAction(ctx, 'action_linkedin');
-                return true;
-            case '4.2':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.showSystemResources(chatId);
-                return true;
-            case '0':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleStart(ctx);
-                return true;
-        }
-        return false;
-    }
-
-    async handleConfigSubmenu(ctx, userId, input) {
-        const chatId = ctx.chat.id;
-        
-        switch (input) {
-            case '5.1':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.showAIModels(chatId);
-                return true;
-            case '5.2':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.showWhisperModels(chatId);
-                return true;
-            case '5.3':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.showFeatureToggles(chatId, userId);
-                return true;
-            case '0':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleStart(ctx);
-                return true;
-        }
-        return false;
-    }
-
-    async handleSuporteSubmenu(ctx, userId, input) {
-        const chatId = ctx.chat.id;
-        
-        switch (input) {
-            case '6.1':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.bot.telegram.sendMessage(chatId, TELEGRAM_MESSAGES.help, { parse_mode: 'HTML' });
-                return true;
-            case '6.2':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.showSystemResources(chatId);
-                return true;
-            case '0':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleStart(ctx);
-                return true;
-        }
-        return false;
-    }
-
-    async handleVideoSubmenu(ctx, userId, input) {
-        const chatId = ctx.chat.id;
-        
-        switch (input) {
-            case '2.3.1':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleAction(ctx, 'action_video_summary');
-                return true;
-            case '2.3.2':
-                this.setNavigationState(userId, NAVIGATION_STATES.MAIN_MENU);
-                await this.handleAction(ctx, 'action_video_summary'); // Both use the same handler
-                return true;
-            case '0':
-                this.setNavigationState(userId, NAVIGATION_STATES.SUBMENU_IA);
-                await this.sendSubmenuMessage(chatId, 'ia', userId);
-                return true;
-        }
-        return false;
-    }
-
-    async sendVideoSubmenuMessage(chatId, userId) {
-        const message = '🎥 <b>RESUMIR VÍDEO</b>\n\n🎯 Escolha uma opção ou digite o número correspondente:\n\n2.3.1 🎥 Resumir Vídeo (Método 1)\n2.3.2 🎥 Resumir Vídeo (Método 2)\n\n0️⃣ Voltar ao menu IA';
-        
-        const keyboard = {
-            inline_keyboard: [
-                [{ text: '🎥 Resumir Vídeo (Método 1)', callback_data: 'action_video_summary' }],
-                [{ text: '🎥 Resumir Vídeo (Método 2)', callback_data: 'action_video_summary' }],
-                [{ text: '🔙 Voltar ao IA', callback_data: 'menu_ia' }]
-            ]
-        };
-
-        await this.bot.telegram.sendMessage(chatId, message, {
-            parse_mode: 'HTML',
-            reply_markup: keyboard
-        });
-    }
 }
 
 export { TelegramBotService };

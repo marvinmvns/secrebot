@@ -341,6 +341,10 @@ class WhatsAppBot {
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
         await this.handleMessage({ ...msg, body: COMMANDS.FOTO });
         return true;
+      case '2.5':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.TRANSCREVER_RESUMIR });
+        return true;
       case '0':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
         await this.sendResponse(contactId, MENU_MESSAGE);
@@ -405,9 +409,17 @@ class WhatsAppBot {
         return true;
       case '5.5':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
-        await this.handleMessage({ ...msg, body: COMMANDS.REINICIAR_OLLAMA });
+        await this.handleMessage({ ...msg, body: COMMANDS.MODELOS_WHISPER });
         return true;
       case '5.6':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.TROCAR_MODELO_WHISPER });
+        return true;
+      case '5.7':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.REINICIAR_OLLAMA });
+        return true;
+      case '5.8':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
         await this.handleMessage({ ...msg, body: COMMANDS.REINICIAR_WHISPER });
         return true;

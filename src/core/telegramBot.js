@@ -23,6 +23,7 @@ class TelegramBotService {
         try {
             if (!config.telegram?.botToken) {
                 logger.warn('Telegram bot token não configurado. Bot do Telegram desabilitado.');
+                this.isInitialized = false;
                 return;
             }
 
@@ -517,6 +518,11 @@ class TelegramBotService {
             logger.error('Erro ao enviar mensagem Telegram:', error);
             return false;
         }
+    }
+
+    // Método para aguardar inicialização
+    async waitForInitialization() {
+        await this.initPromise;
     }
 
     // Método para verificar se está ativo

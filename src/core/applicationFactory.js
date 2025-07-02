@@ -139,14 +139,16 @@ export class ApplicationFactory {
       const telegramBot = new TelegramBotService();
       
       // Wait for initialization to complete
-      //await telegramBot.waitForInitialization();
-
-      if (typeof telegramBot.initialize === 'function') {
-          await telegramBot.initialize();
+      try {
+        await telegramBot.waitForInitialization();
+        
+        if (!telegramBot.isActive()) {
+          throw new Error('Bot do Telegram falhou ao inicializar - verifique o token e conectividade');
         }
-      
-      if (!telegramBot.isActive()) {
-        throw new Error('Bot do Telegram falhou ao inicializar - verifique o token e conectividade');
+      } catch (initError) {
+        // Se a inicialização falhar, registre o erro e relance
+        logger.error('Erro durante inicialização do Telegram bot:', initError);
+        throw initError;
       }
 
       this.services.set('telegramBot', telegramBot);

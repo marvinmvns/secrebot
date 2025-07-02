@@ -10,6 +10,7 @@ import { config } from '../config/config.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fetch from 'node-fetch';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,7 +28,7 @@ class TelegramIntegrationService {
 
     async processAIChat(chatId, text, userId) {
         try {
-            await this.bot.sendMessage(chatId, '🤖 Gerando resposta...');
+            await this.bot.telegram.sendMessage(chatId, '🤖 Gerando resposta...');
             
             const response = await this.llmService.generateResponse(text, {
                 maxTokens: 2000,
@@ -39,7 +40,7 @@ class TelegramIntegrationService {
                 const chunks = this.splitMessage(response);
                 
                 for (const chunk of chunks) {
-                    await this.bot.sendMessage(chatId, chunk);
+                    await this.bot.telegram.sendMessage(chatId, chunk);
                 }
 
                 // Opção de TTS se disponível
@@ -49,22 +50,22 @@ class TelegramIntegrationService {
                             { text: '🔊 Ouvir Resposta', callback_data: `tts_${userId}_${Date.now()}` }
                         ]]
                     };
-                    await this.bot.sendMessage(chatId, 'Deseja ouvir a resposta em áudio?', {
+                    await this.bot.telegram.sendMessage(chatId, 'Deseja ouvir a resposta em áudio?', {
                         reply_markup: keyboard
                     });
                 }
             } else {
-                await this.bot.sendMessage(chatId, 'Não foi possível gerar uma resposta no momento.');
+                await this.bot.telegram.sendMessage(chatId, 'Não foi possível gerar uma resposta no momento.');
             }
         } catch (error) {
             logger.error('Erro no chat IA Telegram:', error);
-            await this.bot.sendMessage(chatId, 'Erro ao processar sua mensagem.');
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao processar sua mensagem.');
         }
     }
 
     async processImageAnalysis(chatId, photos) {
         try {
-            await this.bot.sendMessage(chatId, '🔍 Analisando imagem...');
+            await this.bot.telegram.sendMessage(chatId, '🔍 Analisando imagem...');
             
             // Pegar a foto de maior resolução
             const photo = photos[photos.length - 1];
@@ -73,7 +74,7 @@ class TelegramIntegrationService {
             // Download da imagem
             const file = await this.bot.telegram.getFile(fileId);
             const filePath = file.file_path;
-            const imageUrl = `https://api.telegram.org/file/bot${this.bot.token}/${filePath}`;
+            const imageUrl = `https://api.telegram.org/file/bot${config.telegram.botToken}/${filePath}`;
             
             // Baixar imagem temporariamente
             const tempImagePath = await this.downloadFile(imageUrl, 'image');
@@ -86,10 +87,10 @@ class TelegramIntegrationService {
                 if (analysis) {
                     const chunks = this.splitMessage(analysis);
                     for (const chunk of chunks) {
-                        await this.bot.sendMessage(chatId, chunk);
+                        await this.bot.telegram.sendMessage(chatId, chunk);
                     }
                 } else {
-                    await this.bot.sendMessage(chatId, 'Não foi possível analisar a imagem.');
+                    await this.bot.telegram.sendMessage(chatId, 'Não foi possível analisar a imagem.');
                 }
             } finally {
                 // Limpar arquivo temporário
@@ -99,20 +100,20 @@ class TelegramIntegrationService {
             }
         } catch (error) {
             logger.error('Erro na análise de imagem Telegram:', error);
-            await this.bot.sendMessage(chatId, 'Erro ao analisar a imagem.');
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao analisar a imagem.');
         }
     }
 
     async processCalorieCount(chatId, photos) {
         try {
-            await this.bot.sendMessage(chatId, '🍎 Calculando calorias...');
+            await this.bot.telegram.sendMessage(chatId, '🍎 Calculando calorias...');
             
             const photo = photos[photos.length - 1];
             const fileId = photo.file_id;
             
             const file = await this.bot.telegram.getFile(fileId);
             const filePath = file.file_path;
-            const imageUrl = `https://api.telegram.org/file/bot${this.bot.token}/${filePath}`;
+            const imageUrl = `https://api.telegram.org/file/bot${config.telegram.botToken}/${filePath}`;
             
             const tempImagePath = await this.downloadFile(imageUrl, 'food');
             
@@ -137,9 +138,9 @@ class TelegramIntegrationService {
                         message += calorieInfo.message || 'Não foi possível identificar alimentos na imagem.';
                     }
                     
-                    await this.bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+                    await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
                 } else {
-                    await this.bot.sendMessage(chatId, 'Não foi possível calcular as calorias da imagem.');
+                    await this.bot.telegram.sendMessage(chatId, 'Não foi possível calcular as calorias da imagem.');
                 }
             } finally {
                 if (fs.existsSync(tempImagePath)) {
@@ -148,18 +149,18 @@ class TelegramIntegrationService {
             }
         } catch (error) {
             logger.error('Erro no cálculo de calorias Telegram:', error);
-            await this.bot.sendMessage(chatId, 'Erro ao calcular calorias.');
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao calcular calorias.');
         }
     }
 
     async processVoiceTranscription(chatId, voice) {
         try {
-            await this.bot.sendMessage(chatId, '🎤 Transcrevendo áudio...');
+            await this.bot.telegram.sendMessage(chatId, '🎤 Transcrevendo áudio...');
             
             const fileId = voice.file_id;
             const file = await this.bot.telegram.getFile(fileId);
             const filePath = file.file_path;
-            const audioUrl = `https://api.telegram.org/file/bot${this.bot.token}/${filePath}`;
+            const audioUrl = `https://api.telegram.org/file/bot${config.telegram.botToken}/${filePath}`;
             
             const tempAudioPath = await this.downloadFile(audioUrl, 'audio');
             
@@ -168,11 +169,11 @@ class TelegramIntegrationService {
                 const transcription = await this.audioTranscriber.transcribe(audioBuffer, 'ogg');
                 
                 if (transcription) {
-                    await this.bot.sendMessage(chatId, `🎤 <b>Transcrição:</b>\n\n${transcription}`, {
+                    await this.bot.telegram.sendMessage(chatId, `🎤 <b>Transcrição:</b>\n\n${transcription}`, {
                         parse_mode: 'HTML'
                     });
                 } else {
-                    await this.bot.sendMessage(chatId, 'Não foi possível transcrever o áudio.');
+                    await this.bot.telegram.sendMessage(chatId, 'Não foi possível transcrever o áudio.');
                 }
             } finally {
                 if (fs.existsSync(tempAudioPath)) {
@@ -181,18 +182,18 @@ class TelegramIntegrationService {
             }
         } catch (error) {
             logger.error('Erro na transcrição Telegram:', error);
-            await this.bot.sendMessage(chatId, 'Erro ao transcrever o áudio.');
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao transcrever o áudio.');
         }
     }
 
     async processVoiceTranscriptionSummary(chatId, voice) {
         try {
-            await this.bot.sendMessage(chatId, '🎤 Transcrevendo e resumindo áudio...');
+            await this.bot.telegram.sendMessage(chatId, '🎤 Transcrevendo e resumindo áudio...');
             
             const fileId = voice.file_id;
             const file = await this.bot.telegram.getFile(fileId);
             const filePath = file.file_path;
-            const audioUrl = `https://api.telegram.org/file/bot${this.bot.token}/${filePath}`;
+            const audioUrl = `https://api.telegram.org/file/bot${config.telegram.botToken}/${filePath}`;
             
             const tempAudioPath = await this.downloadFile(audioUrl, 'audio');
             
@@ -202,7 +203,7 @@ class TelegramIntegrationService {
                 const result = await this.audioTranscriber.transcribeAndSummarize(audioBuffer, 'ogg');
                 
                 if (!result || !result.transcription) {
-                    await this.bot.sendMessage(chatId, 'Não foi possível transcrever o áudio.');
+                    await this.bot.telegram.sendMessage(chatId, 'Não foi possível transcrever o áudio.');
                     return;
                 }
 
@@ -214,7 +215,7 @@ class TelegramIntegrationService {
                 
                 const chunks = this.splitMessage(formattedMessage);
                 for (const chunk of chunks) {
-                    await this.bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
+                    await this.bot.telegram.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
                 }
             } finally {
                 if (fs.existsSync(tempAudioPath)) {
@@ -223,16 +224,16 @@ class TelegramIntegrationService {
             }
         } catch (error) {
             logger.error('Erro na transcrição e resumo Telegram:', error);
-            await this.bot.sendMessage(chatId, 'Erro ao processar o áudio.');
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao processar o áudio.');
         }
     }
 
     async processVideoSummary(chatId, videoUrl) {
         try {
-            await this.bot.sendMessage(chatId, '🎥 Processando vídeo...');
+            await this.bot.telegram.sendMessage(chatId, '🎥 Processando vídeo...');
             
             if (!this.isValidYouTubeUrl(videoUrl)) {
-                await this.bot.sendMessage(chatId, 'Por favor, envie um link válido do YouTube.');
+                await this.bot.telegram.sendMessage(chatId, 'Por favor, envie um link válido do YouTube.');
                 return;
             }
 
@@ -240,7 +241,7 @@ class TelegramIntegrationService {
             const transcript = await this.youtubeService.fetchTranscript(videoUrl);
             
             if (!transcript || transcript.trim().length === 0) {
-                await this.bot.sendMessage(chatId, 'Não foi possível obter a transcrição do vídeo.');
+                await this.bot.telegram.sendMessage(chatId, 'Não foi possível obter a transcrição do vídeo.');
                 return;
             }
 
@@ -249,7 +250,7 @@ class TelegramIntegrationService {
             const truncatedTranscript = transcript.slice(0, 15000);
             const truncated = transcriptLength > 15000;
 
-            await this.bot.sendMessage(chatId, `📝 Gerando resumo...\n\n📊 Caracteres transcritos: ${transcriptLength.toLocaleString()}${truncated ? '\n⚠️ Texto truncado para processamento' : ''}`);
+            await this.bot.telegram.sendMessage(chatId, `📝 Gerando resumo...\n\n📊 Caracteres transcritos: ${transcriptLength.toLocaleString()}${truncated ? '\n⚠️ Texto truncado para processamento' : ''}`);
 
             // Generate summary using LLM service
             const summaryPrompt = `Resuma em português o texto a seguir em tópicos claros e objetivos:\n\n${truncatedTranscript}`;
@@ -260,23 +261,23 @@ class TelegramIntegrationService {
                 
                 const chunks = this.splitMessage(message);
                 for (const chunk of chunks) {
-                    await this.bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
+                    await this.bot.telegram.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
                 }
             } else {
-                await this.bot.sendMessage(chatId, 'Não foi possível gerar o resumo do vídeo.');
+                await this.bot.telegram.sendMessage(chatId, 'Não foi possível gerar o resumo do vídeo.');
             }
         } catch (error) {
             logger.error('Erro no resumo de vídeo Telegram:', error);
-            await this.bot.sendMessage(chatId, 'Erro ao processar o vídeo.');
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao processar o vídeo.');
         }
     }
 
     async processLinkedInAnalysis(chatId, profileUrl) {
         try {
-            await this.bot.sendMessage(chatId, '🔗 Analisando perfil LinkedIn...');
+            await this.bot.telegram.sendMessage(chatId, '🔗 Analisando perfil LinkedIn...');
             
             if (!this.isValidLinkedInUrl(profileUrl)) {
-                await this.bot.sendMessage(chatId, 'Por favor, envie um link válido do LinkedIn.');
+                await this.bot.telegram.sendMessage(chatId, 'Por favor, envie um link válido do LinkedIn.');
                 return;
             }
 
@@ -299,20 +300,20 @@ class TelegramIntegrationService {
                 
                 const chunks = this.splitMessage(message);
                 for (const chunk of chunks) {
-                    await this.bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
+                    await this.bot.telegram.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
                 }
             } else {
-                await this.bot.sendMessage(chatId, 'Não foi possível analisar o perfil.');
+                await this.bot.telegram.sendMessage(chatId, 'Não foi possível analisar o perfil.');
             }
         } catch (error) {
             logger.error('Erro na análise LinkedIn Telegram:', error);
-            await this.bot.sendMessage(chatId, 'Erro ao analisar o perfil LinkedIn.');
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao analisar o perfil LinkedIn.');
         }
     }
 
     async processCreateReminder(chatId, text, userId) {
         try {
-            await this.bot.sendMessage(chatId, '📅 Criando lembrete...');
+            await this.bot.telegram.sendMessage(chatId, '📅 Criando lembrete...');
             
             const reminder = await this.scheduler.createSchedule(text, {
                 platform: 'telegram',
@@ -322,18 +323,18 @@ class TelegramIntegrationService {
             
             if (reminder) {
                 const scheduledDate = new Date(reminder.scheduledTime).toLocaleString('pt-BR');
-                await this.bot.sendMessage(chatId, 
+                await this.bot.telegram.sendMessage(chatId, 
                     `✅ <b>Lembrete criado!</b>\n\n` +
                     `📝 ${reminder.message}\n` +
                     `📅 ${scheduledDate}`, 
                     { parse_mode: 'HTML' }
                 );
             } else {
-                await this.bot.sendMessage(chatId, 'Não foi possível criar o lembrete. Verifique o formato da data/hora.');
+                await this.bot.telegram.sendMessage(chatId, 'Não foi possível criar o lembrete. Verifique o formato da data/hora.');
             }
         } catch (error) {
             logger.error('Erro ao criar lembrete Telegram:', error);
-            await this.bot.sendMessage(chatId, 'Erro ao criar o lembrete.');
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao criar o lembrete.');
         }
     }
 
@@ -342,7 +343,7 @@ class TelegramIntegrationService {
             const reminders = await this.scheduler.listUserSchedules(userId, 'telegram');
             
             if (!reminders || reminders.length === 0) {
-                await this.bot.sendMessage(chatId, '📅 Você não tem lembretes agendados.');
+                await this.bot.telegram.sendMessage(chatId, '📅 Você não tem lembretes agendados.');
                 return;
             }
 
@@ -364,19 +365,19 @@ class TelegramIntegrationService {
                 ]
             };
 
-            await this.bot.sendMessage(chatId, message, { 
+            await this.bot.telegram.sendMessage(chatId, message, { 
                 parse_mode: 'HTML',
                 reply_markup: keyboard
             });
         } catch (error) {
             logger.error('Erro ao listar lembretes Telegram:', error);
-            await this.bot.sendMessage(chatId, 'Erro ao carregar os lembretes.');
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao carregar os lembretes.');
         }
     }
 
     async processTextSummary(chatId, text) {
         try {
-            await this.bot.sendMessage(chatId, '📄 Resumindo texto...');
+            await this.bot.telegram.sendMessage(chatId, '📄 Resumindo texto...');
             
             const summary = await this.llmService.generateResponse(
                 `Resuma o seguinte texto de forma clara e organizada:\n\n${text}`,
@@ -388,20 +389,20 @@ class TelegramIntegrationService {
                 
                 const chunks = this.splitMessage(message);
                 for (const chunk of chunks) {
-                    await this.bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
+                    await this.bot.telegram.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
                 }
             } else {
-                await this.bot.sendMessage(chatId, 'Não foi possível resumir o texto.');
+                await this.bot.telegram.sendMessage(chatId, 'Não foi possível resumir o texto.');
             }
         } catch (error) {
             logger.error('Erro ao resumir texto Telegram:', error);
-            await this.bot.sendMessage(chatId, 'Erro ao processar o resumo.');
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao processar o resumo.');
         }
     }
 
     async processDocumentSummary(chatId, document) {
         try {
-            await this.bot.sendMessage(chatId, '📄 Processando documento...');
+            await this.bot.telegram.sendMessage(chatId, '📄 Processando documento...');
             
             const fileId = document.file_id;
             const fileName = document.file_name;
@@ -409,13 +410,13 @@ class TelegramIntegrationService {
             
             // Verificar tamanho do arquivo (máximo 20MB)
             if (fileSize > 20 * 1024 * 1024) {
-                await this.bot.sendMessage(chatId, 'Arquivo muito grande. Máximo permitido: 20MB.');
+                await this.bot.telegram.sendMessage(chatId, 'Arquivo muito grande. Máximo permitido: 20MB.');
                 return;
             }
 
             const file = await this.bot.telegram.getFile(fileId);
             const filePath = file.file_path;
-            const fileUrl = `https://api.telegram.org/file/bot${this.bot.token}/${filePath}`;
+            const fileUrl = `https://api.telegram.org/file/bot${config.telegram.botToken}/${filePath}`;
             
             const tempFilePath = await this.downloadFile(fileUrl, 'document', fileName);
             
@@ -429,10 +430,10 @@ class TelegramIntegrationService {
                     
                     const chunks = this.splitMessage(message);
                     for (const chunk of chunks) {
-                        await this.bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
+                        await this.bot.telegram.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
                     }
                 } else {
-                    await this.bot.sendMessage(chatId, 'Não foi possível processar o documento.');
+                    await this.bot.telegram.sendMessage(chatId, 'Não foi possível processar o documento.');
                 }
             } finally {
                 if (fs.existsSync(tempFilePath)) {
@@ -441,7 +442,7 @@ class TelegramIntegrationService {
             }
         } catch (error) {
             logger.error('Erro ao processar documento Telegram:', error);
-            await this.bot.sendMessage(chatId, 'Erro ao processar o documento.');
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao processar o documento.');
         }
     }
 

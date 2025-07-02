@@ -125,7 +125,7 @@ class TelegramBotService {
         const welcomeMessage = TELEGRAM_MESSAGES.welcome;
         const mainMenu = await this.buildMainMenu(userId);
         
-        await this.bot.telegram.sendMessage(chatId, welcomeMessage, {
+        await ctx.reply(welcomeMessage, {
             reply_markup: mainMenu,
             parse_mode: 'HTML'
         });
@@ -139,9 +139,7 @@ class TelegramBotService {
             // Verificar se o usuário tem permissão para usar transcrição de áudio
             const features = await this.featureToggles.getUserFeatures(userId);
             if (!features.audio_transcription) {
-                await this.bot.telegram.sendMessage(chatId, 
-                    '❌ Funcionalidade de transcrição de áudio não disponível para seu usuário.'
-                );
+                await ctx.reply('❌ Funcionalidade de transcrição de áudio não disponível para seu usuário.');
                 return;
             }
 
@@ -152,7 +150,7 @@ class TelegramBotService {
                 step: 'waiting_audio'
             });
 
-            await this.bot.telegram.sendMessage(chatId, 
+            await ctx.reply(
                 '🎤📄 <b>Transcrever e Resumir Áudio</b>\n\n' +
                 'Envie um áudio para transcrever e receber um resumo inteligente do conteúdo.\n\n' +
                 '💡 <i>O áudio será processado usando Whisper para transcrição e IA para resumo.</i>',
@@ -160,7 +158,7 @@ class TelegramBotService {
             );
         } catch (error) {
             logger.error('Erro no comando !transcreveresume:', error);
-            await this.bot.telegram.sendMessage(chatId, 'Erro ao processar comando. Tente novamente.');
+            await ctx.reply('Erro ao processar comando. Tente novamente.');
         }
     }
 

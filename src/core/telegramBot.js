@@ -16,7 +16,7 @@ class TelegramBotService {
         this.featureToggles = null;
         this.userStates = new Map(); // Armazena estado de navegação por usuário
         this.integrationService = null;
-        this.init();
+        this.initPromise = this.init(); // Armazena a Promise de inicialização
     }
 
     async init() {
@@ -56,14 +56,15 @@ class TelegramBotService {
 
     // Add method to wait for initialization
     async waitForInitialization(timeoutMs = 10000) {
-        const startTime = Date.now();
-        
-        while (!this.isInitialized && (Date.now() - startTime) < timeoutMs) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        
-        if (!this.isInitialized) {
-            throw new Error('Timeout aguardando inicialização do bot Telegram');
+        try {
+            await Promise.race([
+                this.initPromise,
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout aguardando inicialização do bot Telegram')), timeoutMs)
+                )
+            ]);
+        } catch (error) {
+            throw error; // Propaga erro de inicialização ou timeout
         }
     }
 

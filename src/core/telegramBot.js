@@ -54,19 +54,7 @@ class TelegramBotService {
         }
     }
 
-    // Add method to wait for initialization
-    async waitForInitialization(timeoutMs = 10000) {
-        try {
-            await Promise.race([
-                this.initPromise,
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Timeout aguardando inicialização do bot Telegram')), timeoutMs)
-                )
-            ]);
-        } catch (error) {
-            throw error; // Propaga erro de inicialização ou timeout
-        }
-    }
+
 
     setupEventHandlers() {
         // Comando /start

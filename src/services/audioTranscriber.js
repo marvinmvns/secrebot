@@ -118,23 +118,7 @@ class AudioTranscriber {
 TRANSCRIÇÃO:
 "${transcription}"
 
-Por favor, organize o conteúdo da seguinte forma:
-
-📝 **RESUMO EXECUTIVO**
-• [Principais pontos em bullet points]
-
-🎯 **TÓPICOS ABORDADOS**
-• [Lista dos temas discutidos]
-
-⏰ **PONTOS-CHAVE TEMPORAIS** (se houver)
-• [Datas, prazos, compromissos mencionados]
-
-📋 **AÇÕES/TAREFAS** (se houver)
-• [Ações ou tarefas mencionadas]
-
-💡 **OBSERVAÇÕES IMPORTANTES**
-• [Detalhes relevantes ou contexto adicional]
-
+O resumo deve incluir os principais pontos discutidos, eventos importantes e qualquer informação relevante mencionada. Evite detalhes excessivos e mantenha o foco nos aspectos mais significativos da conversa. O resumo deve ser escrito em português e ser facilmente compreensível.
 Mantenha o resumo conciso mas informativo, destacando os pontos mais importantes do áudio.`;
 
       const summary = await this.ollamaClient.generate({

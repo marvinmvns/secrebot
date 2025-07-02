@@ -21,7 +21,7 @@ class TelegramIntegrationService {
         this.ttsService = new TTSService();
         this.calorieService = new CalorieService();
         this.linkedinScraper = new LinkedInScraper();
-        this.youtubeService = new YouTubeService();
+        this.youtubeService = YouTubeService;
         this.scheduler = new Scheduler();
     }
 
@@ -236,21 +236,34 @@ class TelegramIntegrationService {
                 return;
             }
 
-            const summary = await this.youtubeService.summarizeVideo(videoUrl);
+            // Get transcript using YouTube service
+            const transcript = await this.youtubeService.fetchTranscript(videoUrl);
+            
+            if (!transcript || transcript.trim().length === 0) {
+                await this.bot.sendMessage(chatId, 'Não foi possível obter a transcrição do vídeo.');
+                return;
+            }
+
+            // Truncate if too long
+            const transcriptLength = transcript.length;
+            const truncatedTranscript = transcript.slice(0, 15000);
+            const truncated = transcriptLength > 15000;
+
+            await this.bot.sendMessage(chatId, `📝 Gerando resumo...\n\n📊 Caracteres transcritos: ${transcriptLength.toLocaleString()}${truncated ? '\n⚠️ Texto truncado para processamento' : ''}`);
+
+            // Generate summary using LLM service
+            const summaryPrompt = `Resuma em português o texto a seguir em tópicos claros e objetivos:\n\n${truncatedTranscript}`;
+            const summary = await this.llmService.generateResponse(summaryPrompt, { maxTokens: 2000 });
             
             if (summary) {
-                let message = `🎥 <b>Resumo do Vídeo:</b>\n\n`;
-                message += `<b>Título:</b> ${summary.title || 'N/A'}\n`;
-                message += `<b>Canal:</b> ${summary.channel || 'N/A'}\n`;
-                message += `<b>Duração:</b> ${summary.duration || 'N/A'}\n\n`;
-                message += `<b>Resumo:</b>\n${summary.summary}`;
+                let message = `🎥 <b>Resumo do Vídeo:</b>\n\n${summary}`;
                 
                 const chunks = this.splitMessage(message);
                 for (const chunk of chunks) {
                     await this.bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
                 }
             } else {
-                await this.bot.sendMessage(chatId, 'Não foi possível processar o vídeo.');
+                await this.bot.sendMessage(chatId, 'Não foi possível gerar o resumo do vídeo.');
             }
         } catch (error) {
             logger.error('Erro no resumo de vídeo Telegram:', error);

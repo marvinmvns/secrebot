@@ -26,17 +26,44 @@ class TelegramBotService {
                 return;
             }
 
+            logger.info('Inicializando bot do Telegram...');
+            
             this.bot = new Telegraf(config.telegram.botToken);
             this.featureToggles = await createFeatureToggleManager();
             this.integrationService = new TelegramIntegrationService(this.bot);
 
             this.setupEventHandlers();
+            
+            logger.info('Lançando bot do Telegram...');
             await this.bot.launch();
+            
             this.isInitialized = true;
-
             logger.info('Bot do Telegram inicializado com sucesso');
+            
         } catch (error) {
-            logger.error('Erro ao inicializar bot do Telegram:', error);
+            this.isInitialized = false;
+            logger.error('Erro ao inicializar bot do Telegram:', {
+                error: error.message,
+                stack: error.stack,
+                code: error.code,
+                response: error.response?.description || 'N/A'
+            });
+            
+            // Re-throw to propagate to ApplicationFactory
+            throw new Error(`Inicialização do bot Telegram falhou: ${error.message}`);
+        }
+    }
+
+    // Add method to wait for initialization
+    async waitForInitialization(timeoutMs = 10000) {
+        const startTime = Date.now();
+        
+        while (!this.isInitialized && (Date.now() - startTime) < timeoutMs) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        if (!this.isInitialized) {
+            throw new Error('Timeout aguardando inicialização do bot Telegram');
         }
     }
 

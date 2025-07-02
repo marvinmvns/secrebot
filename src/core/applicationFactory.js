@@ -128,14 +128,41 @@ export class ApplicationFactory {
         return null;
       }
 
+      // Validate token format
+      if (!this.isValidTelegramToken(config.telegram.botToken)) {
+        logger.error('Token do Telegram inválido. Formato esperado: nnnnnnnnnn:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', {
+          tokenProvided: config.telegram.botToken !== 'seu_token_aqui' ? 'SIM' : 'NÃO (placeholder)'
+        });
+        return null;
+      }
+
       const telegramBot = new TelegramBotService();
+      
+      // Wait for initialization to complete
+      await telegramBot.waitForInitialization();
+      
+      if (!telegramBot.isActive()) {
+        throw new Error('Bot do Telegram falhou ao inicializar - verifique o token e conectividade');
+      }
+
       this.services.set('telegramBot', telegramBot);
       logger.info('Telegram bot initialized');
       return telegramBot;
     } catch (error) {
-      logger.error('Erro ao inicializar bot do Telegram:', error);
-      return null;
+      logger.error('Erro ao inicializar bot do Telegram:', {
+        error: error.message,
+        stack: error.stack,
+        token: config.telegram?.botToken ? 'CONFIGURADO' : 'NÃO CONFIGURADO',
+        tokenValid: config.telegram?.botToken ? this.isValidTelegramToken(config.telegram.botToken) : false
+      });
+      throw new Error(`Falha na inicialização do bot Telegram: ${error.message}`);
     }
+  }
+
+  isValidTelegramToken(token) {
+    // Telegram bot tokens follow the format: nnnnnnnnnn:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    const telegramTokenRegex = /^\d{8,10}:[a-zA-Z0-9_-]{35}$/;
+    return telegramTokenRegex.test(token);
   }
 
   createRestAPI(bot, configService) {

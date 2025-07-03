@@ -113,7 +113,20 @@ export class ApplicationFactory {
       logger.info('WhatsApp bot initialized');
       return bot;
     } catch (error) {
-      throw handleError(error, 'WhatsApp bot initialization');
+      logger.warn('WhatsApp bot não pôde ser inicializado, mas outros serviços continuam funcionando', {
+        error: error.message
+      });
+      // Criar um bot mock para manter a aplicação funcionando
+      const mockBot = {
+        getClient: () => null,
+        getScheduler: () => scheduler,
+        llmService,
+        transcriber,
+        ttsService,
+        toggleVoicePreference: () => false
+      };
+      this.services.set('whatsAppBot', mockBot);
+      return mockBot;
     }
   }
 
@@ -171,6 +184,22 @@ export class ApplicationFactory {
     return telegramTokenRegex.test(token);
   }
 
+  // Inicialização assíncrona do Telegram (não bloqueia outros serviços)
+  async initializeTelegramAsync() {
+    try {
+      logger.info('Inicializando bot do Telegram em segundo plano...');
+      const telegramBot = await this.createTelegramBot();
+      
+      if (telegramBot && telegramBot.isActive()) {
+        logger.info('Bot do Telegram ativo e pronto para uso');
+      }
+    } catch (error) {
+      logger.warn('Bot do Telegram não pôde ser inicializado, mas outros serviços continuam funcionando', {
+        error: error.message
+      });
+    }
+  }
+
   createRestAPI(bot, configService) {
     if (this.services.has('restAPI')) {
       return this.services.get('restAPI');
@@ -195,23 +224,21 @@ export class ApplicationFactory {
 
       const scheduler = await this.createScheduler();
       const configService = await this.createConfigService(scheduler);
-      const featureToggleService = await this.createFeatureToggleService(configService);
+      await this.createFeatureToggleService(configService);
       const llmService = this.createLLMService();
       const transcriber = this.createAudioTranscriber();
       const ttsService = this.createTtsService();
       const bot = await this.createWhatsAppBot(scheduler, llmService, transcriber, ttsService);
-      const telegramBot = await this.createTelegramBot();
-      const api = this.createRestAPI(bot, configService);
+      this.createRestAPI(bot, configService);
+
+      // Inicializar Telegram em paralelo (não bloqueia outros serviços)
+      this.initializeTelegramAsync();
 
       this.setupGracefulShutdown();
       this.isInitialized = true;
 
       logger.success('Aplicação iniciada com sucesso!');
       logger.info('Escaneie o QR Code para conectar o WhatsApp (se necessário)');
-      
-      if (telegramBot && telegramBot.isActive()) {
-        logger.info('Bot do Telegram ativo e pronto para uso');
-      }
 
       return this.getServices();
     } catch (error) {

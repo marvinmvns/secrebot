@@ -22,8 +22,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ============ API REST ============
 class RestAPI {
   constructor(bot, configService) {
-    if (!bot || !bot.getClient) {
-        throw new Error('Instância inválida do Bot fornecida para RestAPI.');
+    if (!bot) {
+        throw new Error('Instância do Bot não fornecida para RestAPI.');
     }
     this.bot = bot;
     this.configService = configService;
@@ -60,9 +60,17 @@ class RestAPI {
       }
 
       try {
+        const client = this.bot.getClient();
+        if (!client) {
+          return res.status(503).json({
+            error: '❌ WhatsApp bot não está disponível',
+            details: 'O cliente WhatsApp não está conectado'
+          });
+        }
+
         const recipientId = Utils.formatRecipientId(phone);
         logger.info(`📲 Enviando mensagem via API para: ${recipientId}`);
-        await this.bot.getClient().sendMessage(recipientId, message);
+        await client.sendMessage(recipientId, message);
 
         res.json({
           success: true,
@@ -536,7 +544,28 @@ class RestAPI {
       const featureToggles = saved?.featureToggles || { enabled: false, features: {} };
       const globalFeatures = featureToggles.features || {};
 
-      res.render('config', { env, descriptions, examples, featureToggles, globalFeatures });
+      // Buscar modelos disponíveis no Ollama
+      let availableModels = [];
+      let whisperModels = WHISPER_MODELS_LIST || [];
+      try {
+        const response = await fetch(`${CONFIG.llm.host}/api/tags`);
+        if (response.ok) {
+          const data = await response.json();
+          availableModels = data.models?.map(m => m.name) || [];
+        }
+      } catch (error) {
+        logger.warn('Não foi possível buscar modelos do Ollama:', error.message);
+      }
+
+      res.render('config', { 
+        env, 
+        descriptions, 
+        examples, 
+        featureToggles, 
+        globalFeatures,
+        availableModels,
+        whisperModels
+      });
     });
 
     this.app.post('/config', async (req, res) => {
@@ -622,8 +651,19 @@ class RestAPI {
       logger.startup(`🌐 API REST iniciada e ouvindo na porta ${CONFIG.server.port}`);
       logger.info(`📊 Interface disponível em http://localhost:${CONFIG.server.port}/`);
     }).on('error', (err) => {
-        logger.error(`❌ Falha ao iniciar servidor na porta ${CONFIG.server.port}`, err);
-        process.exit(1);
+        if (err.code === 'EADDRINUSE') {
+          logger.warn(`⚠️ Porta ${CONFIG.server.port} já está em uso. Tentando porta alternativa...`);
+          // Tentar porta alternativa
+          const alternativePort = CONFIG.server.port + 1;
+          this.app.listen(alternativePort, () => {
+            logger.startup(`🌐 API REST iniciada na porta alternativa ${alternativePort}`);
+            logger.info(`📊 Interface disponível em http://localhost:${alternativePort}/`);
+          }).on('error', (altErr) => {
+            logger.error(`❌ Falha ao iniciar servidor nas portas ${CONFIG.server.port} e ${alternativePort}`, altErr);
+          });
+        } else {
+          logger.error(`❌ Falha ao iniciar servidor na porta ${CONFIG.server.port}`, err);
+        }
     });
   }
 }

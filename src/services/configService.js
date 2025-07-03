@@ -29,7 +29,7 @@ class ConfigService {
     let updated = false;
     const ensure = (target, source) => {
       for (const key of Object.keys(source)) {
-        if (target[key] === undefined) {
+        if (target[key] === undefined || target[key] === null) {
           target[key] = source[key];
           updated = true;
         } else if (
@@ -37,6 +37,10 @@ class ConfigService {
           !Array.isArray(source[key]) &&
           source[key] !== null
         ) {
+          if (!target[key] || typeof target[key] !== 'object') {
+            target[key] = {};
+            updated = true;
+          }
           ensure(target[key], source[key]);
         }
       }

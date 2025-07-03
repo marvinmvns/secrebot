@@ -170,16 +170,15 @@
                     <% 
                     const llmKeys = ['LLM_MAX_TOKENS', 'OLLAMA_HOST', 'OLLAMA_TIMEOUT_MS'];
                     llmKeys.forEach(key => { 
-                      if(env[key] !== undefined) {
                     %>
                       <div class="mb-3">
                         <label class="form-label fw-bold"><%= key.replace('LLM_', '').replace('OLLAMA_', '').replace('_', ' ') %></label>
-                        <input type="<%= key.includes('TOKENS') || key.includes('TIMEOUT') ? 'number' : 'text' %>" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
+                        <input type="<%= key.includes('TOKENS') || key.includes('TIMEOUT') ? 'number' : 'text' %>" class="form-control" name="<%= key %>" value="<%= env[key] || examples[key] || '' %>" placeholder="<%= examples[key] %>">
                         <% if (descriptions[key]) { %>
                           <small class="form-text text-muted"><%= descriptions[key] %></small>
                         <% } %>
                       </div>
-                    <% }}); %>
+                    <% }); %>
                   </div>
                   
                   <div class="col-md-6">

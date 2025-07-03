@@ -45,7 +45,7 @@ export const config = {
     model: process.env.LLM_MODEL || 'granite3.2:latest',
     imageModel: process.env.LLM_IMAGE_MODEL || 'llava:7b',
     maxTokens: parseInt(process.env.LLM_MAX_TOKENS || '3000', 10),
-    host: OLLAMA_HOST,
+    host: OLLAMA_HOST || 'http://127.0.0.1:11434',
     timeoutMs: parseInt(OLLAMA_TIMEOUT_MS, 10)
   },
   audio: {

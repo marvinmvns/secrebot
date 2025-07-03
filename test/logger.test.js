@@ -52,3 +52,20 @@ test('Logger banner should format correctly', () => {
   assert.ok(capturedOutput.includes('🤖 Test App'));
   assert.ok(capturedOutput.includes('v1.0'));
 });
+
+test('Logger should serialize Error objects', () => {
+  const originalError = console.error;
+  let capturedOutput = '';
+
+  console.error = (message) => {
+    capturedOutput = message;
+  };
+
+  const err = new Error('Something went wrong');
+  logger.error('Failure', err);
+
+  console.error = originalError;
+
+  assert.ok(capturedOutput.includes('Something went wrong'));
+  assert.ok(capturedOutput.includes('Failure'));
+});

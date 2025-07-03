@@ -13,7 +13,15 @@ const DEFAULT_FEATURES = {
     linkedin_analysis: false, // Requer configuração
     media_processing: true,
     professional_analysis: false,
-    system_resources: true
+    system_resources: true,
+    // Novas features do WhatsApp
+    model_management: true, // Gerenciamento de modelos IA
+    whisper_model_management: true, // Gerenciamento de modelos Whisper
+    service_management: false, // Reiniciar serviços Ollama/Whisper
+    calendar_import: true, // Importar arquivos ICS
+    dual_video_summary: true, // Dois métodos de resumo de vídeo
+    voice_response_toggle: true, // Toggle de resposta por voz
+    advanced_file_processing: true // Processamento avançado de arquivos
 };
 
 class FeatureToggleManager {
@@ -54,15 +62,23 @@ class FeatureToggleManager {
     }
 
     async getUserFeatures(userId) {
-        // Combinar: ENV > Config > Default
+        // Combinar: ENV > Static Config > Database Config > User Features
         let features = { ...DEFAULT_FEATURES };
 
         // Aplicar features do ambiente
         features = { ...features, ...this.envFeatures };
 
-        // Tentar carregar da config
+        // Aplicar configuração estática das telegram features
         try {
             const currentConfig = await this.configService.getConfig();
+            
+            // Aplicar features do telegram config (sincronizar com config.js)
+            if (currentConfig?.telegram?.features) {
+                const telegramFeatures = this.mapTelegramFeatures(currentConfig.telegram.features);
+                features = { ...features, ...telegramFeatures };
+            }
+            
+            // Aplicar features de usuário específicas (sobrescreve global)
             const userFeatures = currentConfig?.featureToggles?.userFeatures?.[userId.toString()];
             if (userFeatures) {
                 features = { ...features, ...userFeatures };
@@ -72,26 +88,70 @@ class FeatureToggleManager {
         }
 
         // Verificar dependências específicas
-        features = this.checkFeatureDependencies(features);
+        features = await this.checkFeatureDependencies(features);
 
         return features;
     }
 
-    checkFeatureDependencies(features) {
+    mapTelegramFeatures(telegramFeatures) {
+        // Mapear nomes das features do telegram para nomes das features toggles
+        const featureMap = {
+            'aiChat': 'ai_chat',
+            'scheduler': 'scheduler',
+            'audioTranscription': 'audio_transcription',
+            'imageAnalysis': 'image_analysis',
+            'videoSummary': 'video_summary',
+            'textSummary': 'text_summary',
+            'tts': 'tts',
+            'calorieCounter': 'calorie_counter',
+            'linkedinAnalysis': 'linkedin_analysis',
+            'mediaProcessing': 'media_processing',
+            'professionalAnalysis': 'professional_analysis',
+            'systemResources': 'system_resources',
+            // Novas features
+            'modelManagement': 'model_management',
+            'whisperModelManagement': 'whisper_model_management',
+            'serviceManagement': 'service_management',
+            'calendarImport': 'calendar_import',
+            'dualVideoSummary': 'dual_video_summary',
+            'voiceResponseToggle': 'voice_response_toggle',
+            'advancedFileProcessing': 'advanced_file_processing'
+        };
+
+        const mappedFeatures = {};
+        for (const [telegramKey, toggleKey] of Object.entries(featureMap)) {
+            if (telegramFeatures[telegramKey] !== undefined) {
+                mappedFeatures[toggleKey] = telegramFeatures[telegramKey];
+            }
+        }
+
+        return mappedFeatures;
+    }
+
+    async checkFeatureDependencies(features) {
+        // Obter configuração atual
+        let currentConfig;
+        try {
+            currentConfig = await this.configService.getConfig();
+        } catch (error) {
+            logger.warn('Erro ao obter config para dependências:', error);
+            currentConfig = config; // fallback para config estática
+        }
+
         // Desabilitar features que dependem de APIs não configuradas
-        if (!config.calorie?.apiKey) {
+        if (!currentConfig.calorieApi?.key) {
             features.calorie_counter = false;
         }
 
-        if (!config.linkedin?.user || !config.linkedin?.pass) {
+        if (!currentConfig.linkedin?.user || !currentConfig.linkedin?.pass) {
             features.linkedin_analysis = false;
         }
 
-        if (!config.elevenlabs?.apiKey && !config.piper?.enabled) {
+        if (!currentConfig.elevenlabs?.apiKey && !currentConfig.piper?.enabled) {
             features.tts = false;
         }
 
-        if (!config.ollama?.host) {
+        if (!currentConfig.llm?.host) {
             features.ai_chat = false;
             features.image_analysis = false;
             features.text_summary = false;

@@ -61,6 +61,13 @@ export const CONFIG_DESCRIPTIONS = {
   'telegram.features.mediaProcessing': 'Feature Processamento de Mídia',
   'telegram.features.professionalAnalysis': 'Feature Análise Profissional',
   'telegram.features.systemResources': 'Feature Recursos do Sistema',
+  'telegram.features.modelManagement': 'Feature Gerenciamento de Modelos',
+  'telegram.features.whisperModelManagement': 'Feature Gerenciamento Modelos Whisper',
+  'telegram.features.serviceManagement': 'Feature Gerenciamento de Serviços',
+  'telegram.features.calendarImport': 'Feature Importar Agenda ICS',
+  'telegram.features.dualVideoSummary': 'Feature Duplo Resumo de Vídeo',
+  'telegram.features.voiceResponseToggle': 'Feature Toggle Resposta Voz',
+  'telegram.features.advancedFileProcessing': 'Feature Processamento Avançado',
   'featureToggles.enabled': 'Ativa sistema de feature toggles',
   'featureToggles.features': 'Features toggles ativas'
 };
@@ -128,6 +135,13 @@ export const CONFIG_ENV_MAP = {
   'telegram.features.mediaProcessing': 'TELEGRAM_FEATURE_MEDIA_PROCESSING',
   'telegram.features.professionalAnalysis': 'TELEGRAM_FEATURE_PROFESSIONAL_ANALYSIS',
   'telegram.features.systemResources': 'TELEGRAM_FEATURE_SYSTEM_RESOURCES',
+  'telegram.features.modelManagement': 'TELEGRAM_FEATURE_MODEL_MANAGEMENT',
+  'telegram.features.whisperModelManagement': 'TELEGRAM_FEATURE_WHISPER_MODEL_MANAGEMENT',
+  'telegram.features.serviceManagement': 'TELEGRAM_FEATURE_SERVICE_MANAGEMENT',
+  'telegram.features.calendarImport': 'TELEGRAM_FEATURE_CALENDAR_IMPORT',
+  'telegram.features.dualVideoSummary': 'TELEGRAM_FEATURE_DUAL_VIDEO_SUMMARY',
+  'telegram.features.voiceResponseToggle': 'TELEGRAM_FEATURE_VOICE_RESPONSE_TOGGLE',
+  'telegram.features.advancedFileProcessing': 'TELEGRAM_FEATURE_ADVANCED_FILE_PROCESSING',
   'featureToggles.enabled': 'FEATURE_TOGGLES_ENABLED'
 };
 
@@ -194,6 +208,13 @@ export const CONFIG_EXAMPLES = {
   'telegram.features.mediaProcessing': 'true',
   'telegram.features.professionalAnalysis': 'false',
   'telegram.features.systemResources': 'true',
+  'telegram.features.modelManagement': 'true',
+  'telegram.features.whisperModelManagement': 'true',
+  'telegram.features.serviceManagement': 'false',
+  'telegram.features.calendarImport': 'true',
+  'telegram.features.dualVideoSummary': 'true',
+  'telegram.features.voiceResponseToggle': 'true',
+  'telegram.features.advancedFileProcessing': 'true',
   'featureToggles.enabled': 'true',
   'featureToggles.features': '{}'
 };

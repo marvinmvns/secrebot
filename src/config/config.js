@@ -98,7 +98,15 @@ export const config = {
       linkedinAnalysis: process.env.TELEGRAM_FEATURE_LINKEDIN_ANALYSIS === 'true',
       mediaProcessing: process.env.TELEGRAM_FEATURE_MEDIA_PROCESSING !== 'false',
       professionalAnalysis: process.env.TELEGRAM_FEATURE_PROFESSIONAL_ANALYSIS === 'true',
-      systemResources: process.env.TELEGRAM_FEATURE_SYSTEM_RESOURCES !== 'false'
+      systemResources: process.env.TELEGRAM_FEATURE_SYSTEM_RESOURCES !== 'false',
+      // Novas features do WhatsApp
+      modelManagement: process.env.TELEGRAM_FEATURE_MODEL_MANAGEMENT !== 'false',
+      whisperModelManagement: process.env.TELEGRAM_FEATURE_WHISPER_MODEL_MANAGEMENT !== 'false',
+      serviceManagement: process.env.TELEGRAM_FEATURE_SERVICE_MANAGEMENT === 'true',
+      calendarImport: process.env.TELEGRAM_FEATURE_CALENDAR_IMPORT !== 'false',
+      dualVideoSummary: process.env.TELEGRAM_FEATURE_DUAL_VIDEO_SUMMARY !== 'false',
+      voiceResponseToggle: process.env.TELEGRAM_FEATURE_VOICE_RESPONSE_TOGGLE !== 'false',
+      advancedFileProcessing: process.env.TELEGRAM_FEATURE_ADVANCED_FILE_PROCESSING !== 'false'
     }
   },
   featureToggles: {

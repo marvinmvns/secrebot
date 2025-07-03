@@ -213,7 +213,12 @@ class TelegramBotService {
                     keyboard.push([{ text: '🖼️ Analisar Imagem', callback_data: 'action_analyze_image' }]);
                 }
                 if (features.video_summary) {
-                    keyboard.push([{ text: '🎥 Resumir Vídeo', callback_data: 'action_video_summary' }]);
+                    if (features.dual_video_summary) {
+                        keyboard.push([{ text: '🎥 Resumir Vídeo (Método 1)', callback_data: 'action_video_summary_1' }]);
+                        keyboard.push([{ text: '🎬 Resumir Vídeo (Método 2)', callback_data: 'action_video_summary_2' }]);
+                    } else {
+                        keyboard.push([{ text: '🎥 Resumir Vídeo', callback_data: 'action_video_summary' }]);
+                    }
                 }
                 break;
 
@@ -222,7 +227,9 @@ class TelegramBotService {
                     keyboard.push([{ text: '➕ Agendamento Inteligente', callback_data: 'action_smart_scheduling' }]);
                     keyboard.push([{ text: '📋 Listar Lembretes', callback_data: 'action_list_reminders' }]);
                     keyboard.push([{ text: '🗑️ Deletar Lembrete', callback_data: 'action_delete_reminder' }]);
-                    keyboard.push([{ text: '📅 Importar Agenda (ICS)', callback_data: 'action_import_ics' }]);
+                    if (features.calendar_import) {
+                        keyboard.push([{ text: '📅 Importar Agenda (ICS)', callback_data: 'action_import_ics' }]);
+                    }
                     keyboard.push([{ text: '🔗 Google Calendar', callback_data: 'action_google_calendar' }]);
                 }
                 break;
@@ -250,8 +257,18 @@ class TelegramBotService {
                 break;
 
             case 'config':
-                keyboard.push([{ text: '🤖 Modelos IA', callback_data: 'config_ai_models' }]);
-                keyboard.push([{ text: '🎤 Modelos Whisper', callback_data: 'config_whisper_models' }]);
+                if (features.model_management) {
+                    keyboard.push([{ text: '🤖 Modelos IA', callback_data: 'config_ai_models' }]);
+                }
+                if (features.whisper_model_management) {
+                    keyboard.push([{ text: '🎤 Modelos Whisper', callback_data: 'config_whisper_models' }]);
+                }
+                if (features.service_management) {
+                    keyboard.push([{ text: '🔄 Reiniciar Serviços', callback_data: 'config_restart_services' }]);
+                }
+                if (features.voice_response_toggle) {
+                    keyboard.push([{ text: '🔊 Configurar Resposta Voz', callback_data: 'config_voice_response' }]);
+                }
                 keyboard.push([{ text: '🔧 Feature Toggles', callback_data: 'config_features' }]);
                 break;
         }

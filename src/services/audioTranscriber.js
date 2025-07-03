@@ -59,6 +59,16 @@ class AudioTranscriber {
       const tempOutputPath = path.join(__dirname, `audio_${timestamp}.wav`);
 
       try {
+        // Verifica se o modelo está disponível
+        const modelFile = MODEL_OBJECT[CONFIG.audio.model];
+        const modelPath = path.join(WHISPER_CPP_PATH, 'models', modelFile);
+        
+        try {
+          await fs.access(modelPath);
+        } catch (error) {
+          throw new Error(`Modelo Whisper '${CONFIG.audio.model}' não encontrado em ${modelPath}. Verifique se o modelo foi baixado.`);
+        }
+
         await new Promise((resolve, reject) => {
           const inputStream = Readable.from(audioBuffer);
           ffmpeg(inputStream)
@@ -72,37 +82,38 @@ class AudioTranscriber {
             .on('end', resolve)
             .save(tempOutputPath);
         });
-      
-      const options = {
-        modelName: CONFIG.audio.model,
-        autoDownloadModelName: CONFIG.audio.model,
-        verbose: true,
-        removeWavFileAfterTranscription: false, // Manter false para debug se necessário
-        withCuda: false, // Definir como true se CUDA estiver disponível e configurado
-        whisperOptions: { 
-          outputInText: true, 
-          language: CONFIG.audio.language 
-        }
-      };
-      
-      // Executa o Whisper com controle de timeout
-      await this.runWhisper(tempOutputPath, options);
-      
-      const transcriptionPath = `${tempOutputPath}.txt`;
-      const transcription = await fs.readFile(transcriptionPath, 'utf8');
-      
-      // Usa o método estático de Utils para limpar arquivos
-      await Utils.cleanupFile(tempOutputPath);
-      await Utils.cleanupFile(transcriptionPath);
-      
-      logger.success('✅ Transcrição concluída.');
-      return transcription.trim();
-    } catch (err) {
-      logger.error('❌ Erro na transcrição de áudio:', err);
-      // Tenta limpar o arquivo temporário mesmo em caso de erro
-      await Utils.cleanupFile(tempOutputPath);
-      throw err; // Re-lança o erro para ser tratado no nível superior
-    }
+        
+        const options = {
+          modelName: CONFIG.audio.model,
+          autoDownloadModelName: CONFIG.audio.model,
+          verbose: true,
+          removeWavFileAfterTranscription: false,
+          withCuda: false,
+          whisperOptions: { 
+            outputInText: true, 
+            language: CONFIG.audio.language 
+          }
+        };
+        
+        // Executa o Whisper com controle de timeout
+        await this.runWhisper(tempOutputPath, options);
+        
+        const transcriptionPath = `${tempOutputPath}.txt`;
+        const transcription = await fs.readFile(transcriptionPath, 'utf8');
+        
+        // Usa o método estático de Utils para limpar arquivos
+        await Utils.cleanupFile(tempOutputPath);
+        await Utils.cleanupFile(transcriptionPath);
+        
+        logger.success('✅ Transcrição concluída.');
+        return transcription.trim();
+        
+      } catch (err) {
+        logger.error('❌ Erro na transcrição de áudio:', err);
+        // Tenta limpar o arquivo temporário mesmo em caso de erro
+        await Utils.cleanupFile(tempOutputPath);
+        throw err;
+      }
     });
   }
 

@@ -17,10 +17,17 @@ class Logger {
     return this.levels[level] <= this.levels[this.currentLevel];
   }
 
+  _serializeContext(context) {
+    if (context instanceof Error) {
+      return { message: context.message, stack: context.stack };
+    }
+    return context;
+  }
+
   _formatMessage(level, message, context = null) {
     const timestamp = new Date().toISOString();
-    const contextStr = context ? ` [${JSON.stringify(context)}]` : '';
-    return `[${timestamp}] ${level}: ${message}${contextStr}`;
+    const serialized = context ? ` [${JSON.stringify(this._serializeContext(context))}]` : '';
+    return `[${timestamp}] ${level}: ${message}${serialized}`;
   }
 
   error(message, context = null) {
@@ -73,7 +80,7 @@ class Logger {
   // Method to replace console.log with conditional logging based on debug settings
   log(message, context = null, emoji = '🤖') {
     if (this.debugEnabled) {
-      const contextStr = context ? ` [${JSON.stringify(context)}]` : '';
+      const contextStr = context ? ` [${JSON.stringify(this._serializeContext(context))}]` : '';
       const timestamp = new Date().toISOString();
       console.log(`${emoji} [${timestamp}] ${message}${contextStr}`);
     }

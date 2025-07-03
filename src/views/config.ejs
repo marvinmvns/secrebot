@@ -1,47 +1,560 @@
-<h2>Configurações da aplicação</h2>
-<form action="/config" method="POST">
-  <% for(const key in env){ %>
-    <div class="mb-3">
-      <label class="form-label"><%= key %></label>
-      <% if (descriptions[key]) { %>
-        <small class="form-text text-muted"><%= descriptions[key] %></small>
-      <% } %>
-      <% if (key === 'featureToggles.features') { %>
-        <textarea class="form-control" name="<%= key %>" placeholder="<%= examples[key] %>" rows="4"><%= typeof env[key] === 'object' ? JSON.stringify(env[key], null, 2) : env[key] %></textarea>
-        <small class="form-text">JSON com features toggles globais. Ex: {"feature1": true, "feature2": false}</small>
-      <% } else if (key.includes('featureToggles.enabled') || key.includes('.enabled') || key.includes('.verbose') || key.includes('.dynamic.enabled') || key.includes('.enableTTS') || key.includes('.piper.enabled')) { %>
-        <select class="form-control" name="<%= key %>">
-          <option value="true" <%= env[key] === 'true' || env[key] === true ? 'selected' : '' %>>Ativado</option>
-          <option value="false" <%= env[key] === 'false' || env[key] === false ? 'selected' : '' %>>Desativado</option>
-        </select>
-      <% } else { %>
-        <input type="text" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
-      <% } %>
-      <% if (examples[key]) { %>
-        <small class="form-text">Ex: <code><%= examples[key] %></code></small>
-      <% } %>
-    </div>
-  <% } %>
-  
-  <% if (featureToggles && featureToggles.enabled) { %>
-    <div class="mt-4">
-      <h4>Feature Toggles Globais</h4>
-      <div class="alert alert-info">
-        <small>Essas configurações afetam o comportamento global das features, independentemente das configurações de usuário individual.</small>
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+          <h3 class="mb-0"><i class="fas fa-cogs me-2"></i>Configurações da Aplicação</h3>
+        </div>
+        <div class="card-body">
+          <form action="/config" method="POST" id="configForm">
+            
+            <!-- Navegação por Tabs -->
+            <ul class="nav nav-tabs mb-4" id="configTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab">
+                  <i class="fas fa-server me-1"></i> Geral
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="llm-tab" data-bs-toggle="tab" data-bs-target="#llm" type="button" role="tab">
+                  <i class="fas fa-brain me-1"></i> LLM & IA
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="audio-tab" data-bs-toggle="tab" data-bs-target="#audio" type="button" role="tab">
+                  <i class="fas fa-microphone me-1"></i> Áudio & TTS
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="integrations-tab" data-bs-toggle="tab" data-bs-target="#integrations" type="button" role="tab">
+                  <i class="fas fa-plug me-1"></i> Integrações
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="features-tab" data-bs-toggle="tab" data-bs-target="#features" type="button" role="tab">
+                  <i class="fas fa-toggle-on me-1"></i> Features
+                </button>
+              </li>
+            </ul>
+            
+            <div class="tab-content" id="configTabsContent">
+              
+              <!-- Aba Geral -->
+              <div class="tab-pane fade show active" id="general" role="tabpanel">
+                <div class="row">
+                  <div class="col-md-6">
+                    <h5 class="text-primary mb-3"><i class="fas fa-database me-2"></i>MongoDB</h5>
+                    <% 
+                    const generalKeys = ['MONGO_URI', 'MONGO_DB_NAME', 'MONGO_COLLECTION_NAME'];
+                    generalKeys.forEach(key => { 
+                      if(env[key] !== undefined) {
+                    %>
+                      <div class="mb-3">
+                        <label class="form-label fw-bold"><%= key.replace('MONGO_', '').replace('_', ' ') %></label>
+                        <input type="text" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
+                        <% if (descriptions[key]) { %>
+                          <small class="form-text text-muted"><%= descriptions[key] %></small>
+                        <% } %>
+                      </div>
+                    <% }}); %>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <h5 class="text-primary mb-3"><i class="fas fa-server me-2"></i>Servidor</h5>
+                    <% 
+                    const serverKeys = ['PORT', 'DEBUG_ENABLED', 'DEBUG_VERBOSE', 'LOG_LEVEL'];
+                    serverKeys.forEach(key => { 
+                      if(env[key] !== undefined) {
+                    %>
+                      <div class="mb-3">
+                        <label class="form-label fw-bold"><%= key.replace('DEBUG_', '').replace('_', ' ') %></label>
+                        <% if (key.includes('ENABLED') || key.includes('VERBOSE')) { %>
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="<%= key %>" id="<%= key %>" <%= env[key] === 'true' || env[key] === true ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
+                            <label class="form-check-label" for="<%= key %>">Ativado</label>
+                          </div>
+                        <% } else { %>
+                          <input type="text" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
+                        <% } %>
+                        <% if (descriptions[key]) { %>
+                          <small class="form-text text-muted"><%= descriptions[key] %></small>
+                        <% } %>
+                      </div>
+                    <% }}); %>
+                  </div>
+                </div>
+                
+                <hr class="my-4">
+                
+                <div class="row">
+                  <div class="col-md-6">
+                    <h5 class="text-primary mb-3"><i class="fas fa-clock me-2"></i>Agendador</h5>
+                    <% 
+                    const schedKeys = ['SCHED_INTERVAL', 'SCHED_MAX_ATTEMPTS', 'SCHED_RETRY_DELAY', 'SCHED_CONCURRENCY'];
+                    schedKeys.forEach(key => { 
+                      if(env[key] !== undefined) {
+                    %>
+                      <div class="mb-3">
+                        <label class="form-label fw-bold"><%= key.replace('SCHED_', '').replace('_', ' ') %></label>
+                        <input type="number" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
+                        <% if (descriptions[key]) { %>
+                          <small class="form-text text-muted"><%= descriptions[key] %></small>
+                        <% } %>
+                      </div>
+                    <% }}); %>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <h5 class="text-primary mb-3"><i class="fas fa-tachometer-alt me-2"></i>Concorrência Dinâmica</h5>
+                    <% 
+                    const dynamicKeys = ['DYNAMIC_CONCURRENCY', 'SCHED_DYNAMIC_MIN', 'SCHED_DYNAMIC_MAX', 'SCHED_CPU_THRESHOLD', 'SCHED_MEM_THRESHOLD'];
+                    dynamicKeys.forEach(key => { 
+                      if(env[key] !== undefined) {
+                    %>
+                      <div class="mb-3">
+                        <label class="form-label fw-bold"><%= key.replace('SCHED_', '').replace('DYNAMIC_', '').replace('_', ' ') %></label>
+                        <% if (key.includes('CONCURRENCY') && !key.includes('MIN') && !key.includes('MAX')) { %>
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="<%= key %>" id="<%= key %>" <%= env[key] === 'true' || env[key] === true ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
+                            <label class="form-check-label" for="<%= key %>">Ativado</label>
+                          </div>
+                        <% } else { %>
+                          <input type="number" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>" step="<%= key.includes('THRESHOLD') ? '0.1' : '1' %>">
+                        <% } %>
+                        <% if (descriptions[key]) { %>
+                          <small class="form-text text-muted"><%= descriptions[key] %></small>
+                        <% } %>
+                      </div>
+                    <% }}); %>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Aba LLM & IA -->
+              <div class="tab-pane fade" id="llm" role="tabpanel">
+                <div class="row">
+                  <div class="col-md-6">
+                    <h5 class="text-primary mb-3"><i class="fas fa-robot me-2"></i>Modelos LLM</h5>
+                    
+                    <div class="mb-3">
+                      <label class="form-label fw-bold">Modelo Principal</label>
+                      <% if (availableModels && availableModels.length > 0) { %>
+                        <select class="form-select" name="LLM_MODEL">
+                          <% availableModels.forEach(model => { %>
+                            <option value="<%= model %>" <%= env['LLM_MODEL'] === model ? 'selected' : '' %>><%= model %></option>
+                          <% }); %>
+                        </select>
+                        <small class="form-text text-success"><i class="fas fa-check-circle me-1"></i>Modelos carregados do Ollama</small>
+                      <% } else { %>
+                        <input type="text" class="form-control" name="LLM_MODEL" value="<%= env['LLM_MODEL'] %>" placeholder="<%= examples['LLM_MODEL'] %>">
+                        <small class="form-text text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Não foi possível conectar ao Ollama</small>
+                      <% } %>
+                    </div>
+                    
+                    <div class="mb-3">
+                      <label class="form-label fw-bold">Modelo para Imagens</label>
+                      <% if (availableModels && availableModels.length > 0) { %>
+                        <select class="form-select" name="LLM_IMAGE_MODEL">
+                          <% availableModels.filter(m => m.includes('llava') || m.includes('vision')).forEach(model => { %>
+                            <option value="<%= model %>" <%= env['LLM_IMAGE_MODEL'] === model ? 'selected' : '' %>><%= model %></option>
+                          <% }); %>
+                          <% if (!availableModels.some(m => m.includes('llava') || m.includes('vision'))) { %>
+                            <option value="<%= env['LLM_IMAGE_MODEL'] %>" selected><%= env['LLM_IMAGE_MODEL'] %> (não encontrado)</option>
+                          <% } %>
+                        </select>
+                      <% } else { %>
+                        <input type="text" class="form-control" name="LLM_IMAGE_MODEL" value="<%= env['LLM_IMAGE_MODEL'] %>" placeholder="<%= examples['LLM_IMAGE_MODEL'] %>">
+                      <% } %>
+                    </div>
+                    
+                    <% 
+                    const llmKeys = ['LLM_MAX_TOKENS', 'OLLAMA_HOST', 'OLLAMA_TIMEOUT_MS'];
+                    llmKeys.forEach(key => { 
+                      if(env[key] !== undefined) {
+                    %>
+                      <div class="mb-3">
+                        <label class="form-label fw-bold"><%= key.replace('LLM_', '').replace('OLLAMA_', '').replace('_', ' ') %></label>
+                        <input type="<%= key.includes('TOKENS') || key.includes('TIMEOUT') ? 'number' : 'text' %>" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
+                        <% if (descriptions[key]) { %>
+                          <small class="form-text text-muted"><%= descriptions[key] %></small>
+                        <% } %>
+                      </div>
+                    <% }}); %>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <h5 class="text-primary mb-3"><i class="fas fa-layer-group me-2"></i>Filas de Processamento</h5>
+                    <% 
+                    const queueKeys = ['LLM_CONCURRENCY', 'WHISPER_CONCURRENCY', 'QUEUE_MEM_THRESHOLD_GB', 'MEM_CHECK_INTERVAL'];
+                    queueKeys.forEach(key => { 
+                      if(env[key] !== undefined) {
+                    %>
+                      <div class="mb-3">
+                        <label class="form-label fw-bold"><%= key.replace('QUEUE_', '').replace('_', ' ') %></label>
+                        <input type="number" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
+                        <% if (descriptions[key]) { %>
+                          <small class="form-text text-muted"><%= descriptions[key] %></small>
+                        <% } %>
+                      </div>
+                    <% }}); %>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Aba Áudio & TTS -->
+              <div class="tab-pane fade" id="audio" role="tabpanel">
+                <div class="row">
+                  <div class="col-md-6">
+                    <h5 class="text-primary mb-3"><i class="fas fa-microphone me-2"></i>Whisper (Transcrição)</h5>
+                    
+                    <div class="mb-3">
+                      <label class="form-label fw-bold">Modelo Whisper</label>
+                      <% if (whisperModels && whisperModels.length > 0) { %>
+                        <select class="form-select" name="WHISPER_MODEL">
+                          <% whisperModels.forEach(model => { %>
+                            <option value="<%= model %>" <%= env['WHISPER_MODEL'] === model ? 'selected' : '' %>><%= model %></option>
+                          <% }); %>
+                        </select>
+                      <% } else { %>
+                        <input type="text" class="form-control" name="WHISPER_MODEL" value="<%= env['WHISPER_MODEL'] %>" placeholder="<%= examples['WHISPER_MODEL'] %>">
+                      <% } %>
+                    </div>
+                    
+                    <% 
+                    const audioKeys = ['AUDIO_SAMPLE_RATE', 'AUDIO_LANGUAGE', 'WHISPER_TIMEOUT_MS'];
+                    audioKeys.forEach(key => { 
+                      if(env[key] !== undefined) {
+                    %>
+                      <div class="mb-3">
+                        <label class="form-label fw-bold"><%= key.replace('AUDIO_', '').replace('WHISPER_', '').replace('_', ' ') %></label>
+                        <input type="<%= key.includes('RATE') || key.includes('TIMEOUT') ? 'number' : 'text' %>" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
+                        <% if (descriptions[key]) { %>
+                          <small class="form-text text-muted"><%= descriptions[key] %></small>
+                        <% } %>
+                      </div>
+                    <% }}); %>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <h5 class="text-primary mb-3"><i class="fas fa-volume-up me-2"></i>Text-to-Speech</h5>
+                    
+                    <!-- Piper TTS -->
+                    <div class="card mb-3">
+                      <div class="card-header">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="PIPER_ENABLED" id="PIPER_ENABLED" <%= env['PIPER_ENABLED'] === 'true' || env['PIPER_ENABLED'] === true ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'; togglePiperSettings()">
+                          <label class="form-check-label fw-bold" for="PIPER_ENABLED">Piper TTS (Local)</label>
+                        </div>
+                      </div>
+                      <div class="card-body" id="piperSettings">
+                        <% 
+                        const piperKeys = ['PIPER_EXECUTABLE', 'PIPER_MODEL'];
+                        piperKeys.forEach(key => { 
+                          if(env[key] !== undefined) {
+                        %>
+                          <div class="mb-3">
+                            <label class="form-label"><%= key.replace('PIPER_', '').replace('_', ' ') %></label>
+                            <input type="text" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
+                            <% if (descriptions[key]) { %>
+                              <small class="form-text text-muted"><%= descriptions[key] %></small>
+                            <% } %>
+                          </div>
+                        <% }}); %>
+                      </div>
+                    </div>
+                    
+                    <!-- ElevenLabs TTS -->
+                    <div class="card">
+                      <div class="card-header">
+                        <h6 class="mb-0">ElevenLabs TTS (Nuvem)</h6>
+                      </div>
+                      <div class="card-body">
+                        <% 
+                        const elevenKeys = ['ELEVENLABS_API_KEY', 'ELEVENLABS_VOICE_ID', 'ELEVENLABS_MODEL_ID', 'ELEVENLABS_STABILITY', 'ELEVENLABS_SIMILARITY'];
+                        elevenKeys.forEach(key => { 
+                          if(env[key] !== undefined) {
+                        %>
+                          <div class="mb-3">
+                            <label class="form-label"><%= key.replace('ELEVENLABS_', '').replace('_', ' ') %></label>
+                            <input type="<%= key.includes('STABILITY') || key.includes('SIMILARITY') ? 'number' : 'text' %>" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>" <%= key.includes('STABILITY') || key.includes('SIMILARITY') ? 'step="0.01" min="0" max="1"' : '' %>>
+                            <% if (descriptions[key]) { %>
+                              <small class="form-text text-muted"><%= descriptions[key] %></small>
+                            <% } %>
+                          </div>
+                        <% }}); %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Aba Integrações -->
+              <div class="tab-pane fade" id="integrations" role="tabpanel">
+                <div class="row">
+                  <div class="col-md-6">
+                    <h5 class="text-primary mb-3"><i class="fab fa-telegram me-2"></i>Telegram</h5>
+                    
+                    <div class="mb-3">
+                      <label class="form-label fw-bold">Bot Token</label>
+                      <input type="password" class="form-control" name="TELEGRAM_BOT_TOKEN" value="<%= env['TELEGRAM_BOT_TOKEN'] %>" placeholder="<%= examples['TELEGRAM_BOT_TOKEN'] %>">
+                      <small class="form-text text-muted">Token do bot do Telegram</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                      <label class="form-label fw-bold">Webhook URL</label>
+                      <input type="url" class="form-control" name="TELEGRAM_WEBHOOK_URL" value="<%= env['TELEGRAM_WEBHOOK_URL'] %>" placeholder="<%= examples['TELEGRAM_WEBHOOK_URL'] %>">
+                    </div>
+                    
+                    <div class="mb-3">
+                      <label class="form-label fw-bold">Tamanho Máximo de Arquivo (bytes)</label>
+                      <input type="number" class="form-control" name="TELEGRAM_MAX_FILE_SIZE" value="<%= env['TELEGRAM_MAX_FILE_SIZE'] %>" placeholder="<%= examples['TELEGRAM_MAX_FILE_SIZE'] %>">
+                    </div>
+                    
+                    <div class="form-check form-switch mb-3">
+                      <input class="form-check-input" type="checkbox" name="TELEGRAM_ENABLE_TTS" id="TELEGRAM_ENABLE_TTS" <%= env['TELEGRAM_ENABLE_TTS'] === 'true' || env['TELEGRAM_ENABLE_TTS'] === true ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
+                      <label class="form-check-label" for="TELEGRAM_ENABLE_TTS">Habilitar TTS</label>
+                    </div>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <h5 class="text-primary mb-3"><i class="fab fa-google me-2"></i>APIs Externas</h5>
+                    
+                    <!-- Google OAuth -->
+                    <div class="card mb-3">
+                      <div class="card-header"><h6 class="mb-0">Google OAuth</h6></div>
+                      <div class="card-body">
+                        <% 
+                        const googleKeys = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT'];
+                        googleKeys.forEach(key => { 
+                          if(env[key] !== undefined) {
+                        %>
+                          <div class="mb-3">
+                            <label class="form-label"><%= key.replace('GOOGLE_', '').replace('_', ' ') %></label>
+                            <input type="<%= key.includes('SECRET') ? 'password' : 'text' %>" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
+                          </div>
+                        <% }}); %>
+                      </div>
+                    </div>
+                    
+                    <!-- API de Calorias -->
+                    <div class="card mb-3">
+                      <div class="card-header"><h6 class="mb-0">API de Calorias</h6></div>
+                      <div class="card-body">
+                        <% 
+                        const calorieKeys = ['CALORIE_API_URL', 'CALORIE_API_KEY'];
+                        calorieKeys.forEach(key => { 
+                          if(env[key] !== undefined) {
+                        %>
+                          <div class="mb-3">
+                            <label class="form-label"><%= key.replace('CALORIE_API_', '').replace('_', ' ') %></label>
+                            <input type="<%= key.includes('KEY') ? 'password' : 'text' %>" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
+                          </div>
+                        <% }}); %>
+                      </div>
+                    </div>
+                    
+                    <!-- LinkedIn -->
+                    <div class="card">
+                      <div class="card-header"><h6 class="mb-0">LinkedIn</h6></div>
+                      <div class="card-body">
+                        <% 
+                        const linkedinKeys = ['LINKEDIN_USER', 'LINKEDIN_PASS', 'LINKEDIN_LI_AT', 'LINKEDIN_TIMEOUT_MS'];
+                        linkedinKeys.forEach(key => { 
+                          if(env[key] !== undefined) {
+                        %>
+                          <div class="mb-3">
+                            <label class="form-label"><%= key.replace('LINKEDIN_', '').replace('_', ' ') %></label>
+                            <input type="<%= key.includes('PASS') || key.includes('LI_AT') ? 'password' : key.includes('TIMEOUT') ? 'number' : 'text' %>" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
+                          </div>
+                        <% }}); %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Aba Features -->
+              <div class="tab-pane fade" id="features" role="tabpanel">
+                <div class="row">
+                  <div class="col-12">
+                    <div class="card">
+                      <div class="card-header">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="FEATURE_TOGGLES_ENABLED" id="FEATURE_TOGGLES_ENABLED" <%= env['FEATURE_TOGGLES_ENABLED'] === 'true' || env['FEATURE_TOGGLES_ENABLED'] === true ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'; toggleFeatureToggles()">
+                          <label class="form-check-label fw-bold" for="FEATURE_TOGGLES_ENABLED">
+                            <i class="fas fa-toggle-on me-2"></i>Sistema de Feature Toggles
+                          </label>
+                        </div>
+                        <small class="text-muted">Controla se o sistema de feature toggles está ativo</small>
+                      </div>
+                      <div class="card-body" id="featureTogglesContent">
+                        <% if (featureToggles && featureToggles.enabled) { %>
+                          <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Feature Toggles Globais:</strong> Essas configurações afetam o comportamento global das features, independentemente das configurações de usuário individual.
+                          </div>
+                          
+                          <div class="mb-3">
+                            <label class="form-label fw-bold">Configuração JSON</label>
+                            <textarea class="form-control" name="featureToggles.features" placeholder="<%= examples['featureToggles.features'] %>" rows="4"><%= typeof env['featureToggles.features'] === 'object' ? JSON.stringify(env['featureToggles.features'], null, 2) : env['featureToggles.features'] %></textarea>
+                            <small class="form-text text-muted">JSON com features toggles globais. Ex: {"feature1": true, "feature2": false}</small>
+                          </div>
+                          
+                          <% if (globalFeatures && Object.keys(globalFeatures).length > 0) { %>
+                            <hr>
+                            <h6>Features Atuais:</h6>
+                            <div class="row">
+                              <% Object.entries(globalFeatures).forEach(([featureName, isEnabled]) => { %>
+                                <div class="col-md-4 mb-2">
+                                  <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="global_feature_<%= featureName %>" id="global_<%= featureName %>" <%= isEnabled ? 'checked' : '' %>>
+                                    <label class="form-check-label" for="global_<%= featureName %>">
+                                      <%= featureName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) %>
+                                    </label>
+                                  </div>
+                                </div>
+                              <% }); %>
+                            </div>
+                          <% } %>
+                        <% } %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="row mt-4">
+                  <div class="col-12">
+                    <div class="card">
+                      <div class="card-header">
+                        <h5 class="mb-0"><i class="fab fa-telegram me-2"></i>Features do Telegram</h5>
+                      </div>
+                      <div class="card-body">
+                        <div class="row">
+                          <% 
+                          const telegramFeatures = [
+                            'TELEGRAM_FEATURE_AI_CHAT',
+                            'TELEGRAM_FEATURE_SCHEDULER', 
+                            'TELEGRAM_FEATURE_AUDIO_TRANSCRIPTION',
+                            'TELEGRAM_FEATURE_IMAGE_ANALYSIS',
+                            'TELEGRAM_FEATURE_VIDEO_SUMMARY',
+                            'TELEGRAM_FEATURE_TEXT_SUMMARY',
+                            'TELEGRAM_FEATURE_TTS',
+                            'TELEGRAM_FEATURE_CALORIE_COUNTER',
+                            'TELEGRAM_FEATURE_LINKEDIN_ANALYSIS',
+                            'TELEGRAM_FEATURE_MEDIA_PROCESSING',
+                            'TELEGRAM_FEATURE_PROFESSIONAL_ANALYSIS',
+                            'TELEGRAM_FEATURE_SYSTEM_RESOURCES'
+                          ];
+                          telegramFeatures.forEach((key, index) => { 
+                            if(env[key] !== undefined) {
+                          %>
+                            <div class="col-md-4 mb-3">
+                              <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="<%= key %>" id="<%= key %>" <%= env[key] === 'true' || env[key] === true ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
+                                <label class="form-check-label" for="<%= key %>">
+                                  <%= descriptions[key] || key.replace('TELEGRAM_FEATURE_', '').replace('_', ' ') %>
+                                </label>
+                              </div>
+                              <% if (descriptions[key]) { %>
+                                <small class="form-text text-muted"><%= descriptions[key] %></small>
+                              <% } %>
+                            </div>
+                          <% }}); %>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+            </div>
+            
+            <!-- Botões de Ação -->
+            <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+              <div>
+                <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">
+                  <i class="fas fa-undo me-1"></i> Resetar
+                </button>
+                <button type="button" class="btn btn-outline-info" onclick="validateConfig()">
+                  <i class="fas fa-check-circle me-1"></i> Validar
+                </button>
+              </div>
+              <div>
+                <button type="submit" class="btn btn-success btn-lg">
+                  <i class="fas fa-save me-2"></i> Salvar Configurações
+                </button>
+              </div>
+            </div>
+            
+          </form>
+        </div>
       </div>
-      
-      <% if (globalFeatures) { %>
-        <% for(const [featureName, isEnabled] of Object.entries(globalFeatures)){ %>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="global_feature_<%= featureName %>" id="global_<%= featureName %>" <%= isEnabled ? 'checked' : '' %>>
-            <label class="form-check-label" for="global_<%= featureName %>">
-              <%= featureName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) %>
-            </label>
-          </div>
-        <% } %>
-      <% } %>
     </div>
-  <% } %>
+  </div>
+</div>
+
+<script>
+function togglePiperSettings() {
+  const enabled = document.getElementById('PIPER_ENABLED').checked;
+  const settings = document.getElementById('piperSettings');
+  settings.style.opacity = enabled ? '1' : '0.5';
+  const inputs = settings.querySelectorAll('input');
+  inputs.forEach(input => input.disabled = !enabled);
+}
+
+function toggleFeatureToggles() {
+  const enabled = document.getElementById('FEATURE_TOGGLES_ENABLED').checked;
+  const content = document.getElementById('featureTogglesContent');
+  content.style.opacity = enabled ? '1' : '0.5';
+  const inputs = content.querySelectorAll('input, textarea');
+  inputs.forEach(input => {
+    if (input.id !== 'FEATURE_TOGGLES_ENABLED') {
+      input.disabled = !enabled;
+    }
+  });
+}
+
+function resetForm() {
+  if (confirm('Tem certeza que deseja resetar todas as configurações?')) {
+    document.getElementById('configForm').reset();
+  }
+}
+
+function validateConfig() {
+  let errors = [];
   
-  <button type="submit" class="btn btn-primary mt-3">Salvar</button>
-</form>
+  // Validar URL do Ollama
+  const ollamaHost = document.querySelector('input[name="OLLAMA_HOST"]').value;
+  if (ollamaHost && !ollamaHost.startsWith('http')) {
+    errors.push('URL do Ollama deve começar com http:// ou https://');
+  }
+  
+  // Validar token do Telegram
+  const telegramToken = document.querySelector('input[name="TELEGRAM_BOT_TOKEN"]').value;
+  if (telegramToken && !telegramToken.match(/^\d+:[A-Za-z0-9_-]+$/)) {
+    errors.push('Token do Telegram deve ter o formato: número:string');
+  }
+  
+  // Validar JSON de feature toggles
+  const featureTogglesJson = document.querySelector('textarea[name="featureToggles.features"]');
+  if (featureTogglesJson && featureTogglesJson.value) {
+    try {
+      JSON.parse(featureTogglesJson.value);
+    } catch (e) {
+      errors.push('JSON de feature toggles inválido');
+    }
+  }
+  
+  if (errors.length > 0) {
+    alert('Erros encontrados:\n' + errors.join('\n'));
+  } else {
+    alert('Configuração válida!');
+  }
+}
+
+// Inicializar estados dos componentes
+document.addEventListener('DOMContentLoaded', function() {
+  togglePiperSettings();
+  toggleFeatureToggles();
+});
+</script>

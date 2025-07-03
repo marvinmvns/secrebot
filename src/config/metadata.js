@@ -79,7 +79,7 @@ export const CONFIG_ENV_MAP = {
   'scheduler.concurrency': 'SCHED_CONCURRENCY',
   'scheduler.dynamic.enabled': 'DYNAMIC_CONCURRENCY',
   'scheduler.dynamic.min': 'SCHED_DYNAMIC_MIN',
-  'scheduler.dynamic.max': 'SCHED_MAX_CONCURRENCY',
+  'scheduler.dynamic.max': 'SCHED_DYNAMIC_MAX',
   'scheduler.dynamic.cpuThreshold': 'SCHED_CPU_THRESHOLD',
   'scheduler.dynamic.memThreshold': 'SCHED_MEM_THRESHOLD',
   'queues.llmConcurrency': 'LLM_CONCURRENCY',

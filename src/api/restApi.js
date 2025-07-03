@@ -14,7 +14,7 @@ import YouTubeService from '../services/youtubeService.js';
 import CalorieService from '../services/calorieService.js';
 import GoogleCalendarService from '../services/googleCalendarService.js';
 import Utils from '../utils/index.js';
-import { CONFIG, COMMANDS, CONFIG_DESCRIPTIONS, CONFIG_ENV_MAP, CONFIG_EXAMPLES } from '../config/index.js';
+import { CONFIG, COMMANDS, CONFIG_DESCRIPTIONS, CONFIG_ENV_MAP, CONFIG_EXAMPLES, WHISPER_MODELS_LIST } from '../config/index.js';
 import logger from '../utils/logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -590,10 +590,19 @@ class RestAPI {
         curr[keys[keys.length - 1]] = value;
       };
 
+      // Processar campos normais
       for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
-        if (req.body[envVar] === undefined) continue;
         let val = req.body[envVar];
+        
+        // Para checkboxes que não foram enviados (não marcados), definir como false
         const currentVal = getNested(CONFIG, cfgPath);
+        if (typeof currentVal === 'boolean' && val === undefined) {
+          val = 'false';
+        }
+        
+        if (val === undefined) continue;
+        
+        // Conversões de tipo
         if (typeof currentVal === 'number') val = Number(val);
         if (typeof currentVal === 'boolean') val = val === 'true';
         if (cfgPath === 'featureToggles.features' && typeof val === 'string') {

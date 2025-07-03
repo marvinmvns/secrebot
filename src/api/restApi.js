@@ -525,8 +525,9 @@ class RestAPI {
       res.json({ enabled });
     });
 
-    this.app.get('/config', async (req, res) => {
-      const saved = await this.configService.getConfig();
+    this.app.get('/config', async (req, res, next) => {
+      try {
+        const saved = await this.configService.getConfig();
 
       const getNested = (obj, pathStr) =>
         pathStr.split('.').reduce((o, k) => (o || {})[k], obj);
@@ -557,19 +558,24 @@ class RestAPI {
         logger.warn('Não foi possível buscar modelos do Ollama:', error.message);
       }
 
-      res.render('config', { 
-        env, 
-        descriptions, 
-        examples, 
-        featureToggles, 
-        globalFeatures,
-        availableModels,
-        whisperModels
-      });
+        res.render('config', {
+          env,
+          descriptions,
+          examples,
+          featureToggles,
+          globalFeatures,
+          availableModels,
+          whisperModels
+        });
+      } catch (error) {
+        logger.error('Erro ao obter configuração', error);
+        next(error);
+      }
     });
 
-    this.app.post('/config', async (req, res) => {
-      const saved = (await this.configService.getConfig()) || {};
+    this.app.post('/config', async (req, res, next) => {
+      try {
+        const saved = (await this.configService.getConfig()) || {};
 
       const getNested = (obj, pathStr) =>
         pathStr.split('.').reduce((o, k) => (o || {})[k], obj);
@@ -633,16 +639,26 @@ class RestAPI {
         }
       }
 
-      await this.configService.setConfig(saved);
-      this.configService.applyToRuntime(saved);
-      res.send('Configurações salvas. Reiniciando...');
-      logger.info('♻️  Reiniciando aplicação para aplicar novas configurações');
-      setTimeout(() => process.exit(0), 500);
+        await this.configService.setConfig(saved);
+        this.configService.applyToRuntime(saved);
+        res.send('Configurações salvas. Reiniciando...');
+        logger.info('♻️  Reiniciando aplicação para aplicar novas configurações');
+        setTimeout(() => process.exit(0), 500);
+      } catch (error) {
+        logger.error('Erro ao salvar configuração', error);
+        next(error);
+      }
     });
 
     // Rota catch-all para 404
     this.app.use((req, res) => {
         res.status(404).json({ error: '❌ Rota não encontrada' });
+    });
+
+    // Middleware de tratamento de erros
+    this.app.use((err, req, res, next) => {
+        logger.error('Erro inesperado na API', err);
+        res.status(500).json({ error: '❌ Erro interno do servidor' });
     });
   }
 

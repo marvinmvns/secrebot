@@ -46,14 +46,14 @@
                     <h5 class="text-primary mb-3"><i class="fas fa-database me-2"></i>MongoDB</h5>
                     <!-- Botões de exportação/importação -->
                     <div class="mb-3 d-flex gap-2">
-                      <form action="/api/config/mongo/export" method="GET" style="display:inline;">
+                      <form action="/api/config/export" method="GET" style="display:inline;">
                         <button type="submit" class="btn btn-outline-primary btn-sm">
                           <i class="fas fa-download me-1"></i>Exportar Configuração
                         </button>
                       </form>
-                      <form id="mongoImportForm" action="/api/config/mongo/import" method="POST" enctype="multipart/form-data" style="display:inline;">
-                        <input type="file" name="mongoConfigFile" accept="application/json" style="display:none;" onchange="document.getElementById('mongoImportForm').submit();">
-                        <button type="button" class="btn btn-outline-success btn-sm" onclick="document.querySelector('#mongoImportForm input[type=file]').click();">
+                      <form id="configImportForm" action="/api/config/import" method="POST" enctype="multipart/form-data" style="display:inline;">
+                        <input type="file" name="configFile" accept="application/json" style="display:none;" onchange="document.getElementById('configImportForm').submit();">
+                        <button type="button" class="btn btn-outline-success btn-sm" onclick="document.querySelector('#configImportForm input[type=file]').click();">
                           <i class="fas fa-upload me-1"></i>Importar Configuração
                         </button>
                       </form>
@@ -285,16 +285,15 @@
                         <% 
                         const elevenKeys = ['ELEVENLABS_API_KEY', 'ELEVENLABS_VOICE_ID', 'ELEVENLABS_MODEL_ID', 'ELEVENLABS_STABILITY', 'ELEVENLABS_SIMILARITY'];
                         elevenKeys.forEach(key => { 
-                          if(env[key] !== undefined) {
                         %>
                           <div class="mb-3">
                             <label class="form-label"><%= key.replace('ELEVENLABS_', '').replace('_', ' ') %></label>
-                            <input type="<%= key.includes('STABILITY') || key.includes('SIMILARITY') ? 'number' : 'text' %>" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>" <%= key.includes('STABILITY') || key.includes('SIMILARITY') ? 'step="0.01" min="0" max="1"' : '' %>>
+                            <input type="<%= key.includes('KEY') ? 'password' : key.includes('STABILITY') || key.includes('SIMILARITY') ? 'number' : 'text' %>" class="form-control" name="<%= key %>" value="<%= env[key] || '' %>" placeholder="<%= examples[key] %>" <%= key.includes('STABILITY') || key.includes('SIMILARITY') ? 'step=\"0.01\" min=\"0\" max=\"1\"' : '' %>>
                             <% if (descriptions[key]) { %>
                               <small class="form-text text-muted"><%= descriptions[key] %></small>
                             <% } %>
                           </div>
-                        <% }}); %>
+                        <% }); %>
                       </div>
                     </div>
                   </div>

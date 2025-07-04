@@ -16,7 +16,7 @@ import GoogleCalendarService from '../services/googleCalendarService.js';
 import Utils from '../utils/index.js';
 import { CONFIG, COMMANDS, CONFIG_DESCRIPTIONS, CONFIG_ENV_MAP, CONFIG_EXAMPLES, WHISPER_MODELS_LIST } from '../config/index.js';
 import logger from '../utils/logger.js';
-import { exportMongoConfig, importMongoConfig } from '../services/configExportImportService.js';
+import { exportFullConfig, importFullConfig } from '../services/configExportImportService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -662,15 +662,13 @@ class RestAPI {
       }
     });
 
-    // Rotas de exportação/importação de configuração do MongoDB
-    this.app.get('/api/config/mongo/export', (req, res) => {
+    // Rotas de exportação/importação de configuração completa
+    this.app.get('/api/config/export', async (req, res) => {
       try {
-        const filePath = exportMongoConfig();
-        res.download(filePath, 'mongo-config.json', (err) => {
+        const filePath = await exportFullConfig();
+        res.download(filePath, 'config-export.json', (err) => {
           if (err) {
             res.redirect('/config?error=Erro ao exportar configuração');
-          } else {
-            // Não é possível redirecionar após download, mas podemos usar JS na view para feedback
           }
         });
       } catch (err) {
@@ -678,15 +676,15 @@ class RestAPI {
       }
     });
 
-    const mongoUpload = multer({ storage: multer.memoryStorage() });
-    this.app.post('/api/config/mongo/import', mongoUpload.single('mongoConfigFile'), (req, res) => {
+    const configUpload = multer({ storage: multer.memoryStorage() });
+    this.app.post('/api/config/import', configUpload.single('configFile'), async (req, res) => {
       try {
         if (!req.file) {
           return res.redirect('/config?error=Arquivo não enviado');
         }
-        const tempPath = './mongo-config-upload.json';
+        const tempPath = './config-import.json';
         require('fs').writeFileSync(tempPath, req.file.buffer);
-        importMongoConfig(tempPath);
+        await importFullConfig(tempPath);
         require('fs').unlinkSync(tempPath);
         res.redirect('/config?success=1');
       } catch (err) {

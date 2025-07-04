@@ -537,7 +537,9 @@ class RestAPI {
       const descriptions = {};
       const examples = {};
       for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
-        env[envVar] = getNested(saved, cfgPath);
+        // Garante que todos os campos estejam presentes, mesmo se undefined
+        const value = getNested(saved, cfgPath);
+        env[envVar] = value !== undefined ? value : '';
         descriptions[envVar] = CONFIG_DESCRIPTIONS[cfgPath];
         examples[envVar] = CONFIG_EXAMPLES[cfgPath];
       }

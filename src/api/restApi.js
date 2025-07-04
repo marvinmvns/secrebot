@@ -653,12 +653,11 @@ class RestAPI {
 
         await this.configService.setConfig(saved);
         this.configService.applyToRuntime(saved);
-        res.send('Configurações salvas. Reiniciando...');
-        logger.info('♻️  Reiniciando aplicação para aplicar novas configurações');
-        setTimeout(() => process.exit(0), 500);
+        res.redirect('/config?success=1');
+        logger.info('✅ Configurações salvas com sucesso');
       } catch (error) {
         logger.error('Erro ao salvar configuração', error);
-        next(error);
+        res.redirect('/config?error=' + encodeURIComponent(error.message));
       }
     });
 

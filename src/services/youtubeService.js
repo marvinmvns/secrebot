@@ -81,22 +81,31 @@ async function downloadAudioBuffer(youtubeUrl) {
   });
 
   const attempts = [
-    () => runYtDlp(['-x', '--audio-format', 'mp3', '--no-playlist'], 'mp3'),
-    () => runYtDlp(['-x', '--audio-format', 'wav', '--no-playlist'], 'wav'),
-    attemptYtdl,
-    () => runYtDlp(['-f', 'bestaudio[ext=webm]/bestaudio/best', '--no-playlist'], 'ogg')
+    { name: 'yt-dlp MP3', fn: () => runYtDlp(['-x', '--audio-format', 'mp3', '--no-playlist'], 'mp3') },
+    { name: 'yt-dlp WAV', fn: () => runYtDlp(['-x', '--audio-format', 'wav', '--no-playlist'], 'wav') },
+    { name: 'ytdl-core + ffmpeg', fn: attemptYtdl },
+    { name: 'yt-dlp fallback', fn: () => runYtDlp(['-f', 'bestaudio[ext=webm]/bestaudio/best', '--no-playlist'], 'ogg') }
   ];
 
   let lastErr;
-  for (const attempt of attempts) {
+  for (const { name, fn } of attempts) {
     try {
-      return await attempt();
+      logger.verbose(`🔄 Tentando download de áudio via ${name}`);
+      const result = await fn();
+      logger.success(`✅ Download de áudio bem-sucedido via ${name} (${result.format})`);
+      return result;
     } catch (err) {
+      logger.warn(`⚠️ Download via ${name} falhou: ${err.message}`);
       lastErr = err;
-      if (!shouldUseYtDlp(err)) break;
+      if (!shouldUseYtDlp(err)) {
+        logger.verbose('❌ Erro não recuperável, interrompendo tentativas de download');
+        break;
+      }
     }
   }
-  throw lastErr;
+  
+  logger.error(`❌ Todas as tentativas de download de áudio falharam`);
+  throw new Error(`Falha no download de áudio: ${lastErr.message}`);
 }
 
 async function downloadWavBuffer(youtubeUrl) {
@@ -127,25 +136,49 @@ async function downloadWavBuffer(youtubeUrl) {
 async function fetchTranscript(url) {
   const yt = await initClient();
   const id = Utils.extractYouTubeId(url) || url;
+  
   try {
+    logger.verbose(`📡 Tentando obter transcrição via YouTube API para: ${id}`);
     const info = await yt.getInfo(id);
     const transcriptInfo = await info.getTranscript();
     const segments = transcriptInfo?.transcript?.content?.body?.initial_segments || [];
+    
     if (segments.length) {
-      return segments.map((s) => s.snippet?.text ?? s.text).join(' ');
+      const transcript = segments.map((s) => s.snippet?.text ?? s.text).join(' ');
+      logger.success(`✅ Transcrição obtida via YouTube API (${transcript.length} caracteres)`);
+      return transcript;
+    } else {
+      logger.warn('⚠️ Nenhum segmento de transcrição encontrado na API do YouTube');
     }
   } catch (err) {
-    logger.warn('Transcrição via YouTube.js falhou, utilizando Whisper:', err.message);
+    logger.warn(`⚠️ Transcrição via YouTube.js falhou: ${err.message}`);
+    logger.verbose('🔄 Iniciando fallback para Whisper');
   }
-  const { buffer, format } = await downloadAudioBuffer(url);
-  const transcript = await transcriber.transcribe(buffer, format);
-  return transcript;
+  
+  try {
+    const { buffer, format } = await downloadAudioBuffer(url);
+    logger.verbose(`🎵 Áudio baixado com sucesso (${format}), iniciando transcrição via Whisper`);
+    const transcript = await transcriber.transcribe(buffer, format);
+    logger.success(`✅ Transcrição obtida via Whisper (${transcript.length} caracteres)`);
+    return transcript;
+  } catch (whisperErr) {
+    logger.error(`❌ Erro na transcrição via Whisper: ${whisperErr.message}`);
+    throw new Error(`Falha na transcrição: API do YouTube indisponível e Whisper falhou - ${whisperErr.message}`);
+  }
 }
 
 async function fetchTranscriptWhisperOnly(url) {
-  const wavBuffer = await downloadWavBuffer(url);
-  const transcript = await transcriber.transcribe(wavBuffer, 'wav');
-  return transcript;
+  try {
+    logger.verbose(`🎙️ Iniciando transcrição via Whisper para: ${url}`);
+    const wavBuffer = await downloadWavBuffer(url);
+    logger.verbose(`🎵 Áudio convertido para WAV, iniciando transcrição`);
+    const transcript = await transcriber.transcribe(wavBuffer, 'wav');
+    logger.success(`✅ Transcrição via Whisper concluída (${transcript.length} caracteres)`);
+    return transcript;
+  } catch (err) {
+    logger.error(`❌ Erro na transcrição via Whisper: ${err.message}`);
+    throw new Error(`Falha na transcrição via Whisper: ${err.message}`);
+  }
 }
 
 export default { fetchTranscript, fetchTranscriptWhisperOnly, shouldUseYtDlp };

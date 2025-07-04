@@ -1276,60 +1276,222 @@ async handleRecursoCommand(contactId) {
       }
   }
 
+  async processVideoSummaryResilient(link, contactId, method) {
+      const maxRetries = 3;
+      const retryDelays = [2000, 5000, 10000];
+      let lastError = null;
+      
+      logger.flow(`▶️ Iniciando resumo de vídeo resiliente para ${contactId}. Método: ${method}, Link: ${link}`);
+      
+      if (!this.checkCircuitBreaker(contactId)) {
+          await this.sendErrorMessage(contactId, '⚠️ Sistema temporariamente indisponível para processamento de vídeo devido a falhas recentes. Tente novamente em 5 minutos.');
+          return;
+      }
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+              logger.verbose(`🔄 Tentativa ${attempt}/${maxRetries} para processar vídeo`);
+              
+              const progressMsg = attempt === 1 
+                  ? `⏳ Transcrevendo vídeo${method === 'whisper' ? ' via Whisper' : ''}...`
+                  : `🔄 Tentativa ${attempt}/${maxRetries} - Transcrevendo vídeo...`;
+              
+              await this.sendResponse(contactId, progressMsg, true);
+              
+              let transcript;
+              if (method === 'whisper') {
+                  logger.service('🎙️ Chamando serviço YouTubeService.fetchTranscriptWhisperOnly');
+                  transcript = await YouTubeService.fetchTranscriptWhisperOnly(link);
+              } else {
+                  logger.service('🎙️ Chamando serviço YouTubeService.fetchTranscript');
+                  transcript = await YouTubeService.fetchTranscript(link);
+              }
+              
+              logger.verbose(`📝 Transcrição concluída (${transcript?.length || 0} caracteres)`);
+              
+              if (!transcript || transcript.trim().length === 0) {
+                  const errorMsg = `❌ Transcrição vazia na tentativa ${attempt}/${maxRetries}`;
+                  logger.warn(errorMsg);
+                  
+                  if (attempt === maxRetries) {
+                      await this.sendResponse(contactId, '❌ Não foi possível obter a transcrição do vídeo após múltiplas tentativas. Verifique se o link está correto e se o vídeo possui legendas/áudio.');
+                      return;
+                  }
+                  
+                  await this.sendResponse(contactId, `⚠️ Falha na transcrição. Tentando novamente em ${retryDelays[attempt-1]/1000}s...`);
+                  await new Promise(resolve => setTimeout(resolve, retryDelays[attempt-1]));
+                  continue;
+              }
+              
+              const transcriptLength = transcript.length;
+              const truncatedTranscript = transcript.slice(0, 15000);
+              const truncated = transcriptLength > 15000;
+              
+              if (truncated) {
+                  logger.verbose('⚠️ Transcrição grande, aplicando truncamento para 15k caracteres');
+              }
+              
+              await this.sendResponse(contactId, 
+                  `📝 *Gerando resumo...*\n\n📊 Caracteres transcritos: ${transcriptLength.toLocaleString()}${truncated ? '\n⚠️ Texto truncado para processamento' : ''}`, 
+                  true
+              );
+              
+              const summaryPrompt = `Resuma em português o texto a seguir em tópicos claros e objetivos, em até 30 linhas:\n\n${truncatedTranscript}`;
+              
+              logger.flow(`📨 Prompt preparado com ${summaryPrompt.length} caracteres. Enviando ao LLM`);
+              
+              let summary;
+              try {
+                  logger.api('💬 Chamando LLM para gerar resumo');
+                  summary = await this.llmService.getAssistantResponse(contactId, summaryPrompt);
+              } catch (llmError) {
+                  logger.error(`❌ Erro no LLM ao processar vídeo para ${contactId}`, llmError);
+                  
+                  if (llmError.message && llmError.message.includes('timeout')) {
+                      if (attempt === maxRetries) {
+                          await this.sendResponse(contactId, '⏱️ O processamento do vídeo demorou mais que o esperado após múltiplas tentativas. Tente novamente com um vídeo menor ou aguarde alguns minutos.');
+                          return;
+                      }
+                      
+                      await this.sendResponse(contactId, `⏱️ Timeout na geração do resumo. Tentando novamente em ${retryDelays[attempt-1]/1000}s...`);
+                      await new Promise(resolve => setTimeout(resolve, retryDelays[attempt-1]));
+                      continue;
+                  }
+                  throw llmError;
+              }
+              
+              logger.verbose(`✅ Resumo gerado com ${summary.length} caracteres`);
+              logger.flow('📤 Enviando resumo final ao usuário');
+              
+              let finalResponse = `📑 *Resumo do Vídeo*\n\n${summary}`;
+              if (truncated) {
+                  finalResponse += `\n\n⚠️ *Nota:* Devido ao tamanho da transcrição, apenas os primeiros 15.000 caracteres foram resumidos.`;
+              }
+              
+              if (attempt > 1) {
+                  finalResponse += `\n\n✅ *Sucesso na tentativa ${attempt}/${maxRetries}*`;
+              }
+              
+              await this.sendResponse(contactId, finalResponse);
+              logger.success('🏁 Processo de resumo finalizado com sucesso');
+              return;
+              
+          } catch (err) {
+              logger.error(`❌ Erro na tentativa ${attempt}/${maxRetries} para ${contactId}`, err);
+              lastError = err;
+              
+              if (attempt === maxRetries) {
+                  break;
+              }
+              
+              const shouldRetry = this.shouldRetryVideoProcessing(err);
+              if (!shouldRetry) {
+                  logger.warn(`❌ Erro não recuperável, interrompendo tentativas: ${err.message}`);
+                  break;
+              }
+              
+              await this.sendResponse(contactId, `⚠️ Erro temporário. Tentando novamente em ${retryDelays[attempt-1]/1000}s...`);
+              await new Promise(resolve => setTimeout(resolve, retryDelays[attempt-1]));
+          }
+      }
+      
+      logger.error(`❌ Falha final no processamento de vídeo para ${contactId}`, lastError);
+      
+      const circuitBreakerTriggered = this.recordVideoProcessingFailure(contactId, lastError);
+      
+      if (circuitBreakerTriggered) {
+          await this.sendErrorMessage(contactId, '⚠️ Muitas falhas detectadas no processamento de vídeo. O sistema foi temporariamente bloqueado por 5 minutos para proteção. Tente novamente mais tarde.');
+      } else if (lastError?.message?.includes('falhou após') && lastError?.message?.includes('tentativas')) {
+          await this.sendErrorMessage(contactId, '⏱️ O processamento do vídeo demorou mais que o esperado. O sistema tentou por até 1 hora, mas não conseguiu completar. Tente novamente mais tarde ou com um vídeo menor.');
+      } else {
+          await this.sendErrorMessage(contactId, `❌ Erro ao processar o vídeo após ${maxRetries} tentativas. Verifique se o link é válido e tente novamente em alguns minutos.`);
+      }
+  }
+
+  shouldRetryVideoProcessing(error) {
+      const retryableErrors = [
+          'network',
+          'timeout',
+          'connection',
+          'ECONNRESET',
+          'ENOTFOUND',
+          'ECONNREFUSED',
+          'socket hang up',
+          'request timeout',
+          'Parse error',
+          'Unexpected token',
+          'JSON',
+          'HTTP error',
+          'Service unavailable',
+          'Bad gateway',
+          'Gateway timeout'
+      ];
+      
+      const errorMessage = error.message.toLowerCase();
+      return retryableErrors.some(retryableError => 
+          errorMessage.includes(retryableError.toLowerCase())
+      );
+  }
+
+  getVideoProcessingCircuitBreaker() {
+      if (!this.videoCircuitBreaker) {
+          this.videoCircuitBreaker = {
+              failures: new Map(),
+              isOpen: false,
+              lastFailureTime: 0,
+              resetTimeoutMs: 300000
+          };
+      }
+      return this.videoCircuitBreaker;
+  }
+
+  checkCircuitBreaker(contactId) {
+      const cb = this.getVideoProcessingCircuitBreaker();
+      const now = Date.now();
+      
+      if (cb.isOpen && (now - cb.lastFailureTime) > cb.resetTimeoutMs) {
+          logger.verbose('🔄 Circuit breaker reset - tentando novamente');
+          cb.isOpen = false;
+          cb.failures.clear();
+          return true;
+      }
+      
+      if (cb.isOpen) {
+          logger.warn(`⚠️ Circuit breaker aberto para processamento de vídeo`);
+          return false;
+      }
+      
+      return true;
+  }
+
+  recordVideoProcessingFailure(contactId, error) {
+      const cb = this.getVideoProcessingCircuitBreaker();
+      const now = Date.now();
+      
+      const userFailures = cb.failures.get(contactId) || [];
+      userFailures.push({ time: now, error: error.message });
+      
+      const recentFailures = userFailures.filter(f => (now - f.time) < 900000);
+      cb.failures.set(contactId, recentFailures);
+      
+      if (recentFailures.length >= 5) {
+          logger.warn(`⚠️ Muitas falhas no processamento de vídeo para ${contactId} - ativando circuit breaker`);
+          cb.isOpen = true;
+          cb.lastFailureTime = now;
+          return true;
+      }
+      
+      return false;
+  }
+
   async handleResumirVideoCommand(msg, contactId) {
       const link = msg.body.substring(COMMANDS.RESUMIRVIDEO.length).trim();
       if (!link) {
           await this.sendResponse(contactId, '📺 Por favor, envie o link do vídeo do YouTube que deseja transcrever.');
           return;
       }
-      try {
-          await this.sendResponse(contactId, '⏳ Transcrevendo vídeo...', true);
-          const transcript = await YouTubeService.fetchTranscript(link);
-          
-          // Verificar se a transcrição foi obtida
-          if (!transcript || transcript.trim().length === 0) {
-              await this.sendResponse(contactId, '❌ Não foi possível obter a transcrição do vídeo. Verifique se o link está correto e se o vídeo possui legendas.');
-              return;
-          }
-
-          const transcriptLength = transcript.length;
-          const truncatedTranscript = transcript.slice(0, 15000); // Limite para LLM
-          const truncated = transcriptLength > 15000;
-
-          await this.sendResponse(contactId, `📝 *Gerando resumo...*\n\n📊 Caracteres transcritos: ${transcriptLength.toLocaleString()}${truncated ? '\n⚠️ Texto truncado para processamento' : ''}`, true);
-
-          const summaryPrompt = `Resuma em português o texto a seguir em tópicos claros e objetivos, em até 30 linhas:\n\n${truncatedTranscript}`;
-          
-          // Try with more retries for video processing due to larger content
-          let summary;
-          try {
-            summary = await this.llmService.getAssistantResponse(contactId, summaryPrompt);
-          } catch (llmError) {
-            logger.error(`❌ Erro no LLM ao processar vídeo para ${contactId}`, llmError);
-            if (llmError.message && llmError.message.includes('timeout')) {
-              await this.sendResponse(contactId, '⏱️ O processamento do vídeo demorou mais que o esperado. Tente novamente com um vídeo menor ou aguarde alguns minutos.');
-              return;
-            }
-            throw llmError;
-          }
-          
-          let finalResponse = `📑 *Resumo do Vídeo*\n\n${summary}`;
-          
-          if (truncated) {
-              finalResponse += `\n\n⚠️ *Nota:* Devido ao tamanho da transcrição, apenas os primeiros 15.000 caracteres foram resumidos.`;
-          }
-          
-          await this.sendResponse(contactId, finalResponse);
-          
-      } catch (err) {
-          logger.error(`❌ Erro ao processar vídeo para ${contactId}`, err);
-          
-          if (err.message?.includes('falhou após') && err.message?.includes('tentativas')) {
-            await this.sendErrorMessage(contactId, '⏱️ O processamento do vídeo demorou mais que o esperado. O sistema tentou por até 1 hora, mas não conseguiu completar. Tente novamente mais tarde ou com um vídeo menor.');
-          } else {
-            await this.sendErrorMessage(contactId, '❌ Erro ao processar o vídeo. Verifique se o link é válido e tente novamente.');
-          }
-      }
+      
+      return this.processVideoSummaryResilient(link, contactId, 'fast');
   }
 
   async handleResumirVideo2Command(msg, contactId) {
@@ -1338,72 +1500,8 @@ async handleRecursoCommand(contactId) {
           await this.sendResponse(contactId, '📺 Por favor, envie o link do vídeo do YouTube que deseja transcrever.');
           return;
       }
-
-      logger.flow(`▶️ Iniciando resumo via Whisper para ${contactId}. Link recebido: ${link}`);
-      logger.flow('📥 Enviando confirmação de transcrição ao usuário');
-
-      try {
-          await this.sendResponse(contactId, '⏳ Transcrevendo vídeo via Whisper...', true);
-          logger.service('🎙️ Chamando serviço YouTubeService.fetchTranscriptWhisperOnly');
-          const transcript = await YouTubeService.fetchTranscriptWhisperOnly(link);
-
-          logger.verbose(`📝 Transcrição concluída (${transcript.length} caracteres). Trecho inicial: "${transcript.slice(0, 80)}..."`);
-          logger.verbose(`📊 Tamanho total da transcrição: ${transcript.length}`);
-
-          if (!transcript || transcript.trim().length === 0) {
-              logger.warn(`⚠️ Transcrição vazia para ${contactId}`);
-              await this.sendResponse(contactId, '❌ Não foi possível transcrever o vídeo. Verifique se o link está correto.');
-              return;
-          }
-
-          const transcriptLength = transcript.length;
-          const truncatedTranscript = transcript.slice(0, 15000);
-          const truncated = transcriptLength > 15000;
-
-          if (truncated) {
-              logger.verbose('⚠️ Transcrição grande, aplicando truncamento para 15k caracteres');
-          }
-
-          await this.sendResponse(contactId, `📝 *Gerando resumo...*\n\n📊 Caracteres transcritos: ${transcriptLength.toLocaleString()}${truncated ? '\n⚠️ Texto truncado para processamento' : ''}`, true);
-
-          const summaryPrompt = `Resuma em português o texto a seguir em tópicos claros e objetivos, em até 30 linhas:\n\n${truncatedTranscript}`;
-
-          logger.flow(`📨 Prompt preparado com ${summaryPrompt.length} caracteres. Enviando ao LLM`);
-
-          let summary;
-          try {
-            logger.api('💬 Chamando LLM para gerar resumo');
-            summary = await this.llmService.getAssistantResponse(contactId, summaryPrompt);
-          } catch (llmError) {
-            logger.error(`❌ Erro no LLM ao processar vídeo para ${contactId}`, llmError);
-            if (llmError.message && llmError.message.includes('timeout')) {
-              await this.sendResponse(contactId, '⏱️ O processamento do vídeo demorou mais que o esperado. Tente novamente com um vídeo menor ou aguarde alguns minutos.');
-              return;
-            }
-            throw llmError;
-          }
-
-          logger.verbose(`✅ Resumo gerado com ${summary.length} caracteres. Trecho inicial: "${summary.slice(0, 80)}..."`);
-          logger.flow('📤 Enviando resumo final ao usuário');
-
-          let finalResponse = `📑 *Resumo do Vídeo*\n\n${summary}`;
-          if (truncated) {
-              finalResponse += `\n\n⚠️ *Nota:* Devido ao tamanho da transcrição, apenas os primeiros 15.000 caracteres foram resumidos.`;
-          }
-
-          await this.sendResponse(contactId, finalResponse);
-          logger.success('🏁 Processo de resumo finalizado com sucesso');
-
-      } catch (err) {
-          logger.error(`❌ Erro ao processar vídeo para ${contactId}`, err);
-          
-          if (err.message?.includes('falhou após') && err.message?.includes('tentativas')) {
-            await this.sendErrorMessage(contactId, '⏱️ O processamento do vídeo demorou mais que o esperado. O sistema tentou por até 1 hora, mas não conseguiu completar. Tente novamente mais tarde ou com um vídeo menor.');
-          } else {
-            await this.sendErrorMessage(contactId, '❌ Erro ao processar o vídeo. Verifique se o link é válido e tente novamente.');
-          }
-          logger.error('📛 Processo de resumo via Whisper finalizado com erro');
-      }
+      
+      return this.processVideoSummaryResilient(link, contactId, 'whisper');
   }
 
   async handleImageMessage(msg, contactId, lowerText) {

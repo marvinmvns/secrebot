@@ -6,7 +6,7 @@
           <h3 class="mb-0"><i class="fas fa-cogs me-2"></i>Configurações da Aplicação</h3>
         </div>
         <div class="card-body">
-          <form action="/config" method="POST" id="configForm">
+          <form action="/config" method="POST" id="configForm" onsubmit="handleSubmit(event)">
             
             <!-- Navegação por Tabs -->
             <ul class="nav nav-tabs mb-4" id="configTabs" role="tablist">
@@ -84,7 +84,7 @@
                         <label class="form-label fw-bold"><%= key.replace('DEBUG_', '').replace('_', ' ') %></label>
                         <% if (key.includes('ENABLED') || key.includes('VERBOSE')) { %>
                           <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="<%= key %>" id="<%= key %>" <%= env[key] === 'true' || env[key] === true ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
+                            <input class="form-check-input" type="checkbox" name="<%= key %>" id="<%= key %>" <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
                             <label class="form-check-label" for="<%= key %>">Ativado</label>
                           </div>
                         <% } else { %>
@@ -129,7 +129,7 @@
                         <label class="form-label fw-bold"><%= key.replace('SCHED_', '').replace('DYNAMIC_', '').replace('_', ' ') %></label>
                         <% if (key.includes('CONCURRENCY') && !key.includes('MIN') && !key.includes('MAX')) { %>
                           <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="<%= key %>" id="<%= key %>" <%= env[key] === 'true' || env[key] === true ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
+                            <input class="form-check-input" type="checkbox" name="<%= key %>" id="<%= key %>" <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
                             <label class="form-check-label" for="<%= key %>">Ativado</label>
                           </div>
                         <% } else { %>
@@ -255,7 +255,7 @@
                     <div class="card mb-3">
                       <div class="card-header">
                         <div class="form-check form-switch">
-                          <input class="form-check-input" type="checkbox" name="PIPER_ENABLED" id="PIPER_ENABLED" <%= env['PIPER_ENABLED'] === 'true' || env['PIPER_ENABLED'] === true ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'; togglePiperSettings()">
+                          <input class="form-check-input" type="checkbox" name="PIPER_ENABLED" id="PIPER_ENABLED" <%= (env['PIPER_ENABLED'] === 'true' || env['PIPER_ENABLED'] === true || env['PIPER_ENABLED'] === '1' || env['PIPER_ENABLED'] === 1) ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'; togglePiperSettings()">
                           <label class="form-check-label fw-bold" for="PIPER_ENABLED">Piper TTS (Local)</label>
                         </div>
                       </div>
@@ -323,7 +323,7 @@
                     </div>
                     
                     <div class="form-check form-switch mb-3">
-                      <input class="form-check-input" type="checkbox" name="TELEGRAM_ENABLE_TTS" id="TELEGRAM_ENABLE_TTS" <%= env['TELEGRAM_ENABLE_TTS'] === 'true' || env['TELEGRAM_ENABLE_TTS'] === true ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
+                      <input class="form-check-input" type="checkbox" name="TELEGRAM_ENABLE_TTS" id="TELEGRAM_ENABLE_TTS" <%= (env['TELEGRAM_ENABLE_TTS'] === 'true' || env['TELEGRAM_ENABLE_TTS'] === true || env['TELEGRAM_ENABLE_TTS'] === '1' || env['TELEGRAM_ENABLE_TTS'] === 1) ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
                       <label class="form-check-label" for="TELEGRAM_ENABLE_TTS">Habilitar TTS</label>
                     </div>
                   </div>
@@ -392,7 +392,7 @@
                     <div class="card">
                       <div class="card-header">
                         <div class="form-check form-switch">
-                          <input class="form-check-input" type="checkbox" name="FEATURE_TOGGLES_ENABLED" id="FEATURE_TOGGLES_ENABLED" <%= env['FEATURE_TOGGLES_ENABLED'] === 'true' || env['FEATURE_TOGGLES_ENABLED'] === true ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'; toggleFeatureToggles()">
+                          <input class="form-check-input" type="checkbox" name="FEATURE_TOGGLES_ENABLED" id="FEATURE_TOGGLES_ENABLED" <%= (env['FEATURE_TOGGLES_ENABLED'] === 'true' || env['FEATURE_TOGGLES_ENABLED'] === true || env['FEATURE_TOGGLES_ENABLED'] === '1' || env['FEATURE_TOGGLES_ENABLED'] === 1) ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'; toggleFeatureToggles()">
                           <label class="form-check-label fw-bold" for="FEATURE_TOGGLES_ENABLED">
                             <i class="fas fa-toggle-on me-2"></i>Sistema de Feature Toggles
                           </label>
@@ -419,7 +419,7 @@
                               <% Object.entries(globalFeatures).forEach(([featureName, isEnabled]) => { %>
                                 <div class="col-md-4 mb-2">
                                   <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" name="global_feature_<%= featureName %>" id="global_<%= featureName %>" <%= isEnabled ? 'checked' : '' %>>
+                                    <input class="form-check-input" type="checkbox" name="global_feature_<%= featureName %>" id="global_<%= featureName %>" <%= (isEnabled === 'true' || isEnabled === true || isEnabled === '1' || isEnabled === 1) ? 'checked' : '' %>>
                                     <label class="form-check-label" for="global_<%= featureName %>">
                                       <%= featureName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) %>
                                     </label>
@@ -469,7 +469,7 @@
                           %>
                             <div class="col-md-4 mb-3">
                               <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" name="<%= key %>" id="<%= key %>" <%= env[key] === 'true' || env[key] === true ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
+                                <input class="form-check-input" type="checkbox" name="<%= key %>" id="<%= key %>" <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
                                 <label class="form-check-label" for="<%= key %>">
                                   <%= descriptions[key] || key.replace('TELEGRAM_FEATURE_', '').replace('_', ' ') %>
                                 </label>
@@ -501,9 +501,6 @@
               <div>
                 <button type="submit" class="btn btn-success btn-lg">
                   <i class="fas fa-save me-2"></i> Salvar Configurações
-                </button>
-                <button type="button" class="btn btn-warning btn-sm ms-2" onclick="testSave()">
-                  <i class="fas fa-bug me-1"></i> Teste
                 </button>
               </div>
             </div>
@@ -614,14 +611,15 @@ function validateConfig() {
   }
 }
 
-function testSave() {
-  console.log('🧪 Testando salvamento...');
+function handleSubmit(event) {
+  event.preventDefault();
+  console.log('📝 Formulário sendo enviado via handleSubmit...');
+  
   const form = document.getElementById('configForm');
   if (form) {
     const formData = new FormData(form);
     console.log('📋 Dados do formulário:', Object.fromEntries(formData));
     
-    // Teste manual do POST
     fetch('/config', {
       method: 'POST',
       body: formData
@@ -634,7 +632,8 @@ function testSave() {
       }
     })
     .catch(error => {
-      console.error('❌ Erro no teste:', error);
+      console.error('❌ Erro no salvamento:', error);
+      alert('Erro ao salvar configurações: ' + error.message);
     });
   }
 }

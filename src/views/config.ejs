@@ -563,13 +563,14 @@
                 </button>
               </div>
               <div>
-                <button type="submit" class="btn btn-success btn-lg" id="saveButton">
-                  <span id="saveButtonText">
-                    <i class="fas fa-save me-2"></i> Salvar Configurações
-                  </span>
-                  <span id="saveButtonLoading" style="display: none;">
-                    <span class="spinner-border spinner-border-sm me-2"></span> Salvando...
-                  </span>
+                <button type="submit" class="btn btn-success btn-lg">
+                  <i class="fas fa-save me-2"></i> Salvar Configurações
+                </button>
+                <button type="button" class="btn btn-primary btn-lg ms-2" onclick="saveConfigAlternative()">
+                  <i class="fas fa-save me-2"></i> Salvar (Alt)
+                </button>
+                <button type="button" class="btn btn-warning btn-sm ms-2" onclick="testSave()">
+                  <i class="fas fa-bug me-1"></i> Teste
                 </button>
               </div>
             </div>
@@ -911,22 +912,14 @@ function handleSubmit(event) {
   
   const form = document.getElementById('configForm');
   if (form) {
-    setLoadingState(true);
-    
-    // Primeiro, sincroniza todos os toggle labels com seus checkboxes ocultos
-    syncToggleStates();
-    
     const formData = new FormData(form);
-    
-    // Garante que todos os checkboxes sejam enviados com valor correto
+    // Garante que todos os checkboxes sejam enviados, mesmo se desmarcados
     form.querySelectorAll('input[type=checkbox]').forEach(cb => {
       // Remove o valor existente se houver
       formData.delete(cb.name);
       // Adiciona o valor correto baseado no estado do checkbox
       formData.append(cb.name, cb.checked ? 'true' : 'false');
-      console.log(`Checkbox ${cb.name}: ${cb.checked}`);
     });
-    
     console.log('📋 Dados do formulário:', Object.fromEntries(formData));
     
     fetch('/config', {
@@ -935,23 +928,14 @@ function handleSubmit(event) {
     })
     .then(response => {
       console.log('📡 Resposta do servidor:', response.status, response.statusText);
-      setLoadingState(false);
-      
-      if (response.ok) {
-        showSuccessToast('✅ Configurações salvas com sucesso!');
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
-      } else {
-        return response.text().then(text => {
-          throw new Error(`Server error: ${response.status} - ${text}`);
-        });
+      if (response.redirected) {
+        console.log('🔄 Redirecionando para:', response.url);
+        window.location.href = response.url;
       }
     })
     .catch(error => {
       console.error('❌ Erro no salvamento:', error);
-      setLoadingState(false);
-      showErrorToast('Erro ao salvar configurações: ' + error.message);
+      alert('Erro ao salvar configurações: ' + error.message);
     });
   } else {
     console.error('❌ Formulário não encontrado!');
@@ -978,15 +962,6 @@ function testSave() {
   const form = document.getElementById('configForm');
   if (form) {
     const formData = new FormData(form);
-    
-    // Garante que todos os checkboxes sejam enviados com valor correto
-    form.querySelectorAll('input[type=checkbox]').forEach(cb => {
-      // Remove o valor existente se houver
-      formData.delete(cb.name);
-      // Adiciona o valor correto baseado no estado do checkbox
-      formData.append(cb.name, cb.checked ? 'true' : 'false');
-    });
-    
     console.log('📋 Dados do formulário:', Object.fromEntries(formData));
     
     // Teste manual do POST
@@ -1005,6 +980,55 @@ function testSave() {
       console.error('❌ Erro no teste:', error);
     });
   }
+}
+
+function saveConfigAlternative() {
+  console.log('🔄 Salvamento alternativo iniciado...');
+  
+  // Coletar todos os dados do formulário manualmente
+  const formData = new FormData();
+  const form = document.getElementById('configForm');
+  
+  if (!form) {
+    console.error('❌ Formulário não encontrado!');
+    return;
+  }
+  
+  // Coletar todos os inputs
+  form.querySelectorAll('input, select, textarea').forEach(input => {
+    if (input.type === 'checkbox') {
+      formData.append(input.name, input.checked ? 'true' : 'false');
+    } else if (input.type === 'radio') {
+      if (input.checked) {
+        formData.append(input.name, input.value);
+      }
+    } else {
+      if (input.value !== undefined && input.value !== '') {
+        formData.append(input.name, input.value);
+      }
+    }
+  });
+  
+  console.log('📋 Dados coletados:', Object.fromEntries(formData));
+  
+  // Enviar via fetch
+  fetch('/config', {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => {
+    console.log('📡 Resposta do servidor:', response.status, response.statusText);
+    if (response.redirected) {
+      console.log('🔄 Redirecionando para:', response.url);
+      window.location.href = response.url;
+    } else {
+      console.log('⚠️ Não houve redirecionamento');
+    }
+  })
+  .catch(error => {
+    console.error('❌ Erro no salvamento alternativo:', error);
+    alert('Erro ao salvar configurações: ' + error.message);
+  });
 }
 
 // Verificar status das configurações

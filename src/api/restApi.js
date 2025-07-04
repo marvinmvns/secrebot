@@ -625,7 +625,7 @@ class RestAPI {
         
         // Conversões de tipo
         if (typeof currentVal === 'number') val = Number(val);
-        if (typeof currentVal === 'boolean') val = val === 'true' || val === true;
+        if (typeof currentVal === 'boolean') val = val === 'true' || val === true || val === 'on';
         if (cfgPath === 'featureToggles.features' && typeof val === 'string') {
           try {
             val = JSON.parse(val);
@@ -646,7 +646,7 @@ class RestAPI {
       for (const key in req.body) {
         if (key.startsWith('global_feature_')) {
           const featureName = key.replace('global_feature_', '');
-          globalFeatures[featureName] = req.body[key] === 'true' || req.body[key] === true;
+          globalFeatures[featureName] = req.body[key] === 'true' || req.body[key] === true || req.body[key] === 'on';
         }
       }
 
@@ -657,8 +657,9 @@ class RestAPI {
         try {
           await fs.access(saved.piper.executable, fs.constants.X_OK);
           await fs.access(saved.piper.model, fs.constants.R_OK);
-        } catch {
-          return res.status(400).send('❌ Caminho do Piper ou modelo ONNX inválido');
+        } catch (error) {
+          logger.warn('⚠️ Piper habilitado mas arquivos não encontrados, desabilitando automaticamente:', error.message);
+          saved.piper.enabled = false;
         }
       }
 

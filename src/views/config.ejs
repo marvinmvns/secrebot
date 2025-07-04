@@ -797,6 +797,76 @@ function showErrorToast(message) {
   });
 }
 
+function toggleCheckbox(id) {
+  const checkbox = document.getElementById(id);
+  const label = document.querySelector(`label[for="${id}"]`);
+  
+  if (!checkbox || !label) {
+    console.error(`Checkbox or label not found for ID: ${id}`);
+    return;
+  }
+  
+  // Toggle checkbox state
+  checkbox.checked = !checkbox.checked;
+  checkbox.value = checkbox.checked ? 'true' : 'false';
+  
+  // Update label visual state
+  if (checkbox.checked) {
+    label.classList.remove('label-off');
+    label.classList.add('label-on');
+  } else {
+    label.classList.remove('label-on');
+    label.classList.add('label-off');
+  }
+  
+  // Update label text to show current state
+  const dataText = label.getAttribute('data-text') || '';
+  const statusText = checkbox.checked ? 'Ativado' : 'Desativado';
+  
+  if (dataText) {
+    label.textContent = `${dataText} - ${statusText}`;
+  } else {
+    label.textContent = statusText;
+  }
+  
+  // Handle special cases like Piper TTS
+  if (id === 'PIPER_ENABLED') {
+    togglePiperSettings();
+  }
+  
+  if (id === 'FEATURE_TOGGLES_ENABLED') {
+    toggleFeatureToggles();
+  }
+  
+  console.log(`Toggled ${id}: ${checkbox.checked}`);
+}
+
+function togglePiperSettings() {
+  const piperEnabled = document.getElementById('PIPER_ENABLED');
+  const piperSettings = document.getElementById('piperSettings');
+  
+  if (piperEnabled && piperSettings) {
+    if (piperEnabled.checked) {
+      piperSettings.style.display = 'block';
+    } else {
+      piperSettings.style.display = 'none';
+    }
+  }
+}
+
+function toggleFeatureToggles() {
+  const featureTogglesEnabled = document.getElementById('FEATURE_TOGGLES_ENABLED');
+  const featureTogglesContent = document.getElementById('featureTogglesContent');
+  
+  if (featureTogglesEnabled && featureTogglesContent) {
+    if (featureTogglesEnabled.checked) {
+      featureTogglesContent.style.display = 'block';
+    } else {
+      featureTogglesContent.style.display = 'none';
+    }
+  }
+}
+
 async function testMongoConnection() {
   const mongoUri = document.querySelector('input[name="MONGO_URI"]').value;
   const dbName = document.querySelector('input[name="MONGO_DB_NAME"]').value;
@@ -843,6 +913,9 @@ function handleSubmit(event) {
   if (form) {
     setLoadingState(true);
     
+    // Primeiro, sincroniza todos os toggle labels com seus checkboxes ocultos
+    syncToggleStates();
+    
     const formData = new FormData(form);
     
     // Garante que todos os checkboxes sejam enviados com valor correto
@@ -851,6 +924,7 @@ function handleSubmit(event) {
       formData.delete(cb.name);
       // Adiciona o valor correto baseado no estado do checkbox
       formData.append(cb.name, cb.checked ? 'true' : 'false');
+      console.log(`Checkbox ${cb.name}: ${cb.checked}`);
     });
     
     console.log('📋 Dados do formulário:', Object.fromEntries(formData));
@@ -863,12 +937,15 @@ function handleSubmit(event) {
       console.log('📡 Resposta do servidor:', response.status, response.statusText);
       setLoadingState(false);
       
-      if (response.redirected) {
-        console.log('🔄 Redirecionando para:', response.url);
+      if (response.ok) {
         showSuccessToast('✅ Configurações salvas com sucesso!');
         setTimeout(() => {
-          window.location.href = response.url;
+          window.location.reload();
         }, 1000);
+      } else {
+        return response.text().then(text => {
+          throw new Error(`Server error: ${response.status} - ${text}`);
+        });
       }
     })
     .catch(error => {
@@ -879,6 +956,21 @@ function handleSubmit(event) {
   } else {
     console.error('❌ Formulário não encontrado!');
   }
+}
+
+function syncToggleStates() {
+  // Sincroniza todos os toggle labels com seus checkboxes ocultos
+  document.querySelectorAll('.toggle-label').forEach(label => {
+    const checkboxId = label.getAttribute('for');
+    const checkbox = document.getElementById(checkboxId);
+    
+    if (checkbox && checkbox.type === 'checkbox') {
+      const isOn = label.classList.contains('label-on');
+      checkbox.checked = isOn;
+      checkbox.value = isOn ? 'true' : 'false';
+      console.log(`Synced ${checkboxId}: ${checkbox.checked}`);
+    }
+  });
 }
 
 function testSave() {
@@ -965,8 +1057,44 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('input', updateConfigStatus);
     form.addEventListener('change', updateConfigStatus);
     
+    // Inicializar toggle states
+    initializeToggleStates();
+    
     // Atualizar status inicial
     updateConfigStatus();
   }
 });
+
+function initializeToggleStates() {
+  // Inicializa todos os toggle labels baseado no estado dos checkboxes ocultos
+  document.querySelectorAll('input[type=checkbox].d-none').forEach(checkbox => {
+    const label = document.querySelector(`label[for="${checkbox.id}"]`);
+    if (label && label.classList.contains('toggle-label')) {
+      const dataText = label.getAttribute('data-text') || '';
+      const statusText = checkbox.checked ? 'Ativado' : 'Desativado';
+      
+      // Set correct CSS classes
+      if (checkbox.checked) {
+        label.classList.remove('label-off');
+        label.classList.add('label-on');
+      } else {
+        label.classList.remove('label-on');
+        label.classList.add('label-off');
+      }
+      
+      // Update text content
+      if (dataText) {
+        label.textContent = `${dataText} - ${statusText}`;
+      } else {
+        label.textContent = statusText;
+      }
+      
+      console.log(`Initialized ${checkbox.id}: ${checkbox.checked}`);
+    }
+  });
+  
+  // Initialize special toggle sections
+  togglePiperSettings();
+  toggleFeatureToggles();
+}
 </script>

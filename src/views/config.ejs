@@ -6,7 +6,7 @@
           <h3 class="mb-0"><i class="fas fa-cogs me-2"></i>Configurações da Aplicação</h3>
         </div>
         <div class="card-body">
-          <form action="/config" method="POST" id="configForm" onsubmit="handleSubmit(event)">
+          <form action="/config" method="POST" id="configForm">
             
             <!-- Navegação por Tabs -->
             <ul class="nav nav-tabs mb-4" id="configTabs" role="tablist">
@@ -672,5 +672,9 @@ function testSave() {
 document.addEventListener('DOMContentLoaded', function() {
   togglePiperSettings();
   toggleFeatureToggles();
+  var form = document.getElementById('configForm');
+  if (form) {
+    form.addEventListener('submit', handleSubmit);
+  }
 });
 </script>

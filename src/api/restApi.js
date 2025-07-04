@@ -539,7 +539,13 @@ class RestAPI {
       for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
         // Garante que todos os campos estejam presentes, mesmo se undefined
         const value = getNested(saved, cfgPath);
-        env[envVar] = value !== undefined ? value : '';
+        // Se o valor é undefined e o valor padrão é booleano, usar false
+        const defaultVal = getNested(CONFIG, cfgPath);
+        if (value === undefined && typeof defaultVal === 'boolean') {
+          env[envVar] = false;
+        } else {
+          env[envVar] = value !== undefined ? value : '';
+        }
         descriptions[envVar] = CONFIG_DESCRIPTIONS[cfgPath];
         examples[envVar] = CONFIG_EXAMPLES[cfgPath];
       }

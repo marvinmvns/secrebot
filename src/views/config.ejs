@@ -499,7 +499,7 @@
                 </button>
               </div>
               <div>
-                <button type="submit" class="btn btn-success btn-lg">
+                <button type="submit" class="btn btn-success btn-lg" onclick="testSave()">
                   <i class="fas fa-save me-2"></i> Salvar Configurações
                 </button>
                 <button type="button" class="btn btn-warning btn-sm ms-2" onclick="testSave()">
@@ -621,6 +621,12 @@ function handleSubmit(event) {
   const form = document.getElementById('configForm');
   if (form) {
     const formData = new FormData(form);
+    // Garante que todos os checkboxes sejam enviados, mesmo se desmarcados
+    form.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      if (!formData.has(cb.name)) {
+        formData.append(cb.name, 'false');
+      }
+    });
     console.log('📋 Dados do formulário:', Object.fromEntries(formData));
     
     fetch('/config', {

@@ -528,7 +528,11 @@ class RestAPI {
 
     this.app.get('/config', async (req, res, next) => {
       try {
-        const saved = await this.configService.getConfig();
+        // Garantir que a configuração seja inicializada primeiro
+        let saved = await this.configService.getConfig();
+        if (!saved) {
+          saved = await this.configService.init();
+        }
 
       const getNested = (obj, pathStr) =>
         pathStr.split('.').reduce((o, k) => (o || {})[k], obj);
@@ -543,8 +547,10 @@ class RestAPI {
         const defaultVal = getNested(CONFIG, cfgPath);
         if (value === undefined && typeof defaultVal === 'boolean') {
           env[envVar] = false;
+        } else if (value === undefined) {
+          env[envVar] = defaultVal !== undefined ? defaultVal : '';
         } else {
-          env[envVar] = value !== undefined ? value : '';
+          env[envVar] = value;
         }
         descriptions[envVar] = CONFIG_DESCRIPTIONS[cfgPath];
         examples[envVar] = CONFIG_EXAMPLES[cfgPath];
@@ -585,7 +591,10 @@ class RestAPI {
     this.app.post('/config', async (req, res, next) => {
       try {
         logger.info('📝 Recebendo requisição POST /config');
-        const saved = (await this.configService.getConfig()) || {};
+        let saved = await this.configService.getConfig();
+        if (!saved) {
+          saved = await this.configService.init();
+        }
         logger.info('📋 Configuração atual carregada:', Object.keys(saved));
 
       const getNested = (obj, pathStr) =>
@@ -616,7 +625,7 @@ class RestAPI {
         
         // Conversões de tipo
         if (typeof currentVal === 'number') val = Number(val);
-        if (typeof currentVal === 'boolean') val = val === 'true';
+        if (typeof currentVal === 'boolean') val = val === 'true' || val === true;
         if (cfgPath === 'featureToggles.features' && typeof val === 'string') {
           try {
             val = JSON.parse(val);
@@ -629,28 +638,20 @@ class RestAPI {
       }
 
       // Processar feature toggles globais
-      const globalFeatures = saved?.featureToggles?.features || {};
+      if (!saved.featureToggles) {
+        saved.featureToggles = { enabled: false, features: {} };
+      }
+      
+      const globalFeatures = saved.featureToggles.features || {};
       for (const key in req.body) {
         if (key.startsWith('global_feature_')) {
           const featureName = key.replace('global_feature_', '');
-          globalFeatures[featureName] = true;
+          globalFeatures[featureName] = req.body[key] === 'true' || req.body[key] === true;
         }
       }
 
-      // Desmarcar features não enviadas (checkboxes não marcados não são enviados)
-      const allFeatureKeys = Object.keys(req.body).filter(k => k.startsWith('global_feature_'));
-      const currentFeatures = saved?.featureToggles?.features || {};
-      
-      for (const featureName of Object.keys(currentFeatures)) {
-        const checkboxKey = `global_feature_${featureName}`;
-        if (!allFeatureKeys.includes(checkboxKey)) {
-          globalFeatures[featureName] = false;
-        }
-      }
-
-      if (saved.featureToggles) {
-        saved.featureToggles.features = globalFeatures;
-      }
+      // Para campos que não foram enviados (hidden fields não marcados), manter valor atual
+      saved.featureToggles.features = globalFeatures;
 
       if (saved.piper?.enabled) {
         try {

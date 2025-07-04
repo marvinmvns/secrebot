@@ -58,7 +58,12 @@ class ConfigService {
   }
 
   async setConfig(values) {
-    await this.collection.updateOne({ _id: 'app' }, { $set: { values } }, { upsert: true });
+    // Garantir que todos os campos estejam presentes antes de salvar
+    const defaults = JSON.parse(JSON.stringify(CONFIG));
+    const mergedValues = JSON.parse(JSON.stringify(defaults));
+    deepMerge(mergedValues, values);
+    
+    await this.collection.updateOne({ _id: 'app' }, { $set: { values: mergedValues } }, { upsert: true });
   }
 
   applyToRuntime(values) {

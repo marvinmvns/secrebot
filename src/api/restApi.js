@@ -16,6 +16,7 @@ import GoogleCalendarService from '../services/googleCalendarService.js';
 import Utils from '../utils/index.js';
 import { CONFIG, COMMANDS, CONFIG_DESCRIPTIONS, CONFIG_ENV_MAP, CONFIG_EXAMPLES, WHISPER_MODELS_LIST } from '../config/index.js';
 import logger from '../utils/logger.js';
+import { exportMongoConfig, importMongoConfig } from '../services/configExportImportService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -656,6 +657,38 @@ class RestAPI {
       } catch (error) {
         logger.error('Erro ao salvar configuração', error);
         next(error);
+      }
+    });
+
+    // Rotas de exportação/importação de configuração do MongoDB
+    this.app.get('/api/config/mongo/export', (req, res) => {
+      try {
+        const filePath = exportMongoConfig();
+        res.download(filePath, 'mongo-config.json', (err) => {
+          if (err) {
+            res.redirect('/config?error=Erro ao exportar configuração');
+          } else {
+            // Não é possível redirecionar após download, mas podemos usar JS na view para feedback
+          }
+        });
+      } catch (err) {
+        res.redirect('/config?error=' + encodeURIComponent(err.message));
+      }
+    });
+
+    const mongoUpload = multer({ storage: multer.memoryStorage() });
+    this.app.post('/api/config/mongo/import', mongoUpload.single('mongoConfigFile'), (req, res) => {
+      try {
+        if (!req.file) {
+          return res.redirect('/config?error=Arquivo não enviado');
+        }
+        const tempPath = './mongo-config-upload.json';
+        require('fs').writeFileSync(tempPath, req.file.buffer);
+        importMongoConfig(tempPath);
+        require('fs').unlinkSync(tempPath);
+        res.redirect('/config?success=1');
+      } catch (err) {
+        res.redirect('/config?error=' + encodeURIComponent(err.message));
       }
     });
 

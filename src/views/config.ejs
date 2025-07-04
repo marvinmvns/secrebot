@@ -44,6 +44,20 @@
                 <div class="row">
                   <div class="col-md-6">
                     <h5 class="text-primary mb-3"><i class="fas fa-database me-2"></i>MongoDB</h5>
+                    <!-- Botões de exportação/importação -->
+                    <div class="mb-3 d-flex gap-2">
+                      <form action="/api/config/mongo/export" method="GET" style="display:inline;">
+                        <button type="submit" class="btn btn-outline-primary btn-sm">
+                          <i class="fas fa-download me-1"></i>Exportar Configuração
+                        </button>
+                      </form>
+                      <form id="mongoImportForm" action="/api/config/mongo/import" method="POST" enctype="multipart/form-data" style="display:inline;">
+                        <input type="file" name="mongoConfigFile" accept="application/json" style="display:none;" onchange="document.getElementById('mongoImportForm').submit();">
+                        <button type="button" class="btn btn-outline-success btn-sm" onclick="document.querySelector('#mongoImportForm input[type=file]').click();">
+                          <i class="fas fa-upload me-1"></i>Importar Configuração
+                        </button>
+                      </form>
+                    </div>
                     <% 
                     const generalKeys = ['MONGO_URI', 'MONGO_DB_NAME', 'MONGO_COLLECTION_NAME'];
                     generalKeys.forEach(key => { 
@@ -499,7 +513,47 @@
   </div>
 </div>
 
+<% if (typeof window !== 'undefined') { %>
+  <script>
+    // Não executa no server-side
+  </script>
+<% } %>
 <script>
+  // Função para obter parâmetros da query string
+  function getQueryParam(name) {
+    const url = new URL(window.location.href);
+    return url.searchParams.get(name);
+  }
+  // Exibir alertas de sucesso/erro
+  window.addEventListener('DOMContentLoaded', function() {
+    const success = getQueryParam('success');
+    const error = getQueryParam('error');
+    if (success) {
+      const alert = document.createElement('div');
+      alert.className = 'alert alert-success alert-dismissible fade show';
+      alert.role = 'alert';
+      alert.innerHTML = '<i class="fas fa-check-circle me-2"></i>Configuração importada com sucesso!';
+      document.body.prepend(alert);
+      setTimeout(() => { alert.remove(); }, 4000);
+      // Limpar query string após mostrar
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    if (error) {
+      const alert = document.createElement('div');
+      alert.className = 'alert alert-danger alert-dismissible fade show';
+      alert.role = 'alert';
+      alert.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>' + decodeURIComponent(error);
+      document.body.prepend(alert);
+      setTimeout(() => { alert.remove(); }, 6000);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  });
+  // Após importar, recarregar a página para garantir atualização
+  if (getQueryParam('success')) {
+    setTimeout(() => { window.location.reload(); }, 1500);
+  }
+  // Após exportar, mostrar feedback (não é possível saber via redirect, mas pode-se mostrar um toast opcional)
+
 function togglePiperSettings() {
   const enabled = document.getElementById('PIPER_ENABLED').checked;
   const settings = document.getElementById('piperSettings');

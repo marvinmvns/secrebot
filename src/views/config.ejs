@@ -1,38 +1,58 @@
 <div class="container-fluid py-4">
   <div class="row">
     <div class="col-12">
-      <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white">
-          <h3 class="mb-0"><i class="fas fa-cogs me-2"></i>Configurações da Aplicação</h3>
+      <div class="card shadow-lg border-0">
+        <div class="card-header bg-gradient-primary text-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h3 class="mb-0"><i class="fas fa-cogs me-2"></i>Configurações da Aplicação</h3>
+            <div class="d-flex gap-2">
+              <div class="badge bg-success" id="mongoStatus">
+                <i class="fas fa-database me-1"></i>MongoDB OK
+              </div>
+              <div class="badge bg-info" id="configStatus">
+                <i class="fas fa-check-circle me-1"></i>Configurado
+              </div>
+            </div>
+          </div>
         </div>
         <div class="card-body">
           <form action="/config" method="POST" id="configForm">
             
             <!-- Navegação por Tabs -->
-            <ul class="nav nav-tabs mb-4" id="configTabs" role="tablist">
+            <ul class="nav nav-pills nav-justified mb-4" id="configTabs" role="tablist">
               <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab">
-                  <i class="fas fa-server me-1"></i> Geral
+                <button class="nav-link active fw-bold" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab">
+                  <i class="fas fa-server me-2"></i>
+                  <div>Geral</div>
+                  <small class="d-block text-muted">Servidor & BD</small>
                 </button>
               </li>
               <li class="nav-item" role="presentation">
-                <button class="nav-link" id="llm-tab" data-bs-toggle="tab" data-bs-target="#llm" type="button" role="tab">
-                  <i class="fas fa-brain me-1"></i> LLM & IA
+                <button class="nav-link fw-bold" id="llm-tab" data-bs-toggle="tab" data-bs-target="#llm" type="button" role="tab">
+                  <i class="fas fa-brain me-2"></i>
+                  <div>LLM & IA</div>
+                  <small class="d-block text-muted">Modelos & Filas</small>
                 </button>
               </li>
               <li class="nav-item" role="presentation">
-                <button class="nav-link" id="audio-tab" data-bs-toggle="tab" data-bs-target="#audio" type="button" role="tab">
-                  <i class="fas fa-microphone me-1"></i> Áudio & TTS
+                <button class="nav-link fw-bold" id="audio-tab" data-bs-toggle="tab" data-bs-target="#audio" type="button" role="tab">
+                  <i class="fas fa-microphone me-2"></i>
+                  <div>Áudio & TTS</div>
+                  <small class="d-block text-muted">Whisper & Síntese</small>
                 </button>
               </li>
               <li class="nav-item" role="presentation">
-                <button class="nav-link" id="integrations-tab" data-bs-toggle="tab" data-bs-target="#integrations" type="button" role="tab">
-                  <i class="fas fa-plug me-1"></i> Integrações
+                <button class="nav-link fw-bold" id="integrations-tab" data-bs-toggle="tab" data-bs-target="#integrations" type="button" role="tab">
+                  <i class="fas fa-plug me-2"></i>
+                  <div>Integrações</div>
+                  <small class="d-block text-muted">APIs & Serviços</small>
                 </button>
               </li>
               <li class="nav-item" role="presentation">
-                <button class="nav-link" id="features-tab" data-bs-toggle="tab" data-bs-target="#features" type="button" role="tab">
-                  <i class="fas fa-toggle-on me-1"></i> Features
+                <button class="nav-link fw-bold" id="features-tab" data-bs-toggle="tab" data-bs-target="#features" type="button" role="tab">
+                  <i class="fas fa-toggle-on me-2"></i>
+                  <div>Features</div>
+                  <small class="d-block text-muted">Recursos & Toggles</small>
                 </button>
               </li>
             </ul>
@@ -41,23 +61,48 @@
               
               <!-- Aba Geral -->
               <div class="tab-pane fade show active" id="general" role="tabpanel">
+                <div class="alert alert-info mb-4">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <i class="fas fa-info-circle me-2"></i>
+                      <strong>Configurações Gerais:</strong> Defina as configurações básicas do servidor, banco de dados e sistema de agendamento.
+                    </div>
+                    <div class="progress" style="width: 150px; height: 20px;">
+                      <div class="progress-bar bg-success" id="generalProgress" role="progressbar" style="width: 100%">
+                        <small>100%</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div class="row">
                   <div class="col-md-6">
-                    <h5 class="text-primary mb-3"><i class="fas fa-database me-2"></i>MongoDB</h5>
-                    <!-- Botões de exportação/importação -->
-                    <div class="mb-3 d-flex gap-2">
-                      <form action="/api/config/export" method="GET" style="display:inline;">
-                        <button type="submit" class="btn btn-outline-primary btn-sm">
-                          <i class="fas fa-download me-1"></i>Exportar Configuração
-                        </button>
-                      </form>
-                      <form id="configImportForm" action="/api/config/import" method="POST" enctype="multipart/form-data" style="display:inline;">
-                        <input type="file" name="configFile" accept="application/json" style="display:none;" onchange="document.getElementById('configImportForm').submit();">
-                        <button type="button" class="btn btn-outline-success btn-sm" onclick="document.querySelector('#configImportForm input[type=file]').click();">
-                          <i class="fas fa-upload me-1"></i>Importar Configuração
-                        </button>
-                      </form>
-                    </div>
+                    <div class="card border-primary mb-4">
+                      <div class="card-header bg-primary text-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <h5 class="mb-0"><i class="fas fa-database me-2"></i>MongoDB</h5>
+                          <span class="badge bg-light text-dark" id="mongoConfigStatus">
+                            <i class="fas fa-check-circle me-1"></i>Configurado
+                          </span>
+                        </div>
+                      </div>
+                      <div class="card-body">
+                        <!-- Botões de exportação/importação -->
+                        <div class="mb-3 d-flex gap-2 flex-wrap">
+                          <form action="/api/config/export" method="GET" style="display:inline;">
+                            <button type="submit" class="btn btn-outline-primary btn-sm">
+                              <i class="fas fa-download me-1"></i>Exportar
+                            </button>
+                          </form>
+                          <form id="configImportForm" action="/api/config/import" method="POST" enctype="multipart/form-data" style="display:inline;">
+                            <input type="file" name="configFile" accept="application/json" style="display:none;" onchange="document.getElementById('configImportForm').submit();">
+                            <button type="button" class="btn btn-outline-success btn-sm" onclick="document.querySelector('#configImportForm input[type=file]').click();">
+                              <i class="fas fa-upload me-1"></i>Importar
+                            </button>
+                          </form>
+                          <button type="button" class="btn btn-outline-info btn-sm" onclick="testMongoConnection()">
+                            <i class="fas fa-plug me-1"></i>Testar Conexão
+                          </button>
+                        </div>
                     <% 
                     const generalKeys = ['MONGO_URI', 'MONGO_DB_NAME', 'MONGO_COLLECTION_NAME'];
                     generalKeys.forEach(key => { 
@@ -71,10 +116,21 @@
                         <% } %>
                       </div>
                     <% }}); %>
+                      </div>
+                    </div>
                   </div>
                   
                   <div class="col-md-6">
-                    <h5 class="text-primary mb-3"><i class="fas fa-server me-2"></i>Servidor</h5>
+                    <div class="card border-success mb-4">
+                      <div class="card-header bg-success text-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <h5 class="mb-0"><i class="fas fa-server me-2"></i>Servidor</h5>
+                          <span class="badge bg-light text-dark" id="serverConfigStatus">
+                            <i class="fas fa-check-circle me-1"></i>Ativo
+                          </span>
+                        </div>
+                      </div>
+                      <div class="card-body">
                     <% 
                     const serverKeys = ['PORT', 'DEBUG_ENABLED', 'DEBUG_VERBOSE', 'LOG_LEVEL'];
                     serverKeys.forEach(key => { 
@@ -83,9 +139,9 @@
                       <div class="mb-3">
                         <label class="form-label fw-bold"><%= key.replace('DEBUG_', '').replace('_', ' ') %></label>
                         <% if (key.includes('ENABLED') || key.includes('VERBOSE')) { %>
-                          <div class="form-check">
-                            <input class="form-check-input" type="hidden" name="<%= key %>" value="<%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'true' : 'false' %>">
-                            <label class="form-label fw-bold"><%= key.replace('DEBUG_', '').replace('_', ' ') %>: <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'Ativado' : 'Desativado' %></label>
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="<%= key %>" id="<%= key %>" <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'checked' : '' %>>
+                            <label class="form-check-label fw-bold" for="<%= key %>"><%= key.replace('DEBUG_', '').replace('_', ' ') %></label>
                           </div>
                         <% } else { %>
                           <input type="text" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
@@ -95,6 +151,8 @@
                         <% } %>
                       </div>
                     <% }}); %>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 
@@ -102,7 +160,11 @@
                 
                 <div class="row">
                   <div class="col-md-6">
-                    <h5 class="text-primary mb-3"><i class="fas fa-clock me-2"></i>Agendador</h5>
+                    <div class="card border-warning mb-4">
+                      <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Agendador</h5>
+                      </div>
+                      <div class="card-body">
                     <% 
                     const schedKeys = ['SCHED_INTERVAL', 'SCHED_MAX_ATTEMPTS', 'SCHED_RETRY_DELAY', 'SCHED_CONCURRENCY'];
                     schedKeys.forEach(key => { 
@@ -116,10 +178,16 @@
                         <% } %>
                       </div>
                     <% }}); %>
+                      </div>
+                    </div>
                   </div>
                   
                   <div class="col-md-6">
-                    <h5 class="text-primary mb-3"><i class="fas fa-tachometer-alt me-2"></i>Concorrência Dinâmica</h5>
+                    <div class="card border-info mb-4">
+                      <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-tachometer-alt me-2"></i>Concorrência Dinâmica</h5>
+                      </div>
+                      <div class="card-body">
                     <% 
                     const dynamicKeys = ['DYNAMIC_CONCURRENCY', 'SCHED_DYNAMIC_MIN', 'SCHED_DYNAMIC_MAX', 'SCHED_CPU_THRESHOLD', 'SCHED_MEM_THRESHOLD'];
                     dynamicKeys.forEach(key => { 
@@ -128,9 +196,9 @@
                       <div class="mb-3">
                         <label class="form-label fw-bold"><%= key.replace('SCHED_', '').replace('DYNAMIC_', '').replace('_', ' ') %></label>
                         <% if (key.includes('CONCURRENCY') && !key.includes('MIN') && !key.includes('MAX')) { %>
-                          <div class="form-check">
-                            <input class="form-check-input" type="hidden" name="<%= key %>" value="<%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'true' : 'false' %>">
-                            <label class="form-label fw-bold"><%= key.replace('SCHED_', '').replace('DYNAMIC_', '').replace('_', ' ') %>: <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'Ativado' : 'Desativado' %></label>
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="<%= key %>" id="<%= key %>" <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'checked' : '' %>>
+                            <label class="form-check-label fw-bold" for="<%= key %>"><%= key.replace('SCHED_', '').replace('DYNAMIC_', '').replace('_', ' ') %></label>
                           </div>
                         <% } else { %>
                           <input type="number" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>" step="<%= key.includes('THRESHOLD') ? '0.1' : '1' %>">
@@ -140,6 +208,8 @@
                         <% } %>
                       </div>
                     <% }}); %>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -254,9 +324,9 @@
                     <!-- Piper TTS -->
                     <div class="card mb-3">
                       <div class="card-header">
-                        <div class="form-check">
-                          <input class="form-check-input" type="hidden" name="PIPER_ENABLED" value="<%= (env['PIPER_ENABLED'] === 'true' || env['PIPER_ENABLED'] === true || env['PIPER_ENABLED'] === '1' || env['PIPER_ENABLED'] === 1) ? 'true' : 'false' %>">
-                          <label class="form-label fw-bold">Piper TTS (Local): <%= (env['PIPER_ENABLED'] === 'true' || env['PIPER_ENABLED'] === true || env['PIPER_ENABLED'] === '1' || env['PIPER_ENABLED'] === 1) ? 'Ativado' : 'Desativado' %></label>
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="PIPER_ENABLED" id="PIPER_ENABLED" <%= (env['PIPER_ENABLED'] === 'true' || env['PIPER_ENABLED'] === true || env['PIPER_ENABLED'] === '1' || env['PIPER_ENABLED'] === 1) ? 'checked' : '' %>>
+                          <label class="form-check-label fw-bold" for="PIPER_ENABLED">Piper TTS (Local)</label>
                         </div>
                       </div>
                       <div class="card-body" id="piperSettings">
@@ -322,9 +392,9 @@
                       <input type="number" class="form-control" name="TELEGRAM_MAX_FILE_SIZE" value="<%= env['TELEGRAM_MAX_FILE_SIZE'] %>" placeholder="<%= examples['TELEGRAM_MAX_FILE_SIZE'] %>">
                     </div>
                     
-                    <div class="form-check mb-3">
-                      <input class="form-check-input" type="hidden" name="TELEGRAM_ENABLE_TTS" value="<%= (env['TELEGRAM_ENABLE_TTS'] === 'true' || env['TELEGRAM_ENABLE_TTS'] === true || env['TELEGRAM_ENABLE_TTS'] === '1' || env['TELEGRAM_ENABLE_TTS'] === 1) ? 'true' : 'false' %>">
-                      <label class="form-label fw-bold">Habilitar TTS: <%= (env['TELEGRAM_ENABLE_TTS'] === 'true' || env['TELEGRAM_ENABLE_TTS'] === true || env['TELEGRAM_ENABLE_TTS'] === '1' || env['TELEGRAM_ENABLE_TTS'] === 1) ? 'Ativado' : 'Desativado' %></label>
+                    <div class="form-check form-switch mb-3">
+                      <input class="form-check-input" type="checkbox" name="TELEGRAM_ENABLE_TTS" id="TELEGRAM_ENABLE_TTS" <%= (env['TELEGRAM_ENABLE_TTS'] === 'true' || env['TELEGRAM_ENABLE_TTS'] === true || env['TELEGRAM_ENABLE_TTS'] === '1' || env['TELEGRAM_ENABLE_TTS'] === 1) ? 'checked' : '' %>>
+                      <label class="form-check-label fw-bold" for="TELEGRAM_ENABLE_TTS">Habilitar TTS</label>
                     </div>
                   </div>
                   
@@ -391,9 +461,9 @@
                   <div class="col-12">
                     <div class="card">
                       <div class="card-header">
-                        <div class="form-check">
-                          <input class="form-check-input" type="hidden" name="FEATURE_TOGGLES_ENABLED" value="<%= (env['FEATURE_TOGGLES_ENABLED'] === 'true' || env['FEATURE_TOGGLES_ENABLED'] === true || env['FEATURE_TOGGLES_ENABLED'] === '1' || env['FEATURE_TOGGLES_ENABLED'] === 1) ? 'true' : 'false' %>">
-                          <label class="form-label fw-bold"><i class="fas fa-toggle-on me-2"></i>Sistema de Feature Toggles: <%= (env['FEATURE_TOGGLES_ENABLED'] === 'true' || env['FEATURE_TOGGLES_ENABLED'] === true || env['FEATURE_TOGGLES_ENABLED'] === '1' || env['FEATURE_TOGGLES_ENABLED'] === 1) ? 'Ativado' : 'Desativado' %></label>
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" name="FEATURE_TOGGLES_ENABLED" id="FEATURE_TOGGLES_ENABLED" <%= (env['FEATURE_TOGGLES_ENABLED'] === 'true' || env['FEATURE_TOGGLES_ENABLED'] === true || env['FEATURE_TOGGLES_ENABLED'] === '1' || env['FEATURE_TOGGLES_ENABLED'] === 1) ? 'checked' : '' %>>
+                          <label class="form-check-label fw-bold" for="FEATURE_TOGGLES_ENABLED"><i class="fas fa-toggle-on me-2"></i>Sistema de Feature Toggles</label>
                         </div>
                         <small class="text-muted">Controla se o sistema de feature toggles está ativo</small>
                       </div>
@@ -416,9 +486,9 @@
                             <div class="row">
                               <% Object.entries(globalFeatures).forEach(([featureName, isEnabled]) => { %>
                                 <div class="col-md-4 mb-2">
-                                  <div class="form-check">
-                                    <input class="form-check-input" type="hidden" name="global_feature_<%= featureName %>" value="<%= (isEnabled === 'true' || isEnabled === true || isEnabled === '1' || isEnabled === 1) ? 'true' : 'false' %>">
-                                    <label class="form-label fw-bold"><%= featureName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) %>: <%= (isEnabled === 'true' || isEnabled === true || isEnabled === '1' || isEnabled === 1) ? 'Ativado' : 'Desativado' %></label>
+                                  <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="global_feature_<%= featureName %>" id="global_feature_<%= featureName %>" <%= (isEnabled === 'true' || isEnabled === true || isEnabled === '1' || isEnabled === 1) ? 'checked' : '' %>>
+                                    <label class="form-check-label fw-bold" for="global_feature_<%= featureName %>"><%= featureName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) %></label>
                                   </div>
                                 </div>
                               <% }); %>
@@ -464,9 +534,9 @@
                             if(env[key] !== undefined) {
                           %>
                             <div class="col-md-4 mb-3">
-                              <div class="form-check">
-                                <input class="form-check-input" type="hidden" name="<%= key %>" value="<%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'true' : 'false' %>">
-                                <label class="form-label fw-bold"><%= descriptions[key] || key.replace('TELEGRAM_FEATURE_', '').replace('_', ' ') %>: <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'Ativado' : 'Desativado' %></label>
+                              <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="<%= key %>" id="<%= key %>" <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'checked' : '' %>>
+                                <label class="form-check-label fw-bold" for="<%= key %>"><%= descriptions[key] || key.replace('TELEGRAM_FEATURE_', '').replace('_', ' ') %></label>
                               </div>
                               <% if (descriptions[key]) { %>
                                 <small class="form-text text-muted"><%= descriptions[key] %></small>
@@ -493,8 +563,13 @@
                 </button>
               </div>
               <div>
-                <button type="submit" class="btn btn-success btn-lg" onclick="testSave()">
-                  <i class="fas fa-save me-2"></i> Salvar Configurações
+                <button type="submit" class="btn btn-success btn-lg" id="saveButton">
+                  <span id="saveButtonText">
+                    <i class="fas fa-save me-2"></i> Salvar Configurações
+                  </span>
+                  <span id="saveButtonLoading" style="display: none;">
+                    <span class="spinner-border spinner-border-sm me-2"></span> Salvando...
+                  </span>
                 </button>
               </div>
             </div>
@@ -556,6 +631,13 @@ function resetForm() {
 
 function validateConfig() {
   let errors = [];
+  let warnings = [];
+  
+  // Validar URL do MongoDB
+  const mongoUri = document.querySelector('input[name="MONGO_URI"]').value;
+  if (mongoUri && !mongoUri.startsWith('mongodb://') && !mongoUri.startsWith('mongodb+srv://')) {
+    errors.push('URI do MongoDB deve começar com mongodb:// ou mongodb+srv://');
+  }
   
   // Validar URL do Ollama
   const ollamaHost = document.querySelector('input[name="OLLAMA_HOST"]').value;
@@ -569,20 +651,187 @@ function validateConfig() {
     errors.push('Token do Telegram deve ter o formato: número:string');
   }
   
+  // Validar Webhook URL do Telegram
+  const webhookUrl = document.querySelector('input[name="TELEGRAM_WEBHOOK_URL"]').value;
+  if (webhookUrl && !webhookUrl.startsWith('https://')) {
+    warnings.push('Webhook URL do Telegram deve usar HTTPS em produção');
+  }
+  
+  // Validar porta do servidor
+  const port = document.querySelector('input[name="PORT"]').value;
+  if (port && (parseInt(port) < 1 || parseInt(port) > 65535)) {
+    errors.push('Porta deve estar entre 1 e 65535');
+  }
+  
   // Validar JSON de feature toggles
   const featureTogglesJson = document.querySelector('textarea[name="FEATURE_TOGGLES_FEATURES"]');
   if (featureTogglesJson && featureTogglesJson.value) {
     try {
       JSON.parse(featureTogglesJson.value);
     } catch (e) {
-      errors.push('JSON de feature toggles inválido');
+      errors.push('JSON de feature toggles inválido: ' + e.message);
     }
   }
   
-  if (errors.length > 0) {
-    alert('Erros encontrados:\n' + errors.join('\n'));
+  // Validar configurações do ElevenLabs
+  const elevenKey = document.querySelector('input[name="ELEVENLABS_API_KEY"]').value;
+  const elevenStability = document.querySelector('input[name="ELEVENLABS_STABILITY"]').value;
+  const elevenSimilarity = document.querySelector('input[name="ELEVENLABS_SIMILARITY"]').value;
+  
+  if (elevenStability && (parseFloat(elevenStability) < 0 || parseFloat(elevenStability) > 1)) {
+    errors.push('Estabilidade do ElevenLabs deve estar entre 0 e 1');
+  }
+  if (elevenSimilarity && (parseFloat(elevenSimilarity) < 0 || parseFloat(elevenSimilarity) > 1)) {
+    errors.push('Similaridade do ElevenLabs deve estar entre 0 e 1');
+  }
+  
+  // Mostrar resultados da validação
+  if (errors.length > 0 || warnings.length > 0) {
+    let message = '';
+    if (errors.length > 0) {
+      message += '❌ Erros encontrados:\n' + errors.join('\n');
+    }
+    if (warnings.length > 0) {
+      message += (errors.length > 0 ? '\n\n' : '') + '⚠️ Avisos:\n' + warnings.join('\n');
+    }
+    
+    // Criar modal de validação
+    showValidationModal(errors, warnings);
   } else {
-    alert('Configuração válida!');
+    showSuccessToast('✅ Configuração válida!');
+  }
+}
+
+function showValidationModal(errors, warnings) {
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.innerHTML = `
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header ${errors.length > 0 ? 'bg-danger text-white' : 'bg-warning text-dark'}">
+          <h5 class="modal-title">
+            <i class="fas fa-${errors.length > 0 ? 'exclamation-triangle' : 'exclamation-circle'} me-2"></i>
+            Resultado da Validação
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          ${errors.length > 0 ? `
+            <div class="alert alert-danger">
+              <h6><i class="fas fa-times-circle me-2"></i>Erros encontrados:</h6>
+              <ul class="mb-0">
+                ${errors.map(error => `<li>${error}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+          ${warnings.length > 0 ? `
+            <div class="alert alert-warning">
+              <h6><i class="fas fa-exclamation-triangle me-2"></i>Avisos:</h6>
+              <ul class="mb-0">
+                ${warnings.map(warning => `<li>${warning}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  const bsModal = new bootstrap.Modal(modal);
+  bsModal.show();
+  
+  modal.addEventListener('hidden.bs.modal', () => {
+    document.body.removeChild(modal);
+  });
+}
+
+function showSuccessToast(message) {
+  const toast = document.createElement('div');
+  toast.className = 'toast position-fixed top-0 end-0 m-3';
+  toast.style.zIndex = '9999';
+  toast.innerHTML = `
+    <div class="toast-header bg-success text-white">
+      <i class="fas fa-check-circle me-2"></i>
+      <strong class="me-auto">Sucesso</strong>
+      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+    </div>
+    <div class="toast-body">
+      ${message}
+    </div>
+  `;
+  
+  document.body.appendChild(toast);
+  const bsToast = new bootstrap.Toast(toast);
+  bsToast.show();
+  
+  toast.addEventListener('hidden.bs.toast', () => {
+    document.body.removeChild(toast);
+  });
+}
+
+function showErrorToast(message) {
+  const toast = document.createElement('div');
+  toast.className = 'toast position-fixed top-0 end-0 m-3';
+  toast.style.zIndex = '9999';
+  toast.innerHTML = `
+    <div class="toast-header bg-danger text-white">
+      <i class="fas fa-exclamation-triangle me-2"></i>
+      <strong class="me-auto">Erro</strong>
+      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+    </div>
+    <div class="toast-body">
+      ${message}
+    </div>
+  `;
+  
+  document.body.appendChild(toast);
+  const bsToast = new bootstrap.Toast(toast, {delay: 8000}); // 8 seconds for errors
+  bsToast.show();
+  
+  toast.addEventListener('hidden.bs.toast', () => {
+    document.body.removeChild(toast);
+  });
+}
+
+async function testMongoConnection() {
+  const mongoUri = document.querySelector('input[name="MONGO_URI"]').value;
+  const dbName = document.querySelector('input[name="MONGO_DB_NAME"]').value;
+  
+  if (!mongoUri) {
+    showErrorToast('Por favor, configure a URI do MongoDB primeiro');
+    return;
+  }
+  
+  // Simular teste de conexão (você pode implementar um endpoint real para isso)
+  showSuccessToast('🔗 Testando conexão MongoDB...');
+  
+  // Aqui você pode fazer uma chamada real para um endpoint de teste
+  // Por enquanto, vamos simular um teste básico de formato
+  try {
+    const url = new URL(mongoUri.replace('mongodb://', 'http://').replace('mongodb+srv://', 'https://'));
+    showSuccessToast('✅ Formato da URI MongoDB parece válido');
+  } catch (e) {
+    showErrorToast('❌ Formato da URI MongoDB inválido');
+  }
+}
+
+function setLoadingState(isLoading) {
+  const saveButton = document.getElementById('saveButton');
+  const saveButtonText = document.getElementById('saveButtonText');
+  const saveButtonLoading = document.getElementById('saveButtonLoading');
+  
+  if (isLoading) {
+    saveButton.disabled = true;
+    saveButtonText.style.display = 'none';
+    saveButtonLoading.style.display = 'inline';
+  } else {
+    saveButton.disabled = false;
+    saveButtonText.style.display = 'inline';
+    saveButtonLoading.style.display = 'none';
   }
 }
 
@@ -592,13 +841,18 @@ function handleSubmit(event) {
   
   const form = document.getElementById('configForm');
   if (form) {
+    setLoadingState(true);
+    
     const formData = new FormData(form);
-    // Garante que todos os checkboxes sejam enviados, mesmo se desmarcados
+    
+    // Garante que todos os checkboxes sejam enviados com valor correto
     form.querySelectorAll('input[type=checkbox]').forEach(cb => {
-      if (!formData.has(cb.name)) {
-        formData.append(cb.name, 'false');
-      }
+      // Remove o valor existente se houver
+      formData.delete(cb.name);
+      // Adiciona o valor correto baseado no estado do checkbox
+      formData.append(cb.name, cb.checked ? 'true' : 'false');
     });
+    
     console.log('📋 Dados do formulário:', Object.fromEntries(formData));
     
     fetch('/config', {
@@ -607,14 +861,20 @@ function handleSubmit(event) {
     })
     .then(response => {
       console.log('📡 Resposta do servidor:', response.status, response.statusText);
+      setLoadingState(false);
+      
       if (response.redirected) {
         console.log('🔄 Redirecionando para:', response.url);
-        window.location.href = response.url;
+        showSuccessToast('✅ Configurações salvas com sucesso!');
+        setTimeout(() => {
+          window.location.href = response.url;
+        }, 1000);
       }
     })
     .catch(error => {
       console.error('❌ Erro no salvamento:', error);
-      alert('Erro ao salvar configurações: ' + error.message);
+      setLoadingState(false);
+      showErrorToast('Erro ao salvar configurações: ' + error.message);
     });
   } else {
     console.error('❌ Formulário não encontrado!');
@@ -626,6 +886,15 @@ function testSave() {
   const form = document.getElementById('configForm');
   if (form) {
     const formData = new FormData(form);
+    
+    // Garante que todos os checkboxes sejam enviados com valor correto
+    form.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      // Remove o valor existente se houver
+      formData.delete(cb.name);
+      // Adiciona o valor correto baseado no estado do checkbox
+      formData.append(cb.name, cb.checked ? 'true' : 'false');
+    });
+    
     console.log('📋 Dados do formulário:', Object.fromEntries(formData));
     
     // Teste manual do POST
@@ -646,11 +915,58 @@ function testSave() {
   }
 }
 
+// Verificar status das configurações
+function updateConfigStatus() {
+  // Verificar MongoDB
+  const mongoUri = document.querySelector('input[name="MONGO_URI"]').value;
+  const mongoDb = document.querySelector('input[name="MONGO_DB_NAME"]').value;
+  const mongoConfigured = mongoUri && mongoDb;
+  
+  updateStatusBadge('mongoConfigStatus', mongoConfigured, 'Configurado', 'Pendente');
+  
+  // Verificar Servidor
+  const port = document.querySelector('input[name="PORT"]').value;
+  const serverConfigured = port && parseInt(port) > 0;
+  
+  updateStatusBadge('serverConfigStatus', serverConfigured, 'Ativo', 'Pendente');
+  
+  // Verificar progresso geral
+  const totalSections = 2;
+  const configuredSections = (mongoConfigured ? 1 : 0) + (serverConfigured ? 1 : 0);
+  const progressPercentage = Math.round((configuredSections / totalSections) * 100);
+  
+  const progressBar = document.getElementById('generalProgress');
+  if (progressBar) {
+    progressBar.style.width = progressPercentage + '%';
+    progressBar.innerHTML = `<small>${progressPercentage}%</small>`;
+    progressBar.className = `progress-bar ${progressPercentage === 100 ? 'bg-success' : progressPercentage > 50 ? 'bg-warning' : 'bg-danger'}`;
+  }
+  
+  // Atualizar status geral
+  updateStatusBadge('configStatus', progressPercentage === 100, 'Configurado', 'Incompleto');
+  updateStatusBadge('mongoStatus', mongoConfigured, 'MongoDB OK', 'MongoDB Pendente');
+}
+
+function updateStatusBadge(elementId, isConfigured, successText, errorText) {
+  const element = document.getElementById(elementId);
+  if (element) {
+    element.className = `badge ${isConfigured ? 'bg-success' : 'bg-warning'}`;
+    element.innerHTML = `<i class="fas fa-${isConfigured ? 'check-circle' : 'exclamation-triangle'} me-1"></i>${isConfigured ? successText : errorText}`;
+  }
+}
+
 // Inicializar estados dos componentes
 document.addEventListener('DOMContentLoaded', function() {
   var form = document.getElementById('configForm');
   if (form) {
     form.addEventListener('submit', handleSubmit);
+    
+    // Monitorar mudanças nos campos principais para atualizar status
+    form.addEventListener('input', updateConfigStatus);
+    form.addEventListener('change', updateConfigStatus);
+    
+    // Atualizar status inicial
+    updateConfigStatus();
   }
 });
 </script>

@@ -84,8 +84,10 @@
                         <label class="form-label fw-bold"><%= key.replace('DEBUG_', '').replace('_', ' ') %></label>
                         <% if (key.includes('ENABLED') || key.includes('VERBOSE')) { %>
                           <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="<%= key %>" id="<%= key %>" value="true" <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
-                            <label class="form-check-label" for="<%= key %>">Ativado</label>
+                            <input class="form-check-input d-none" type="checkbox" name="<%= key %>" id="<%= key %>" value="true" <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'checked' : '' %>>
+                              <label class="toggle-label <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'label-on' : 'label-off' %>" data-text="<%= key.replace('DEBUG_', '').replace('_', ' ') %>" for="<%= key %>" onclick="toggleCheckbox('<%= key %>')">
+                                <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'Ativado' : 'Desativado' %>
+                              </label>
                           </div>
                         <% } else { %>
                           <input type="text" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>">
@@ -129,8 +131,10 @@
                         <label class="form-label fw-bold"><%= key.replace('SCHED_', '').replace('DYNAMIC_', '').replace('_', ' ') %></label>
                         <% if (key.includes('CONCURRENCY') && !key.includes('MIN') && !key.includes('MAX')) { %>
                           <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="<%= key %>" id="<%= key %>" value="true" <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
-                            <label class="form-check-label" for="<%= key %>">Ativado</label>
+                            <input class="form-check-input d-none" type="checkbox" name="<%= key %>" id="<%= key %>" value="true" <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'checked' : '' %>>
+                              <label class="toggle-label <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'label-on' : 'label-off' %>" data-text="<%= key.replace('SCHED_', '').replace('DYNAMIC_', '').replace('_', ' ') %>" for="<%= key %>" onclick="toggleCheckbox('<%= key %>')">
+                                <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'Ativado' : 'Desativado' %>
+                              </label>
                           </div>
                         <% } else { %>
                           <input type="number" class="form-control" name="<%= key %>" value="<%= env[key] %>" placeholder="<%= examples[key] %>" step="<%= key.includes('THRESHOLD') ? '0.1' : '1' %>">
@@ -255,8 +259,10 @@
                     <div class="card mb-3">
                       <div class="card-header">
                         <div class="form-check form-switch">
-                          <input class="form-check-input" type="checkbox" name="PIPER_ENABLED" id="PIPER_ENABLED" value="true" <%= (env['PIPER_ENABLED'] === 'true' || env['PIPER_ENABLED'] === true || env['PIPER_ENABLED'] === '1' || env['PIPER_ENABLED'] === 1) ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'; togglePiperSettings()">
-                          <label class="form-check-label fw-bold" for="PIPER_ENABLED">Piper TTS (Local)</label>
+                          <input class="form-check-input d-none" type="checkbox" name="PIPER_ENABLED" id="PIPER_ENABLED" value="true" <%= (env['PIPER_ENABLED'] === 'true' || env['PIPER_ENABLED'] === true || env['PIPER_ENABLED'] === '1' || env['PIPER_ENABLED'] === 1) ? 'checked' : '' %>>
+                          <label class="toggle-label <%= (env['PIPER_ENABLED'] === 'true' || env['PIPER_ENABLED'] === true || env['PIPER_ENABLED'] === '1' || env['PIPER_ENABLED'] === 1) ? 'label-on' : 'label-off' %>" data-text="Piper TTS (Local)" for="PIPER_ENABLED" onclick="toggleCheckbox('PIPER_ENABLED')">
+                            Piper TTS (Local) - <%= (env['PIPER_ENABLED'] === 'true' || env['PIPER_ENABLED'] === true || env['PIPER_ENABLED'] === '1' || env['PIPER_ENABLED'] === 1) ? 'Ativado' : 'Desativado' %>
+                          </label>
                         </div>
                       </div>
                       <div class="card-body" id="piperSettings">
@@ -323,8 +329,10 @@
                     </div>
                     
                     <div class="form-check form-switch mb-3">
-                      <input class="form-check-input" type="checkbox" name="TELEGRAM_ENABLE_TTS" id="TELEGRAM_ENABLE_TTS" value="true" <%= (env['TELEGRAM_ENABLE_TTS'] === 'true' || env['TELEGRAM_ENABLE_TTS'] === true || env['TELEGRAM_ENABLE_TTS'] === '1' || env['TELEGRAM_ENABLE_TTS'] === 1) ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
-                      <label class="form-check-label" for="TELEGRAM_ENABLE_TTS">Habilitar TTS</label>
+                      <input class="form-check-input d-none" type="checkbox" name="TELEGRAM_ENABLE_TTS" id="TELEGRAM_ENABLE_TTS" value="true" <%= (env['TELEGRAM_ENABLE_TTS'] === 'true' || env['TELEGRAM_ENABLE_TTS'] === true || env['TELEGRAM_ENABLE_TTS'] === '1' || env['TELEGRAM_ENABLE_TTS'] === 1) ? 'checked' : '' %>>
+                      <label class="toggle-label <%= (env['TELEGRAM_ENABLE_TTS'] === 'true' || env['TELEGRAM_ENABLE_TTS'] === true || env['TELEGRAM_ENABLE_TTS'] === '1' || env['TELEGRAM_ENABLE_TTS'] === 1) ? 'label-on' : 'label-off' %>" data-text="Habilitar TTS" for="TELEGRAM_ENABLE_TTS" onclick="toggleCheckbox('TELEGRAM_ENABLE_TTS')">
+                        Habilitar TTS - <%= (env['TELEGRAM_ENABLE_TTS'] === 'true' || env['TELEGRAM_ENABLE_TTS'] === true || env['TELEGRAM_ENABLE_TTS'] === '1' || env['TELEGRAM_ENABLE_TTS'] === 1) ? 'Ativado' : 'Desativado' %>
+                      </label>
                     </div>
                   </div>
                   
@@ -392,9 +400,9 @@
                     <div class="card">
                       <div class="card-header">
                         <div class="form-check form-switch">
-                          <input class="form-check-input" type="checkbox" name="FEATURE_TOGGLES_ENABLED" id="FEATURE_TOGGLES_ENABLED" value="true" <%= (env['FEATURE_TOGGLES_ENABLED'] === 'true' || env['FEATURE_TOGGLES_ENABLED'] === true || env['FEATURE_TOGGLES_ENABLED'] === '1' || env['FEATURE_TOGGLES_ENABLED'] === 1) ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'; toggleFeatureToggles()">
-                          <label class="form-check-label fw-bold" for="FEATURE_TOGGLES_ENABLED">
-                            <i class="fas fa-toggle-on me-2"></i>Sistema de Feature Toggles
+                          <input class="form-check-input d-none" type="checkbox" name="FEATURE_TOGGLES_ENABLED" id="FEATURE_TOGGLES_ENABLED" value="true" <%= (env['FEATURE_TOGGLES_ENABLED'] === 'true' || env['FEATURE_TOGGLES_ENABLED'] === true || env['FEATURE_TOGGLES_ENABLED'] === '1' || env['FEATURE_TOGGLES_ENABLED'] === 1) ? 'checked' : '' %>>
+                          <label class="toggle-label <%= (env['FEATURE_TOGGLES_ENABLED'] === 'true' || env['FEATURE_TOGGLES_ENABLED'] === true || env['FEATURE_TOGGLES_ENABLED'] === '1' || env['FEATURE_TOGGLES_ENABLED'] === 1) ? 'label-on' : 'label-off' %>" data-text="Sistema de Feature Toggles" for="FEATURE_TOGGLES_ENABLED" onclick="toggleCheckbox('FEATURE_TOGGLES_ENABLED')">
+                            <i class="fas fa-toggle-on me-2"></i>Sistema de Feature Toggles - <%= (env['FEATURE_TOGGLES_ENABLED'] === 'true' || env['FEATURE_TOGGLES_ENABLED'] === true || env['FEATURE_TOGGLES_ENABLED'] === '1' || env['FEATURE_TOGGLES_ENABLED'] === 1) ? 'Ativado' : 'Desativado' %>
                           </label>
                         </div>
                         <small class="text-muted">Controla se o sistema de feature toggles está ativo</small>
@@ -419,9 +427,9 @@
                               <% Object.entries(globalFeatures).forEach(([featureName, isEnabled]) => { %>
                                 <div class="col-md-4 mb-2">
                                   <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" name="global_feature_<%= featureName %>" id="global_<%= featureName %>" value="true" <%= (isEnabled === 'true' || isEnabled === true || isEnabled === '1' || isEnabled === 1) ? 'checked' : '' %>>
-                                    <label class="form-check-label" for="global_<%= featureName %>">
-                                      <%= featureName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) %>
+                                    <input class="form-check-input d-none" type="checkbox" name="global_feature_<%= featureName %>" id="global_<%= featureName %>" value="true" <%= (isEnabled === 'true' || isEnabled === true || isEnabled === '1' || isEnabled === 1) ? 'checked' : '' %>>
+                                    <label class="toggle-label <%= (isEnabled === 'true' || isEnabled === true || isEnabled === '1' || isEnabled === 1) ? 'label-on' : 'label-off' %>" data-text="<%= featureName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) %>" for="global_<%= featureName %>" onclick="toggleCheckbox('global_<%= featureName %>')">
+                                      <%= featureName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) %> - <%= (isEnabled === 'true' || isEnabled === true || isEnabled === '1' || isEnabled === 1) ? 'Ativado' : 'Desativado' %>
                                     </label>
                                   </div>
                                 </div>
@@ -469,9 +477,9 @@
                           %>
                             <div class="col-md-4 mb-3">
                               <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" name="<%= key %>" id="<%= key %>" value="true" <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'checked' : '' %> onchange="this.value = this.checked ? 'true' : 'false'">
-                                <label class="form-check-label" for="<%= key %>">
-                                  <%= descriptions[key] || key.replace('TELEGRAM_FEATURE_', '').replace('_', ' ') %>
+                                <input class="form-check-input d-none" type="checkbox" name="<%= key %>" id="<%= key %>" value="true" <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'checked' : '' %>>
+                                <label class="toggle-label <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'label-on' : 'label-off' %>" data-text="<%= descriptions[key] || key.replace('TELEGRAM_FEATURE_', '').replace('_', ' ') %>" for="<%= key %>" onclick="toggleCheckbox('<%= key %>')">
+                                  <%= descriptions[key] || key.replace('TELEGRAM_FEATURE_', '').replace('_', ' ') %> - <%= (env[key] === 'true' || env[key] === true || env[key] === '1' || env[key] === 1) ? 'Ativado' : 'Desativado' %>
                                 </label>
                               </div>
                               <% if (descriptions[key]) { %>
@@ -574,6 +582,26 @@ function toggleFeatureToggles() {
       input.disabled = !enabled;
     }
   });
+}
+
+function toggleCheckbox(id) {
+  const checkbox = document.getElementById(id);
+  if (!checkbox) return;
+  checkbox.checked = !checkbox.checked;
+  checkbox.value = checkbox.checked ? 'true' : 'false';
+
+  const label = document.querySelector('label[for="' + id + '"]');
+  if (label) {
+    const base = label.dataset.text || label.textContent.split(' - ')[0];
+    label.dataset.text = base;
+    const enabled = checkbox.checked;
+    label.textContent = base + ' - ' + (enabled ? 'Ativado' : 'Desativado');
+    label.classList.toggle('label-on', enabled);
+    label.classList.toggle('label-off', !enabled);
+  }
+
+  if (id === 'PIPER_ENABLED') togglePiperSettings();
+  if (id === 'FEATURE_TOGGLES_ENABLED') toggleFeatureToggles();
 }
 
 function resetForm() {

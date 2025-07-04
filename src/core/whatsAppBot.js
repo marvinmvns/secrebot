@@ -1612,13 +1612,21 @@ async handleRecursoCommand(contactId) {
     
     // Depois, tentar mapear para comando direto
     const commandPrompt = PROMPTS.audioCommandMapping(transcription);
-    const response = await ollamaClient.chat({
-        model: CONFIG.llm.model,
-        messages: [{ role: 'user', content: commandPrompt }],
-        options: { temperature: 0.2 }
-    });
-    const mappedCommand = response.message.content.trim();
-    logger.api(`🤖 LLM mapeou áudio para: ${mappedCommand}`);
+    let mappedCommand = 'INVALIDO';
+    
+    try {
+      const response = await ollamaClient.chat({
+          model: CONFIG.llm.model,
+          messages: [{ role: 'user', content: commandPrompt }],
+          options: { temperature: 0.2 }
+      });
+      mappedCommand = response.message.content.trim();
+      logger.api(`🤖 LLM mapeou áudio para: ${mappedCommand}`);
+    } catch (error) {
+      logger.error('❌ Erro ao mapear comando de áudio via LLM:', error);
+      // Fallback: tentar navegação por submenu diretamente
+      logger.flow('🔄 Tentando fallback para navegação por submenu');
+    }
     
     if (mappedCommand !== 'INVALIDO' && Object.values(COMMANDS).includes(mappedCommand)) {
         await this.sendResponse(contactId, `✅ Comando de áudio interpretado: *${this.getCommandDescription(mappedCommand)}*`, true);

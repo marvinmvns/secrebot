@@ -26,27 +26,77 @@ class AudioTranscriber {
     const modelPath = path.join(WHISPER_CPP_PATH, 'models', modelFile);
     const args = ['-m', modelPath, '-f', filePath, '-otxt', '-l', options.whisperOptions.language];
 
+    // Log detalhado para debug
+    logger.debug('🔧 Whisper Debug Info:', {
+      execPath,
+      modelFile,
+      modelPath,
+      filePath,
+      args: args.join(' '),
+      cwd: WHISPER_CPP_PATH,
+      timeout: CONFIG.audio.timeoutMs
+    });
+
+    // Verificar se o executável existe
+    try {
+      await fs.access(execPath, fs.constants.F_OK | fs.constants.X_OK);
+      logger.debug(`✅ Executável Whisper encontrado: ${execPath}`);
+    } catch (error) {
+      logger.error(`❌ Executável Whisper não encontrado ou não executável: ${execPath}`);
+      throw new Error(`Whisper executable not found or not executable: ${execPath}`);
+    }
+
     return new Promise((resolve, reject) => {
-      const proc = spawn(execPath, args, { cwd: WHISPER_CPP_PATH });
+      logger.debug(`🚀 Iniciando processo Whisper: ${execPath} ${args.join(' ')}`);
+      
+      const proc = spawn(execPath, args, { 
+        cwd: WHISPER_CPP_PATH,
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      
+      let stdout = '';
       let stderr = '';
+      
       const timer = setTimeout(() => {
+        logger.error('⏰ Whisper process timeout após', CONFIG.audio.timeoutMs, 'ms');
         proc.kill('SIGKILL');
-        reject(new Error('Whisper process timed out'));
+        reject(new Error(`Whisper process timed out after ${CONFIG.audio.timeoutMs}ms`));
       }, CONFIG.audio.timeoutMs);
 
-      proc.stderr.on('data', d => {
-        stderr += d.toString();
+      proc.stdout.on('data', d => {
+        const data = d.toString();
+        stdout += data;
+        if (options.verbose) {
+          logger.debug('📤 Whisper STDOUT:', data.trim());
+        }
       });
+
+      proc.stderr.on('data', d => {
+        const data = d.toString();
+        stderr += data;
+        logger.debug('📥 Whisper STDERR:', data.trim());
+      });
+
       proc.on('error', err => {
         clearTimeout(timer);
+        logger.error('❌ Whisper process error:', err);
         reject(err);
       });
+
       proc.on('close', code => {
         clearTimeout(timer);
+        logger.debug(`🏁 Whisper process finished with code: ${code}`);
+        
+        if (stdout) logger.debug('📤 Final STDOUT:', stdout.trim());
+        if (stderr) logger.debug('📥 Final STDERR:', stderr.trim());
+        
         if (code === 0) {
+          logger.debug('✅ Whisper process completed successfully');
           resolve();
         } else {
-          reject(new Error(stderr || `Whisper exited with code ${code}`));
+          const errorMsg = stderr || `Whisper exited with code ${code}`;
+          logger.error('❌ Whisper process failed:', errorMsg);
+          reject(new Error(errorMsg));
         }
       });
     });
@@ -55,6 +105,8 @@ class AudioTranscriber {
   async transcribe(audioBuffer, inputFormat = 'ogg') {
     return this.queue.add(async () => {
       logger.service('🎤 Iniciando transcrição de áudio...');
+      logger.debug(`📊 Audio buffer size: ${audioBuffer.length} bytes, format: ${inputFormat}`);
+      
       const timestamp = Date.now();
       const tempOutputPath = path.join(__dirname, `audio_${timestamp}.wav`);
 

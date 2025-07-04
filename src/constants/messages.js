@@ -2,77 +2,188 @@ import { COMMANDS, CHAT_MODES, NAVIGATION_STATES } from './commands.js';
 
 export const MENU_MESSAGE = `🤖 *SECREBOT - MENU PRINCIPAL*
 
-1️⃣ 📅 AGENDA & LEMBRETES
-2️⃣ 🧠 INTELIGÊNCIA ARTIFICIAL
-3️⃣ 🎬 MÍDIA & CONTEÚDO
-4️⃣ 💼 ANÁLISE PROFISSIONAL
-5️⃣ ⚙️ CONFIGURAÇÕES
-6️⃣ 📞 SUPORTE & SISTEMA
+🎯 *NAVEGAÇÃO INTELIGENTE*
+• Digite o número da opção desejada
+• Ou envie um áudio descrevendo o que precisa
+• Use comandos diretos (!ajuda, !deep, etc.)
 
-Digite o número ou comando:
+─────────────────────────────
+
+1️⃣ 📅 *AGENDA & LEMBRETES*
+   Criar, listar e gerenciar seus compromissos
+
+2️⃣ 🧠 *INTELIGÊNCIA ARTIFICIAL*
+   Chat assistente e análise de conteúdo
+
+3️⃣ 🎬 *MÍDIA & CONTEÚDO*
+   Transcrever áudio, analisar imagens
+
+4️⃣ 💼 *ANÁLISE PROFISSIONAL*
+   Análise de perfis LinkedIn e documentos
+
+5️⃣ ⚙️ *CONFIGURAÇÕES*
+   Ajustar preferências e modelos IA
+
+6️⃣ 📞 *SUPORTE & SISTEMA*
+   Ajuda, recursos e informações
+
+─────────────────────────────
+
+💡 *DICAS RÁPIDAS:*
 • ${COMMANDS.MENU} - Voltar ao menu principal
-• ${COMMANDS.AJUDA} - Exibir ajuda detalhada`;
+• ${COMMANDS.AJUDA} - Exibir ajuda detalhada
+• 🎤 Fale: "criar lembrete", "transcrever áudio", etc.`;
 
 export const SUBMENU_MESSAGES = {
   agenda: `📅 *AGENDA & LEMBRETES*
 
-1.1 ➕ Criar Agendamento
-1.2 📋 Listar Agendamentos
-1.3 🗑️ Deletar Agendamento
-1.4 📥 Importar Agenda (.ics)
+🎯 *OPÇÕES DISPONÍVEIS:*
+
+1.1 ➕ *Criar Agendamento*
+   Agendar compromissos com lembretes automáticos
+
+1.2 📋 *Listar Agendamentos*
+   Ver todos os seus compromissos salvos
+
+1.3 🗑️ *Deletar Agendamento*
+   Remover compromissos da sua agenda
+
+1.4 📥 *Importar Agenda (.ics)*
+   Importar agenda de outros aplicativos
+
+──────────────────────────
+
+💡 *DICA:* Digite o número ou fale o que precisa!
+🎤 Exemplo: "criar lembrete", "listar compromissos"
 
 0️⃣ Voltar ao menu principal`,
 
   ia: `🧠 *INTELIGÊNCIA ARTIFICIAL*
 
-2.1 💬 Chat Assistente (Deep)
-2.2 📄 Resumir Texto/Arquivo
-2.3 🎥 Resumir Vídeo
-2.4 🖼️ Analisar Imagem
-2.5 🎤 Transcrever e Resumir Áudio
+🎯 *OPÇÕES DISPONÍVEIS:*
+
+2.1 💬 *Chat Assistente (Deep)*
+   Conversar com IA para qualquer tarefa
+
+2.2 📄 *Resumir Texto/Arquivo*
+   Resumir documentos PDF, DOCX, TXT
+
+2.3 🎥 *Resumir Vídeo*
+   Resumir vídeos do YouTube automaticamente
+
+2.4 🖼️ *Analisar Imagem*
+   Análise detalhada de imagens enviadas
+
+2.5 🎤 *Transcrever e Resumir Áudio*
+   Converter áudio em texto e resumir
+
+──────────────────────────
+
+💡 *DICA:* Digite o número ou fale o que precisa!
+🎤 Exemplo: "conversar com IA", "resumir documento"
 
 0️⃣ Voltar ao menu principal`,
 
   midia: `🎬 *MÍDIA & CONTEÚDO*
 
-3.1 🎤 Transcrever Áudio
-3.2 🔊 Ativar/Desativar Voz
-3.3 🍎 Calcular Calorias (Foto)
+🎯 *OPÇÕES DISPONÍVEIS:*
+
+3.1 🎤 *Transcrever Áudio*
+   Converter áudio/voz em texto
+
+3.2 🔊 *Ativar/Desativar Voz*
+   Alternar entre respostas por texto ou áudio
+
+3.3 🍎 *Calcular Calorias (Foto)*
+   Analisar comida em fotos e calcular calorias
+
+──────────────────────────
+
+💡 *DICA:* Digite o número ou fale o que precisa!
+🎤 Exemplo: "transcrever áudio", "calcular calorias"
 
 0️⃣ Voltar ao menu principal`,
 
   profissional: `💼 *ANÁLISE PROFISSIONAL*
 
-4.1 🔗 Analisar LinkedIn
+🎯 *OPÇÕES DISPONÍVEIS:*
+
+4.1 🔗 *Analisar LinkedIn*
+   Análise detalhada de perfis profissionais
+
+──────────────────────────
+
+💡 *DICA:* Digite o número ou fale o que precisa!
+🎤 Exemplo: "analisar LinkedIn", "analisar perfil"
 
 0️⃣ Voltar ao menu principal`,
 
   config: `⚙️ *CONFIGURAÇÕES*
 
-5.1 🔊 Modo de Resposta (Texto/Voz)
-5.2 ⚡ Recursos do Sistema
-5.3 🤖 Listar Modelos IA
-5.4 🔄 Trocar Modelo IA
-5.5 🎤 Listar Modelos Whisper
-5.6 🔄 Trocar Modelo Whisper
-5.7 🔄 Reiniciar Ollama
-5.8 🎤 Reiniciar Whisper
+🎯 *OPÇÕES DISPONÍVEIS:*
+
+5.1 🔊 *Modo de Resposta (Texto/Voz)*
+   Escolher como receber as respostas
+
+5.2 ⚡ *Recursos do Sistema*
+   Ver informações detalhadas do sistema
+
+5.3 🤖 *Listar Modelos IA*
+   Ver todos os modelos disponíveis
+
+5.4 🔄 *Trocar Modelo IA*
+   Alterar modelo de inteligência artificial
+
+5.5 🎤 *Listar Modelos Whisper*
+   Ver modelos de transcrição disponíveis
+
+5.6 🔄 *Trocar Modelo Whisper*
+   Alterar modelo de transcrição
+
+5.7 🔄 *Reiniciar Ollama*
+   Reiniciar serviço de IA
+
+5.8 🎤 *Reiniciar Whisper*
+   Reiniciar serviço de transcrição
+
+──────────────────────────
+
+💡 *DICA:* Digite o número ou fale o que precisa!
+🎤 Exemplo: "ativar voz", "trocar modelo"
 
 0️⃣ Voltar ao menu principal`,
 
   suporte: `📞 *SUPORTE & SISTEMA*
 
-6.1 📖 Ajuda Detalhada
-6.2 ⚡ Recursos do Sistema
+🎯 *OPÇÕES DISPONÍVEIS:*
+
+6.1 📖 *Ajuda Detalhada*
+   Instruções completas de uso
+
+6.2 ⚡ *Recursos do Sistema*
+   Informações técnicas detalhadas
+
+──────────────────────────
+
+💡 *DICA:* Digite o número ou fale o que precisa!
+🎤 Exemplo: "ajuda", "recursos sistema"
 
 0️⃣ Voltar ao menu principal`,
 
   video: `🎥 *RESUMIR VÍDEO*
 
-Escolha o método de resumo:
+🎯 *ESCOLHA O MÉTODO:*
 
-2.3.1 🚀 Transcrição Automática (YouTube)
-2.3.2 🎯 Whisper IA (Mais Preciso)
+2.3.1 🚀 *Transcrição Automática (YouTube)*
+   Método rápido para vídeos do YouTube
+
+2.3.2 🎯 *Whisper IA (Mais Preciso)*
+   Análise mais detalhada e precisa
+
+──────────────────────────
+
+💡 *DICA:* Digite o número ou fale o que precisa!
+🎤 Exemplo: "resumir vídeo YouTube", "método preciso"
 
 0️⃣ Voltar ao submenu IA`
 };
@@ -141,6 +252,43 @@ export const PROMPTS = {
   
   calorieEstimation: `Identifique os alimentos presentes na imagem e responda SOMENTE com um JSON no formato {"foods":["alimento1","alimento2"]} a resposta sempre devera ser um json`,
   
-  audioCommandMapping: (transcription) => `Dada a transcrição "${transcription}", qual comando do menu a seguir ela mais provavelmente representa? Responda APENAS com o comando (ex: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias, !listaragendamentos, !menu, !linkedin, !deletaragendamento, !voz, !recurso, !voltar) ou "INVALIDO" se não corresponder a nenhum.
-Comandos disponíveis: !ajuda, !deep, !agendabot, !transcrever, !foto, !calorias, !listaragendamentos, !menu, !linkedin, !deletaragendamento, !voz, !recurso, !voltar`
+  audioCommandMapping: (transcription) => `Analise a transcrição "${transcription}" e determine qual comando do menu corresponde à intenção do usuário.
+
+COMANDOS DISPONÍVEIS E SUAS FUNÇÕES:
+• !ajuda - Exibir ajuda, instruções, como usar, manual
+• !deep - Conversar com IA, chat inteligente, assistente virtual, fazer pergunta
+• !agendabot - Criar lembrete, agendar compromisso, marcar encontro, criar agenda
+• !transcrever - Transcrever áudio, converter voz em texto, passar áudio para texto
+• !transcreveresumir - Transcrever e resumir áudio, fazer resumo do áudio
+• !foto - Analisar imagem, ver foto, descrever imagem, análise visual
+• !calorias - Calcular calorias, analisar comida, ver nutrição, contar calorias
+• !listaragendamentos - Listar compromissos, ver agenda, mostrar lembretes
+• !menu - Voltar menu, menu principal, opções, início
+• !linkedin - Analisar LinkedIn, perfil profissional, análise de perfil
+• !deletaragendamento - Deletar compromisso, remover lembrete, cancelar agenda
+• !voz - Ativar voz, modo áudio, resposta falada, alternar voz/texto
+• !recurso - Recursos sistema, informações técnicas, status do sistema
+• !voltar - Voltar, cancelar, sair, parar
+• !resumir - Resumir texto, resumir documento, fazer resumo
+• !resumirvideo - Resumir vídeo YouTube, análise de vídeo
+• !trocarmodelo - Trocar modelo IA, alterar modelo, mudar IA
+• !modelos - Listar modelos, ver modelos disponíveis
+• !modeloswhisper - Modelos Whisper, ver transcrição disponível
+• !trocarmodelwhisper - Trocar modelo Whisper, alterar transcrição
+
+INSTRUÇÕES:
+1. Analise a intenção do usuário na transcrição
+2. Considere sinônimos e variações de fala
+3. Responda APENAS com o comando correspondente (ex: !deep, !agendabot)
+4. Se não houver correspondência clara, responda "INVALIDO"
+
+EXEMPLOS:
+- "quero criar um lembrete" → !agendabot
+- "conversar com a IA" → !deep
+- "transcrever esse áudio" → !transcrever
+- "como funciona isso" → !ajuda
+- "voltar pro menu" → !menu
+- "ver meus compromissos" → !listaragendamentos
+
+Transcrição para análise: "${transcription}"`
 };

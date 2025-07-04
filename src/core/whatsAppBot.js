@@ -235,7 +235,7 @@ class WhatsAppBot {
     }
   }
 
-  handleHierarchicalNavigation(msg, contactId, text, navigationState) {
+  async handleHierarchicalNavigation(msg, contactId, text, navigationState) {
     const numericInput = text.trim();
     
     // No menu principal (1-6)
@@ -243,55 +243,55 @@ class WhatsAppBot {
       switch (numericInput) {
         case '1':
           this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_AGENDA);
-          this.sendResponse(contactId, SUBMENU_MESSAGES.agenda);
+          await this.sendResponse(contactId, SUBMENU_MESSAGES.agenda);
           return true;
         case '2':
           this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_IA);
-          this.sendResponse(contactId, SUBMENU_MESSAGES.ia);
+          await this.sendResponse(contactId, SUBMENU_MESSAGES.ia);
           return true;
         case '3':
           this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_MIDIA);
-          this.sendResponse(contactId, SUBMENU_MESSAGES.midia);
+          await this.sendResponse(contactId, SUBMENU_MESSAGES.midia);
           return true;
         case '4':
           this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_PROFISSIONAL);
-          this.sendResponse(contactId, SUBMENU_MESSAGES.profissional);
+          await this.sendResponse(contactId, SUBMENU_MESSAGES.profissional);
           return true;
         case '5':
           this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_CONFIG);
-          this.sendResponse(contactId, SUBMENU_MESSAGES.config);
+          await this.sendResponse(contactId, SUBMENU_MESSAGES.config);
           return true;
         case '6':
           this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_SUPORTE);
-          this.sendResponse(contactId, SUBMENU_MESSAGES.suporte);
+          await this.sendResponse(contactId, SUBMENU_MESSAGES.suporte);
           return true;
         case '0':
-          this.sendResponse(contactId, MENU_MESSAGE);
+          await this.sendResponse(contactId, MENU_MESSAGE);
           return true;
       }
       return false;
     }
 
     // Nos submenus
-    return this.handleSubmenuNavigation(msg, contactId, numericInput, navigationState);
+    return await this.handleSubmenuNavigation(msg, contactId, numericInput, navigationState);
   }
 
-  handleSubmenuNavigation(msg, contactId, numericInput, navigationState) {
+  async handleSubmenuNavigation(msg, contactId, numericInput, navigationState) {
     switch (navigationState) {
       case NAVIGATION_STATES.SUBMENU_AGENDA:
-        return this.handleAgendaSubmenu(msg, contactId, numericInput);
+        return await this.handleAgendaSubmenu(msg, contactId, numericInput);
       case NAVIGATION_STATES.SUBMENU_IA:
-        return this.handleIASubmenu(msg, contactId, numericInput);
+        return await this.handleIASubmenu(msg, contactId, numericInput);
       case NAVIGATION_STATES.SUBMENU_MIDIA:
-        return this.handleMidiaSubmenu(msg, contactId, numericInput);
+        return await this.handleMidiaSubmenu(msg, contactId, numericInput);
       case NAVIGATION_STATES.SUBMENU_PROFISSIONAL:
-        return this.handleProfissionalSubmenu(msg, contactId, numericInput);
+        return await this.handleProfissionalSubmenu(msg, contactId, numericInput);
       case NAVIGATION_STATES.SUBMENU_CONFIG:
-        return this.handleConfigSubmenu(msg, contactId, numericInput);
+        return await this.handleConfigSubmenu(msg, contactId, numericInput);
       case NAVIGATION_STATES.SUBMENU_SUPORTE:
-        return this.handleSuporteSubmenu(msg, contactId, numericInput);
+        return await this.handleSuporteSubmenu(msg, contactId, numericInput);
       case NAVIGATION_STATES.SUBMENU_VIDEO:
-        return this.handleVideoSubmenu(msg, contactId, numericInput);
+        return await this.handleVideoSubmenu(msg, contactId, numericInput);
       default:
         return false;
     }
@@ -502,6 +502,81 @@ class WhatsAppBot {
     }
   }
 
+  // Métodos auxiliares para navegação por áudio
+  getCommandDescription(command) {
+    const descriptions = {
+      [COMMANDS.AJUDA]: 'Exibir Ajuda',
+      [COMMANDS.DEEP]: 'Chat com IA',
+      [COMMANDS.AGENDA]: 'Criar Agendamento',
+      [COMMANDS.TRANSCREVER]: 'Transcrever Áudio',
+      [COMMANDS.TRANSCREVER_RESUMIR]: 'Transcrever e Resumir',
+      [COMMANDS.FOTO]: 'Analisar Imagem',
+      [COMMANDS.CALORIAS]: 'Calcular Calorias',
+      [COMMANDS.LISTAR]: 'Listar Compromissos',
+      [COMMANDS.LINKEDIN]: 'Analisar LinkedIn',
+      [COMMANDS.DELETAR]: 'Deletar Compromisso',
+      [COMMANDS.VOZ]: 'Alternar Voz/Texto',
+      [COMMANDS.RECURSO]: 'Recursos do Sistema',
+      [COMMANDS.RESUMIR]: 'Resumir Documento',
+      [COMMANDS.RESUMIRVIDEO]: 'Resumir Vídeo',
+      [COMMANDS.MENU]: 'Menu Principal',
+      [COMMANDS.VOLTAR]: 'Voltar'
+    };
+    return descriptions[command] || command;
+  }
+
+  getSubmenuDescription(submenu) {
+    const descriptions = {
+      'submenu_agenda': 'Agenda & Lembretes',
+      'submenu_ia': 'Inteligência Artificial',
+      'submenu_midia': 'Mídia & Conteúdo',
+      'submenu_profissional': 'Análise Profissional',
+      'submenu_config': 'Configurações',
+      'submenu_suporte': 'Suporte & Sistema'
+    };
+    return descriptions[submenu] || submenu;
+  }
+
+  async trySubmenuNavigation(transcription, navigationState) {
+    const submenuMapping = {
+      // Palavras-chave para navegação de submenu
+      'agenda': 'submenu_agenda',
+      'lembrete': 'submenu_agenda',
+      'compromisso': 'submenu_agenda',
+      'agendamento': 'submenu_agenda',
+      'ia': 'submenu_ia',
+      'inteligencia': 'submenu_ia',
+      'artificial': 'submenu_ia',
+      'chat': 'submenu_ia',
+      'conversa': 'submenu_ia',
+      'midia': 'submenu_midia',
+      'audio': 'submenu_midia',
+      'som': 'submenu_midia',
+      'voz': 'submenu_midia',
+      'profissional': 'submenu_profissional',
+      'linkedin': 'submenu_profissional',
+      'perfil': 'submenu_profissional',
+      'config': 'submenu_config',
+      'configuracao': 'submenu_config',
+      'configurar': 'submenu_config',
+      'ajuste': 'submenu_config',
+      'suporte': 'submenu_suporte',
+      'ajuda': 'submenu_suporte',
+      'sistema': 'submenu_suporte',
+      'recurso': 'submenu_suporte'
+    };
+
+    const lowerTranscription = transcription.toLowerCase();
+    
+    for (const [keyword, submenu] of Object.entries(submenuMapping)) {
+      if (lowerTranscription.includes(keyword)) {
+        return submenu;
+      }
+    }
+    
+    return null;
+  }
+
   // Método unificado para enviar respostas (texto ou voz)
   async sendResponse(contactId, textContent, forceText = false) {
     const useVoice = this.getUserPreference(contactId, 'voiceResponse', false) && !forceText;
@@ -568,7 +643,7 @@ class WhatsAppBot {
     const navigationState = this.getNavigationState(contactId);
 
     // Lógica de navegação hierárquica
-    if (!currentMode && this.handleHierarchicalNavigation(msg, contactId, text, navigationState)) {
+    if (!currentMode && await this.handleHierarchicalNavigation(msg, contactId, text, navigationState)) {
       return;
     }
 
@@ -1490,12 +1565,15 @@ async handleRecursoCommand(contactId) {
       return;
     }
     const currentMode = this.getCurrentMode(contactId);
+    const navigationState = this.getNavigationState(contactId);
+    
     try {
       await this.sendResponse(contactId, '🎤 Transcrevendo áudio...', true);
       const transcription = await this.transcriber.transcribe(
         Buffer.from(media.data, 'base64')
       );
       logger.service(`📝 Transcrição para ${contactId}: ${transcription}`);
+      
       if (currentMode === CHAT_MODES.TRANSCRICAO) {
         await this.sendResponse(contactId, `📝 *Transcrição:*\n\n${transcription}`);
         await this.sendResponse(contactId, SUCCESS_MESSAGES.TRANSCRIPTION_COMPLETE);
@@ -1509,23 +1587,8 @@ async handleRecursoCommand(contactId) {
       } else if (currentMode) {
         await this.processMessageByMode(contactId, transcription, msg);
       } else {
-        logger.flow(`🎤 Áudio recebido no menu. Mapeando transcrição "${transcription}" para comando...`);
-        await this.sendResponse(contactId, '🤔 Interpretando comando de áudio...', true);
-        const commandPrompt = PROMPTS.audioCommandMapping(transcription);
-        const response = await ollamaClient.chat({
-            model: CONFIG.llm.model,
-            messages: [{ role: 'user', content: commandPrompt }],
-            options: { temperature: 0.2 }
-        });
-        const mappedCommand = response.message.content.trim();
-        logger.api(`🤖 LLM mapeou áudio para: ${mappedCommand}`);
-        if (mappedCommand !== 'INVALIDO' && Object.values(COMMANDS).includes(mappedCommand)) {
-            await this.sendResponse(contactId, `Comando de áudio entendido como: ${mappedCommand}`, true);
-            await this.handleMessage({ ...msg, body: mappedCommand });
-        } else {
-            await this.sendResponse(contactId, `😕 Desculpe, não entendi o comando de áudio "${transcription}". Mostrando o menu novamente.`);
-            await this.sendResponse(contactId, MENU_MESSAGE);
-        }
+        // Processamento de áudio no menu ou submenu
+        await this.processAudioNavigation(msg, contactId, transcription, navigationState);
       }
     } catch (err) {
       logger.error(`❌ Erro no processamento de áudio para ${contactId}`, err);
@@ -1535,6 +1598,71 @@ async handleRecursoCommand(contactId) {
       } else {
         await this.sendErrorMessage(contactId, `❌ Erro ao processar áudio: ${err.message || 'Tente novamente.'}`);
       }
+    }
+  }
+
+  async processAudioNavigation(msg, contactId, transcription, navigationState) {
+    logger.flow(`🎤 Processando navegação por áudio. Estado: ${navigationState}, Transcrição: "${transcription}"`);
+    await this.sendResponse(contactId, '🤔 Interpretando comando de áudio...', true);
+    
+    // Primeiro, tentar navegação hierárquica por áudio
+    if (await this.handleHierarchicalNavigation(msg, contactId, transcription, navigationState)) {
+      return;
+    }
+    
+    // Depois, tentar mapear para comando direto
+    const commandPrompt = PROMPTS.audioCommandMapping(transcription);
+    const response = await ollamaClient.chat({
+        model: CONFIG.llm.model,
+        messages: [{ role: 'user', content: commandPrompt }],
+        options: { temperature: 0.2 }
+    });
+    const mappedCommand = response.message.content.trim();
+    logger.api(`🤖 LLM mapeou áudio para: ${mappedCommand}`);
+    
+    if (mappedCommand !== 'INVALIDO' && Object.values(COMMANDS).includes(mappedCommand)) {
+        await this.sendResponse(contactId, `✅ Comando de áudio interpretado: *${this.getCommandDescription(mappedCommand)}*`, true);
+        await this.handleMessage({ ...msg, body: mappedCommand });
+    } else {
+        // Se não conseguiu mapear diretamente, tentar navegar por submenu
+        const submenuCommand = await this.trySubmenuNavigation(transcription, navigationState);
+        
+        if (submenuCommand) {
+            logger.flow(`🎤 Áudio mapeado para navegação de submenu: ${submenuCommand}`);
+            await this.sendResponse(contactId, `✅ Navegando para: *${this.getSubmenuDescription(submenuCommand)}*`, true);
+            await this.showSubmenu(contactId, submenuCommand);
+        } else {
+            const currentMenuText = this.getCurrentMenuText(navigationState);
+            await this.sendResponse(contactId, `😕 Desculpe, não entendi o comando de áudio "${transcription}". 
+
+💡 *Tente falar algo como:*
+• "criar lembrete" • "conversar com IA" 
+• "transcrever áudio" • "analisar imagem"
+• "ver compromissos" • "ajuda"
+
+${currentMenuText}`);
+        }
+    }
+  }
+
+  getCurrentMenuText(navigationState) {
+    switch (navigationState) {
+      case NAVIGATION_STATES.SUBMENU_AGENDA:
+        return SUBMENU_MESSAGES.agenda;
+      case NAVIGATION_STATES.SUBMENU_IA:
+        return SUBMENU_MESSAGES.ia;
+      case NAVIGATION_STATES.SUBMENU_MIDIA:
+        return SUBMENU_MESSAGES.midia;
+      case NAVIGATION_STATES.SUBMENU_PROFISSIONAL:
+        return SUBMENU_MESSAGES.profissional;
+      case NAVIGATION_STATES.SUBMENU_CONFIG:
+        return SUBMENU_MESSAGES.config;
+      case NAVIGATION_STATES.SUBMENU_SUPORTE:
+        return SUBMENU_MESSAGES.suporte;
+      case NAVIGATION_STATES.SUBMENU_VIDEO:
+        return SUBMENU_MESSAGES.video;
+      default:
+        return MENU_MESSAGE;
     }
   }
 

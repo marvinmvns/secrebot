@@ -408,7 +408,7 @@
                           
                           <div class="mb-3">
                             <label class="form-label fw-bold">Configuração JSON</label>
-                            <textarea class="form-control" name="featureToggles.features" placeholder="<%= examples['featureToggles.features'] %>" rows="4"><%= typeof env['featureToggles.features'] === 'object' ? JSON.stringify(env['featureToggles.features'], null, 2) : env['featureToggles.features'] %></textarea>
+                            <textarea class="form-control" name="FEATURE_TOGGLES_FEATURES" placeholder="<%= examples['featureToggles.features'] %>" rows="4"><%= env['FEATURE_TOGGLES_FEATURES'] || JSON.stringify(featureToggles.features || {}, null, 2) %></textarea>
                             <small class="form-text text-muted">JSON com features toggles globais. Ex: {"feature1": true, "feature2": false}</small>
                           </div>
                           
@@ -598,7 +598,7 @@ function validateConfig() {
   }
   
   // Validar JSON de feature toggles
-  const featureTogglesJson = document.querySelector('textarea[name="featureToggles.features"]');
+  const featureTogglesJson = document.querySelector('textarea[name="FEATURE_TOGGLES_FEATURES"]');
   if (featureTogglesJson && featureTogglesJson.value) {
     try {
       JSON.parse(featureTogglesJson.value);

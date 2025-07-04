@@ -142,6 +142,7 @@ export const CONFIG_ENV_MAP = {
   'telegram.features.dualVideoSummary': 'TELEGRAM_FEATURE_DUAL_VIDEO_SUMMARY',
   'telegram.features.voiceResponseToggle': 'TELEGRAM_FEATURE_VOICE_RESPONSE_TOGGLE',
   'telegram.features.advancedFileProcessing': 'TELEGRAM_FEATURE_ADVANCED_FILE_PROCESSING',
+  'featureToggles.features': 'FEATURE_TOGGLES_FEATURES',
   'featureToggles.enabled': 'FEATURE_TOGGLES_ENABLED'
 };
 

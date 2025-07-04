@@ -108,10 +108,6 @@ export const config = {
       voiceResponseToggle: process.env.TELEGRAM_FEATURE_VOICE_RESPONSE_TOGGLE !== 'false',
       advancedFileProcessing: process.env.TELEGRAM_FEATURE_ADVANCED_FILE_PROCESSING !== 'false'
     }
-  },
-  featureToggles: {
-    enabled: process.env.FEATURE_TOGGLES_ENABLED === 'true',
-    features: {}
   }
 };
 

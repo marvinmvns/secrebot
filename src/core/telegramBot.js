@@ -2,7 +2,6 @@ import { Telegraf } from 'telegraf';
 import logger from '../utils/logger.js';
 import { config } from '../config/config.js';
 import { TELEGRAM_COMMANDS, TELEGRAM_MESSAGES } from '../constants/telegramCommands.js';
-import { createFeatureToggleManager } from '../services/featureToggleService.js';
 import { TelegramIntegrationService } from '../services/telegramIntegrationService.js';
 import { Ollama } from 'ollama';
 import { CONFIG, WHISPER_MODELS_LIST } from '../config/index.js';
@@ -17,7 +16,6 @@ class TelegramBotService {
     constructor() {
         this.bot = null;
         this.isInitialized = false;
-        this.featureToggles = null;
         this.userStates = new Map(); // Armazena estado de navegação por usuário
         this.userPreferences = new Map(); // Armazena preferências do usuário
         this.integrationService = null;
@@ -37,7 +35,6 @@ class TelegramBotService {
             logger.info('Inicializando bot do Telegram...');
             
             this.bot = new Telegraf(config.telegram.botToken);
-            this.featureToggles = await createFeatureToggleManager();
             this.integrationService = new TelegramIntegrationService(this.bot);
 
             this.setupEventHandlers();
@@ -132,12 +129,6 @@ class TelegramBotService {
         const userId = ctx.from.id;
         
         try {
-            // Verificar se o usuário tem permissão para usar transcrição de áudio
-            const features = await this.featureToggles.getUserFeatures(userId);
-            if (!features.audio_transcription) {
-                await ctx.reply('❌ Funcionalidade de transcrição de áudio não disponível para seu usuário.');
-                return;
-            }
 
             // Definir estado do usuário para aguardar áudio
             this.userStates.set(userId, { 
@@ -163,7 +154,27 @@ class TelegramBotService {
     }
 
     async buildMainMenu(userId) {
-        const features = await this.featureToggles.getUserFeatures(userId);
+        const features = {
+            ai_chat: true,
+            scheduler: true,
+            audio_transcription: true,
+            image_analysis: true,
+            video_summary: true,
+            text_summary: true,
+            tts: true,
+            calorie_counter: true,
+            linkedin_analysis: true,
+            media_processing: true,
+            professional_analysis: true,
+            system_resources: true,
+            model_management: true,
+            whisper_model_management: true,
+            service_management: true,
+            calendar_import: true,
+            dual_video_summary: true,
+            voice_response_toggle: true,
+            advanced_file_processing: true
+        };
         const keyboard = [];
 
         // Linha 1: IA e Agenda
@@ -198,7 +209,27 @@ class TelegramBotService {
     }
 
     async buildSubMenu(menuType, userId) {
-        const features = await this.featureToggles.getUserFeatures(userId);
+        const features = {
+            ai_chat: true,
+            scheduler: true,
+            audio_transcription: true,
+            image_analysis: true,
+            video_summary: true,
+            text_summary: true,
+            tts: true,
+            calorie_counter: true,
+            linkedin_analysis: true,
+            media_processing: true,
+            professional_analysis: true,
+            system_resources: true,
+            model_management: true,
+            whisper_model_management: true,
+            service_management: true,
+            calendar_import: true,
+            dual_video_summary: true,
+            voice_response_toggle: true,
+            advanced_file_processing: true
+        };
         const keyboard = [];
 
         switch (menuType) {
@@ -398,13 +429,8 @@ class TelegramBotService {
 
         const userState = this.userStates.get(userId);
         if (!userState) {
-            // Mensagem sem contexto - tratar como chat geral se IA estiver habilitada
-            const features = await this.featureToggles.getUserFeatures(userId);
-            if (features.ai_chat) {
-                await this.processAIChat(chatId, text, userId);
-            } else {
-                await this.bot.telegram.sendMessage(chatId, 'Use /start para ver o menu principal.');
-            }
+            // Mensagem sem contexto - tratar como chat geral (AI chat sempre habilitado)
+            await this.processAIChat(chatId, text, userId);
             return;
         }
 
@@ -417,11 +443,7 @@ class TelegramBotService {
         const userId = ctx.from.id;
         const userState = this.userStates.get(userId);
         
-        const features = await this.featureToggles.getUserFeatures(userId);
-        if (!features.audio_transcription) {
-            await this.bot.telegram.sendMessage(chatId, 'Funcionalidade de transcrição de áudio não disponível.');
-            return;
-        }
+        // Transcrição de áudio sempre habilitada
 
         // Check if user is in transcribe_summary state
         if (userState?.action === 'transcribe_summary') {
@@ -444,17 +466,15 @@ class TelegramBotService {
         const userId = ctx.from.id;
         const userState = this.userStates.get(userId);
 
-        const features = await this.featureToggles.getUserFeatures(userId);
+        // Análise de imagem sempre habilitada
         
-        if (userState?.action === 'analyze_image' && features.image_analysis) {
+        if (userState?.action === 'analyze_image') {
             await this.integrationService.processImageAnalysis(chatId, ctx.message.photo);
-        } else if (userState?.action === 'calories' && features.calorie_counter) {
+        } else if (userState?.action === 'calories') {
             await this.integrationService.processCalorieCount(chatId, ctx.message.photo);
-        } else if (features.image_analysis) {
+        } else {
             // Análise geral de imagem
             await this.integrationService.processImageAnalysis(chatId, ctx.message.photo);
-        } else {
-            await this.bot.telegram.sendMessage(chatId, 'Funcionalidade de análise de imagem não disponível.');
         }
     }
 
@@ -525,13 +545,32 @@ class TelegramBotService {
     }
 
     async showFeatureToggles(chatId, userId) {
-        const features = await this.featureToggles.getUserFeatures(userId);
         let message = '🔧 <b>Funcionalidades Disponíveis:</b>\n\n';
         
-        for (const [key, value] of Object.entries(features)) {
-            const icon = value ? '✅' : '❌';
-            const name = key.replace(/_/g, ' ').toUpperCase();
-            message += `${icon} ${name}\n`;
+        const features = [
+            'AI CHAT',
+            'SCHEDULER',
+            'AUDIO TRANSCRIPTION',
+            'IMAGE ANALYSIS',
+            'VIDEO SUMMARY',
+            'TEXT SUMMARY',
+            'TTS',
+            'CALORIE COUNTER',
+            'LINKEDIN ANALYSIS',
+            'MEDIA PROCESSING',
+            'PROFESSIONAL ANALYSIS',
+            'SYSTEM RESOURCES',
+            'MODEL MANAGEMENT',
+            'WHISPER MODEL MANAGEMENT',
+            'SERVICE MANAGEMENT',
+            'CALENDAR IMPORT',
+            'DUAL VIDEO SUMMARY',
+            'VOICE RESPONSE TOGGLE',
+            'ADVANCED FILE PROCESSING'
+        ];
+        
+        for (const feature of features) {
+            message += `✅ ${feature}\n`;
         }
 
         await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });

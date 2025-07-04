@@ -67,9 +67,7 @@ export const CONFIG_DESCRIPTIONS = {
   'telegram.features.calendarImport': 'Feature Importar Agenda ICS',
   'telegram.features.dualVideoSummary': 'Feature Duplo Resumo de Vídeo',
   'telegram.features.voiceResponseToggle': 'Feature Toggle Resposta Voz',
-  'telegram.features.advancedFileProcessing': 'Feature Processamento Avançado',
-  'featureToggles.enabled': 'Ativa sistema de feature toggles',
-  'featureToggles.features': 'Features toggles ativas'
+  'telegram.features.advancedFileProcessing': 'Feature Processamento Avançado'
 };
 
 export const CONFIG_ENV_MAP = {
@@ -141,9 +139,7 @@ export const CONFIG_ENV_MAP = {
   'telegram.features.calendarImport': 'TELEGRAM_FEATURE_CALENDAR_IMPORT',
   'telegram.features.dualVideoSummary': 'TELEGRAM_FEATURE_DUAL_VIDEO_SUMMARY',
   'telegram.features.voiceResponseToggle': 'TELEGRAM_FEATURE_VOICE_RESPONSE_TOGGLE',
-  'telegram.features.advancedFileProcessing': 'TELEGRAM_FEATURE_ADVANCED_FILE_PROCESSING',
-  'featureToggles.features': 'FEATURE_TOGGLES_FEATURES',
-  'featureToggles.enabled': 'FEATURE_TOGGLES_ENABLED'
+  'telegram.features.advancedFileProcessing': 'TELEGRAM_FEATURE_ADVANCED_FILE_PROCESSING'
 };
 
 export const CONFIG_EXAMPLES = {
@@ -215,7 +211,5 @@ export const CONFIG_EXAMPLES = {
   'telegram.features.calendarImport': 'true',
   'telegram.features.dualVideoSummary': 'true',
   'telegram.features.voiceResponseToggle': 'true',
-  'telegram.features.advancedFileProcessing': 'true',
-  'featureToggles.enabled': 'true',
-  'featureToggles.features': '{}'
+  'telegram.features.advancedFileProcessing': 'true'
 };

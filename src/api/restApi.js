@@ -556,9 +556,6 @@ class RestAPI {
         examples[envVar] = CONFIG_EXAMPLES[cfgPath];
       }
 
-      // Adicionar dados de feature toggles
-      const featureToggles = saved?.featureToggles || { enabled: false, features: {} };
-      const globalFeatures = featureToggles.features || {};
 
       // Buscar modelos disponíveis no Ollama
       let availableModels = [];
@@ -577,8 +574,6 @@ class RestAPI {
           env,
           descriptions,
           examples,
-          featureToggles,
-          globalFeatures,
           availableModels,
           whisperModels
         });
@@ -637,21 +632,6 @@ class RestAPI {
         logger.debug(`📝 Campo ${envVar} = ${val}`);
       }
 
-      // Processar feature toggles globais
-      if (!saved.featureToggles) {
-        saved.featureToggles = { enabled: false, features: {} };
-      }
-      
-      const globalFeatures = saved.featureToggles.features || {};
-      for (const key in req.body) {
-        if (key.startsWith('global_feature_')) {
-          const featureName = key.replace('global_feature_', '');
-          globalFeatures[featureName] = req.body[key] === 'true' || req.body[key] === true || req.body[key] === 'on';
-        }
-      }
-
-      // Para campos que não foram enviados (hidden fields não marcados), manter valor atual
-      saved.featureToggles.features = globalFeatures;
 
       if (saved.piper?.enabled) {
         try {

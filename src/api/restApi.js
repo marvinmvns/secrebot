@@ -578,7 +578,9 @@ class RestAPI {
 
     this.app.post('/config', async (req, res, next) => {
       try {
+        logger.info('📝 Recebendo requisição POST /config');
         const saved = (await this.configService.getConfig()) || {};
+        logger.info('📋 Configuração atual carregada:', Object.keys(saved));
 
       const getNested = (obj, pathStr) =>
         pathStr.split('.').reduce((o, k) => (o || {})[k], obj);
@@ -594,6 +596,7 @@ class RestAPI {
       };
 
       // Processar campos normais
+      logger.info('🔄 Processando campos do formulário...');
       for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
         let val = req.body[envVar];
         
@@ -616,6 +619,7 @@ class RestAPI {
           }
         }
         setNested(saved, cfgPath, val);
+        logger.debug(`📝 Campo ${envVar} = ${val}`);
       }
 
       // Processar feature toggles globais
@@ -651,12 +655,12 @@ class RestAPI {
         }
       }
 
+        logger.info('💾 Salvando configuração no MongoDB...');
         await this.configService.setConfig(saved);
-        this.configService.applyToRuntime(saved);
+        logger.info('✅ Configuração salva com sucesso, redirecionando...');
         res.redirect('/config?success=1');
-        logger.info('✅ Configurações salvas com sucesso');
       } catch (error) {
-        logger.error('Erro ao salvar configuração', error);
+        logger.error('❌ Erro ao salvar configuração:', error);
         res.redirect('/config?error=' + encodeURIComponent(error.message));
       }
     });

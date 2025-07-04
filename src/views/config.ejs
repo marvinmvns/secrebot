@@ -502,6 +502,9 @@
                 <button type="submit" class="btn btn-success btn-lg">
                   <i class="fas fa-save me-2"></i> Salvar Configurações
                 </button>
+                <button type="button" class="btn btn-warning btn-sm ms-2" onclick="testSave()">
+                  <i class="fas fa-bug me-1"></i> Teste
+                </button>
               </div>
             </div>
             
@@ -611,9 +614,43 @@ function validateConfig() {
   }
 }
 
+function testSave() {
+  console.log('🧪 Testando salvamento...');
+  const form = document.getElementById('configForm');
+  if (form) {
+    const formData = new FormData(form);
+    console.log('📋 Dados do formulário:', Object.fromEntries(formData));
+    
+    // Teste manual do POST
+    fetch('/config', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => {
+      console.log('📡 Resposta do servidor:', response.status, response.statusText);
+      if (response.redirected) {
+        console.log('🔄 Redirecionando para:', response.url);
+        window.location.href = response.url;
+      }
+    })
+    .catch(error => {
+      console.error('❌ Erro no teste:', error);
+    });
+  }
+}
+
 // Inicializar estados dos componentes
 document.addEventListener('DOMContentLoaded', function() {
   togglePiperSettings();
   toggleFeatureToggles();
+  
+  // Debug: verificar se o formulário está funcionando
+  const form = document.getElementById('configForm');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      console.log('📝 Formulário sendo enviado...');
+      console.log('📋 Dados do formulário:', new FormData(form));
+    });
+  }
 });
 </script>

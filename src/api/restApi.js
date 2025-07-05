@@ -597,6 +597,7 @@ class RestAPI {
     });
 
     this.app.post('/config', async (req, res, next) => {
+      logger.info('🚀 ROTA POST /config INICIADA');
       try {
         logger.info('📝 Recebendo requisição POST /config');
         logger.info('📋 Body recebido:', Object.keys(req.body));
@@ -717,6 +718,12 @@ class RestAPI {
       } catch (err) {
         res.redirect('/config?error=' + encodeURIComponent(err.message));
       }
+    });
+
+    // Rota de teste para verificar se POST está funcionando
+    this.app.post('/test-post', (req, res) => {
+      logger.info('🧪 Teste POST recebido');
+      res.json({ success: true, message: 'POST funcionando' });
     });
 
     // Rota catch-all para 404

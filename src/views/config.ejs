@@ -529,6 +529,9 @@
                 <button type="button" class="btn btn-info btn-sm ms-2" onclick="testPostRoute()">
                   <i class="fas fa-route me-1"></i> Teste POST
                 </button>
+                <button type="button" class="btn btn-secondary btn-sm ms-2" onclick="testConfigRoute()">
+                  <i class="fas fa-cog me-1"></i> Teste /config
+                </button>
               </div>
             </div>
             
@@ -923,6 +926,24 @@ function testPostRoute() {
   })
   .catch(error => {
     console.error('❌ Erro no teste POST:', error);
+  });
+}
+
+function testConfigRoute() {
+  console.log('🧪 Testando rota POST /config-test...');
+  fetch('/config-test', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ test: 'data' })
+  })
+  .then(response => response.json())
+  .then(data => {
+    console.log('📡 Resposta do teste POST /config-test:', data);
+  })
+  .catch(error => {
+    console.error('❌ Erro no teste POST /config-test:', error);
   });
 }
 

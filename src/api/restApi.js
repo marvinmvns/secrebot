@@ -760,6 +760,12 @@ class RestAPI {
       logger.info('🧪 Teste POST recebido');
       res.json({ success: true, message: 'POST funcionando' });
     });
+    
+    // Rota de teste para /config
+    this.app.post('/config-test', (req, res) => {
+      logger.info('🧪 Teste POST /config-test recebido');
+      res.json({ success: true, message: 'POST /config-test funcionando' });
+    });
 
     // Rota catch-all para 404
     this.app.use((req, res) => {

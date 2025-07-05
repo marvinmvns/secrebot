@@ -599,6 +599,13 @@ class RestAPI {
     this.app.post('/config', async (req, res, next) => {
       try {
         logger.info('📝 Recebendo requisição POST /config');
+        
+        // Verificar se configService está disponível
+        if (!this.configService) {
+          logger.error('❌ ConfigService não está disponível!');
+          return res.redirect('/config?error=ConfigService não disponível');
+        }
+        
         let saved = await this.configService.getConfig();
         if (!saved) {
           saved = await this.configService.init();
@@ -661,8 +668,14 @@ class RestAPI {
       }
 
         logger.info('💾 Salvando configuração no MongoDB...');
+        logger.debug('📋 Dados a serem salvos:', JSON.stringify(saved, null, 2));
         await this.configService.setConfig(saved);
         logger.info('✅ Configuração salva com sucesso, redirecionando...');
+        
+        // Verificar se foi realmente salvo
+        const savedConfig = await this.configService.getConfig();
+        logger.info('🔍 Verificação: configuração após salvar:', Object.keys(savedConfig));
+        
         res.redirect('/config?success=1');
       } catch (error) {
         logger.error('❌ Erro ao salvar configuração:', error);

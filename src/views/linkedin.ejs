@@ -95,13 +95,491 @@
                         </div>
 
                         <!-- Data Quality -->
-                        <% if (locals.analysis.dataQuality) { %>
-                        <div class="mb-4">
-                            <strong>Qualidade dos Dados: <%= locals.analysis.dataQuality.percentage %>%</strong>
-                            <div class="progress">
-                                <div class="progress-bar" role="progressbar" style="width: <%= locals.analysis.dataQuality.percentage %>%;" aria-valuenow="<%= locals.analysis.dataQuality.percentage %>" aria-valuemin="0" aria-valuemax="100"></div>
+                        <% if (analysis && analysis.dataQuality) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-chart-line"></i> Qualidade dos Dados</h6>
                             </div>
-                        </div>
+                            <div class="card-body">
+                              <div class="row">
+                                <div class="col-md-6">
+                                  <div class="d-flex justify-content-between mb-2">
+                                    <span>Pontuação Geral:</span>
+                                    <strong><%= analysis.dataQuality.percentage %>%</strong>
+                                  </div>
+                                  <div class="progress mb-3">
+                                    <div class="progress-bar bg-<%= analysis.dataQuality.quality === 'excellent' ? 'success' : analysis.dataQuality.quality === 'high' ? 'info' : analysis.dataQuality.quality === 'medium' ? 'warning' : 'danger' %>" 
+                                         style="width: <%= analysis.dataQuality.percentage %>%">
+                                    </div>
+                                  </div>
+                                  <small class="text-muted">
+                                    <%= analysis.dataQuality.score %> de <%= analysis.dataQuality.maxScore %> campos preenchidos
+                                  </small>
+                                </div>
+                                <div class="col-md-6">
+                                  <div class="row text-center">
+                                    <div class="col-3">
+                                      <div class="border rounded p-2">
+                                        <div class="h6 mb-0"><%= analysis.dataQuality.details.basicInfo %></div>
+                                        <small class="text-muted">Básico</small>
+                                      </div>
+                                    </div>
+                                    <div class="col-3">
+                                      <div class="border rounded p-2">
+                                        <div class="h6 mb-0"><%= analysis.dataQuality.details.detailedInfo %></div>
+                                        <small class="text-muted">Detalhado</small>
+                                      </div>
+                                    </div>
+                                    <div class="col-3">
+                                      <div class="border rounded p-2">
+                                        <div class="h6 mb-0"><%= analysis.dataQuality.details.additionalSections %></div>
+                                        <small class="text-muted">Adicional</small>
+                                      </div>
+                                    </div>
+                                    <div class="col-3">
+                                      <div class="border rounded p-2">
+                                        <div class="h6 mb-0"><%= analysis.dataQuality.details.extendedInfo %></div>
+                                        <small class="text-muted">Estendido</small>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Informações de Contato -->
+                        <% if (analysis && analysis.contactInfo && Object.values(analysis.contactInfo).some(v => v)) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-address-book"></i> Informações de Contato</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="row">
+                                <% if (analysis.contactInfo.email) { %>
+                                  <div class="col-md-4 mb-2">
+                                    <strong>Email:</strong><br>
+                                    <a href="mailto:<%= analysis.contactInfo.email %>"><%= analysis.contactInfo.email %></a>
+                                  </div>
+                                <% } %>
+                                <% if (analysis.contactInfo.phone) { %>
+                                  <div class="col-md-4 mb-2">
+                                    <strong>Telefone:</strong><br>
+                                    <a href="tel:<%= analysis.contactInfo.phone %>"><%= analysis.contactInfo.phone %></a>
+                                  </div>
+                                <% } %>
+                                <% if (analysis.contactInfo.website) { %>
+                                  <div class="col-md-4 mb-2">
+                                    <strong>Website:</strong><br>
+                                    <a href="<%= analysis.contactInfo.website %>" target="_blank"><%= analysis.contactInfo.website %></a>
+                                  </div>
+                                <% } %>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Projetos -->
+                        <% if (analysis && analysis.projects && analysis.projects.length > 0) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-project-diagram"></i> Projetos (<%= analysis.projects.length %>)</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="accordion" id="projectsAccordion">
+                                <% analysis.projects.forEach((project, index) => { %>
+                                  <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#project<%= index %>">
+                                        <strong><%= project.title %></strong>
+                                        <% if (project.date) { %>
+                                          <span class="badge bg-secondary ms-2"><%= project.date %></span>
+                                        <% } %>
+                                      </button>
+                                    </h2>
+                                    <div id="project<%= index %>" class="accordion-collapse collapse">
+                                      <div class="accordion-body">
+                                        <% if (project.description) { %>
+                                          <p><%= project.description %></p>
+                                        <% } %>
+                                      </div>
+                                    </div>
+                                  </div>
+                                <% }); %>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Cursos -->
+                        <% if (analysis && analysis.courses && analysis.courses.length > 0) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-graduation-cap"></i> Cursos (<%= analysis.courses.length %>)</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="row">
+                                <% analysis.courses.forEach(course => { %>
+                                  <div class="col-md-6 mb-3">
+                                    <div class="border rounded p-3">
+                                      <h6 class="mb-1"><%= course.name %></h6>
+                                      <% if (course.institution) { %>
+                                        <small class="text-muted"><%= course.institution %></small><br>
+                                      <% } %>
+                                      <% if (course.date) { %>
+                                        <small class="text-muted"><%= course.date %></small>
+                                      <% } %>
+                                    </div>
+                                  </div>
+                                <% }); %>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Recomendações -->
+                        <% if (analysis && analysis.recommendations && analysis.recommendations.length > 0) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-star"></i> Recomendações (<%= analysis.recommendations.length %>)</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="accordion" id="recommendationsAccordion">
+                                <% analysis.recommendations.forEach((rec, index) => { %>
+                                  <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#rec<%= index %>">
+                                        <strong><%= rec.recommender %></strong>
+                                        <% if (rec.relationship) { %>
+                                          <span class="badge bg-info ms-2"><%= rec.relationship %></span>
+                                        <% } %>
+                                      </button>
+                                    </h2>
+                                    <div id="rec<%= index %>" class="accordion-collapse collapse">
+                                      <div class="accordion-body">
+                                        <% if (rec.text) { %>
+                                          <p class="fst-italic">"<%= rec.text %>"</p>
+                                        <% } %>
+                                      </div>
+                                    </div>
+                                  </div>
+                                <% }); %>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Interesses -->
+                        <% if (analysis && analysis.interests && analysis.interests.length > 0) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-heart"></i> Interesses (<%= analysis.interests.length %>)</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="d-flex flex-wrap gap-2">
+                                <% analysis.interests.forEach(interest => { %>
+                                  <span class="badge bg-light text-dark border"><%= interest %></span>
+                                <% }); %>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Patentes -->
+                        <% if (analysis && analysis.patents && analysis.patents.length > 0) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-lightbulb"></i> Patentes (<%= analysis.patents.length %>)</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="accordion" id="patentsAccordion">
+                                <% analysis.patents.forEach((patent, index) => { %>
+                                  <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#patent<%= index %>">
+                                        <strong><%= patent.title %></strong>
+                                        <% if (patent.date) { %>
+                                          <span class="badge bg-secondary ms-2"><%= patent.date %></span>
+                                        <% } %>
+                                      </button>
+                                    </h2>
+                                    <div id="patent<%= index %>" class="accordion-collapse collapse">
+                                      <div class="accordion-body">
+                                        <% if (patent.description) { %>
+                                          <p><%= patent.description %></p>
+                                        <% } %>
+                                        <% if (patent.issuer) { %>
+                                          <small class="text-muted">Emissor: <%= patent.issuer %></small>
+                                        <% } %>
+                                      </div>
+                                    </div>
+                                  </div>
+                                <% }); %>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Test Scores -->
+                        <% if (analysis && analysis.testScores && analysis.testScores.length > 0) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-chart-bar"></i> Resultados de Testes (<%= analysis.testScores.length %>)</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="row">
+                                <% analysis.testScores.forEach(score => { %>
+                                  <div class="col-md-6 mb-3">
+                                    <div class="border rounded p-3">
+                                      <h6 class="mb-1"><%= score.test %></h6>
+                                      <div class="d-flex justify-content-between">
+                                        <span>Pontuação:</span>
+                                        <strong><%= score.score %></strong>
+                                      </div>
+                                      <% if (score.date) { %>
+                                        <small class="text-muted"><%= score.date %></small>
+                                      <% } %>
+                                    </div>
+                                  </div>
+                                <% }); %>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Experiência -->
+                        <% if (analysis && analysis.experience && analysis.experience.length > 0) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-briefcase"></i> Experiência (<%= analysis.experience.length %>)</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="accordion" id="experienceAccordion">
+                                <% analysis.experience.forEach((exp, index) => { %>
+                                  <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#exp<%= index %>">
+                                        <strong><%= exp.title %></strong>
+                                        <% if (exp.company) { %>
+                                          <span class="badge bg-primary ms-2"><%= exp.company %></span>
+                                        <% } %>
+                                        <% if (exp.duration) { %>
+                                          <span class="badge bg-secondary ms-2"><%= exp.duration %></span>
+                                        <% } %>
+                                      </button>
+                                    </h2>
+                                    <div id="exp<%= index %>" class="accordion-collapse collapse">
+                                      <div class="accordion-body">
+                                        <% if (exp.description) { %>
+                                          <p><%= exp.description %></p>
+                                        <% } %>
+                                      </div>
+                                    </div>
+                                  </div>
+                                <% }); %>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Educação -->
+                        <% if (analysis && analysis.education && analysis.education.length > 0) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-university"></i> Educação (<%= analysis.education.length %>)</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="row">
+                                <% analysis.education.forEach(edu => { %>
+                                  <div class="col-md-6 mb-3">
+                                    <div class="border rounded p-3">
+                                      <h6 class="mb-1"><%= edu.degree %></h6>
+                                      <% if (edu.school) { %>
+                                        <small class="text-muted"><%= edu.school %></small><br>
+                                      <% } %>
+                                      <% if (edu.years) { %>
+                                        <small class="text-muted"><%= edu.years %></small>
+                                      <% } %>
+                                    </div>
+                                  </div>
+                                <% }); %>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Skills -->
+                        <% if (analysis && analysis.skills && analysis.skills.length > 0) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-tools"></i> Skills (<%= analysis.skills.length %>)</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="d-flex flex-wrap gap-2">
+                                <% analysis.skills.forEach(skill => { %>
+                                  <span class="badge bg-primary"><%= skill %></span>
+                                <% }); %>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Certificações -->
+                        <% if (analysis && analysis.certifications && analysis.certifications.length > 0) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-certificate"></i> Certificações (<%= analysis.certifications.length %>)</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="row">
+                                <% analysis.certifications.forEach(cert => { %>
+                                  <div class="col-md-6 mb-3">
+                                    <div class="border rounded p-3">
+                                      <h6 class="mb-1"><%= cert.name %></h6>
+                                      <% if (cert.issuer) { %>
+                                        <small class="text-muted"><%= cert.issuer %></small><br>
+                                      <% } %>
+                                      <% if (cert.issuedDate) { %>
+                                        <small class="text-muted"><%= cert.issuedDate %></small>
+                                      <% } %>
+                                    </div>
+                                  </div>
+                                <% }); %>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Publicações -->
+                        <% if (analysis && analysis.publications && analysis.publications.length > 0) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-book"></i> Publicações (<%= analysis.publications.length %>)</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="accordion" id="publicationsAccordion">
+                                <% analysis.publications.forEach((pub, index) => { %>
+                                  <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#pub<%= index %>">
+                                        <strong><%= pub.title %></strong>
+                                        <% if (pub.publisher) { %>
+                                          <span class="badge bg-info ms-2"><%= pub.publisher %></span>
+                                        <% } %>
+                                        <% if (pub.date) { %>
+                                          <span class="badge bg-secondary ms-2"><%= pub.date %></span>
+                                        <% } %>
+                                      </button>
+                                    </h2>
+                                    <div id="pub<%= index %>" class="accordion-collapse collapse">
+                                      <div class="accordion-body">
+                                        <% if (pub.description) { %>
+                                          <p><%= pub.description %></p>
+                                        <% } %>
+                                      </div>
+                                    </div>
+                                  </div>
+                                <% }); %>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Honras e Prêmios -->
+                        <% if (analysis && analysis.honors && analysis.honors.length > 0) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-trophy"></i> Honras e Prêmios (<%= analysis.honors.length %>)</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="row">
+                                <% analysis.honors.forEach(honor => { %>
+                                  <div class="col-md-6 mb-3">
+                                    <div class="border rounded p-3">
+                                      <h6 class="mb-1"><%= honor.title %></h6>
+                                      <% if (honor.issuer) { %>
+                                        <small class="text-muted"><%= honor.issuer %></small><br>
+                                      <% } %>
+                                      <% if (honor.date) { %>
+                                        <small class="text-muted"><%= honor.date %></small>
+                                      <% } %>
+                                    </div>
+                                  </div>
+                                <% }); %>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Idiomas -->
+                        <% if (analysis && analysis.languages && analysis.languages.length > 0) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-language"></i> Idiomas (<%= analysis.languages.length %>)</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="row">
+                                <% analysis.languages.forEach(lang => { %>
+                                  <div class="col-md-4 mb-2">
+                                    <div class="border rounded p-2 text-center">
+                                      <strong><%= lang.language %></strong><br>
+                                      <% if (lang.proficiency) { %>
+                                        <small class="text-muted"><%= lang.proficiency %></small>
+                                      <% } %>
+                                    </div>
+                                  </div>
+                                <% }); %>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Voluntariado -->
+                        <% if (analysis && analysis.volunteering && analysis.volunteering.length > 0) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-hands-helping"></i> Voluntariado (<%= analysis.volunteering.length %>)</h6>
+                            </div>
+                            <div class="card-body">
+                              <div class="accordion" id="volunteeringAccordion">
+                                <% analysis.volunteering.forEach((vol, index) => { %>
+                                  <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#vol<%= index %>">
+                                        <strong><%= vol.role %></strong>
+                                        <% if (vol.organization) { %>
+                                          <span class="badge bg-success ms-2"><%= vol.organization %></span>
+                                        <% } %>
+                                        <% if (vol.duration) { %>
+                                          <span class="badge bg-secondary ms-2"><%= vol.duration %></span>
+                                        <% } %>
+                                      </button>
+                                    </h2>
+                                    <div id="vol<%= index %>" class="accordion-collapse collapse">
+                                      <div class="accordion-body">
+                                        <% if (vol.description) { %>
+                                          <p><%= vol.description %></p>
+                                        <% } %>
+                                      </div>
+                                    </div>
+                                  </div>
+                                <% }); %>
+                              </div>
+                            </div>
+                          </div>
+                        <% } %>
+
+                        <!-- Sobre -->
+                        <% if (analysis && analysis.summary && analysis.summary.length > 0) { %>
+                          <div class="card mb-3">
+                            <div class="card-header">
+                              <h6 class="mb-0"><i class="fas fa-info-circle"></i> Sobre</h6>
+                            </div>
+                            <div class="card-body">
+                              <p><%= analysis.summary %></p>
+                            </div>
+                          </div>
                         <% } %>
 
                         <!-- Accordion for Details -->

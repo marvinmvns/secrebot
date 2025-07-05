@@ -45,12 +45,121 @@ class RestAPI {
     this.app.use((req, res, next) => {
       // Log simples de requisições
       logger.info(`🌐 ${req.method} ${req.path} - IP: ${req.ip}`);
+      
+      // Log especial para POST /config
+      if (req.method === 'POST' && req.path === '/config') {
+        logger.info('🎯 MIDDLEWARE: Requisição POST /config detectada!');
+        logger.info('📋 Headers:', Object.keys(req.headers));
+        logger.info('📋 Content-Type:', req.headers['content-type']);
+      }
+      
       next();
     });
   }
 
   setupRoutes() {
     logger.info('🔧 Configurando rotas da API...');
+    
+    // ===== CONFIG ROUTES (PRIMEIRO) =====
+    this.app.post('/config', async (req, res, next) => {
+      logger.info('🚀 ROTA POST /config INICIADA - PRIMEIRA LINHA');
+      logger.info('🎯 ROTA POST /config: Método =', req.method);
+      logger.info('🎯 ROTA POST /config: Path =', req.path);
+      logger.info('🎯 ROTA POST /config: URL =', req.url);
+      try {
+        logger.info('📝 Recebendo requisição POST /config');
+        logger.info('📋 Body recebido:', Object.keys(req.body));
+        
+        // Verificar se configService está disponível
+        if (!this.configService) {
+          logger.error('❌ ConfigService não está disponível!');
+          return res.redirect('/config?error=ConfigService não disponível');
+        }
+        
+        logger.info('✅ ConfigService disponível, carregando configuração...');
+        let saved = await this.configService.getConfig();
+        if (!saved) {
+          logger.info('⚠️ Configuração não encontrada, inicializando...');
+          saved = await this.configService.init();
+        }
+        logger.info('📋 Configuração atual carregada:', Object.keys(saved));
+
+      const getNested = (obj, pathStr) =>
+        pathStr.split('.').reduce((o, k) => (o || {})[k], obj);
+      const setNested = (obj, pathStr, value) => {
+        const keys = pathStr.split('.');
+        let curr = obj;
+        for (let i = 0; i < keys.length - 1; i++) {
+          const k = keys[i];
+          curr[k] = curr[k] || {};
+          curr = curr[k];
+        }
+        curr[keys[keys.length - 1]] = value;
+      };
+
+      // Processar campos normais
+      logger.info('🔄 Processando campos do formulário...');
+      let processedFields = 0;
+      for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
+        let val = req.body[envVar];
+        
+        // Para checkboxes que não foram enviados (não marcados), definir como false
+        const currentVal = getNested(CONFIG, cfgPath);
+        if (typeof currentVal === 'boolean' && val === undefined) {
+          val = 'false';
+        }
+        
+        if (val === undefined) continue;
+        
+        // Conversões de tipo
+        if (typeof currentVal === 'number') {
+          val = Number(val);
+        } else if (typeof currentVal === 'boolean') {
+          // Converte para boolean: true se for 'true', '1', 1, ou true
+          val = val === 'true' || val === true || val === '1' || val === 1;
+          logger.debug(`🔄 Convertendo checkbox ${envVar}: '${req.body[envVar]}' -> ${val}`);
+        } else if (cfgPath === 'featureToggles.features' && typeof val === 'string') {
+          try {
+            val = JSON.parse(val);
+          } catch (e) {
+            val = {};
+          }
+        }
+        setNested(saved, cfgPath, val);
+        processedFields++;
+        logger.debug(`📝 Campo ${envVar} = ${val} (tipo: ${typeof val})`);
+      }
+      logger.info(`✅ Processados ${processedFields} campos do formulário`);
+
+
+      if (saved.piper?.enabled) {
+        try {
+          await fs.access(saved.piper.executable, fs.constants.X_OK);
+          await fs.access(saved.piper.model, fs.constants.R_OK);
+        } catch (error) {
+          logger.warn('⚠️ Piper habilitado mas arquivos não encontrados, desabilitando automaticamente:', error.message);
+          saved.piper.enabled = false;
+        }
+      }
+
+        logger.info('💾 Salvando configuração no MongoDB...');
+        logger.debug('📋 Dados a serem salvos:', JSON.stringify(saved, null, 2));
+        await this.configService.setConfig(saved);
+        logger.info('✅ Configuração salva com sucesso, redirecionando...');
+        
+        // Verificar se foi realmente salvo
+        const savedConfig = await this.configService.getConfig();
+        logger.info('🔍 Verificação: configuração após salvar:', Object.keys(savedConfig));
+        
+        res.redirect('/config?success=1');
+      } catch (error) {
+        logger.error('❌ Erro ao salvar configuração:', error);
+        res.redirect('/config?error=' + encodeURIComponent(error.message));
+      }
+
+      // Log para confirmar que a rota foi registrada
+      logger.info('✅ Rota POST /config registrada');
+    });
     
     // Rota para enviar mensagem via API
     this.app.post('/send-message', async (req, res) => {
@@ -596,103 +705,6 @@ class RestAPI {
         logger.error('Erro ao obter configuração', error);
         next(error);
       }
-    });
-
-    this.app.post('/config', async (req, res, next) => {
-      logger.info('🚀 ROTA POST /config INICIADA');
-      try {
-        logger.info('📝 Recebendo requisição POST /config');
-        logger.info('📋 Body recebido:', Object.keys(req.body));
-        
-        // Verificar se configService está disponível
-        if (!this.configService) {
-          logger.error('❌ ConfigService não está disponível!');
-          return res.redirect('/config?error=ConfigService não disponível');
-        }
-        
-        logger.info('✅ ConfigService disponível, carregando configuração...');
-        let saved = await this.configService.getConfig();
-        if (!saved) {
-          logger.info('⚠️ Configuração não encontrada, inicializando...');
-          saved = await this.configService.init();
-        }
-        logger.info('📋 Configuração atual carregada:', Object.keys(saved));
-
-      const getNested = (obj, pathStr) =>
-        pathStr.split('.').reduce((o, k) => (o || {})[k], obj);
-      const setNested = (obj, pathStr, value) => {
-        const keys = pathStr.split('.');
-        let curr = obj;
-        for (let i = 0; i < keys.length - 1; i++) {
-          const k = keys[i];
-          curr[k] = curr[k] || {};
-          curr = curr[k];
-        }
-        curr[keys[keys.length - 1]] = value;
-      };
-
-      // Processar campos normais
-      logger.info('🔄 Processando campos do formulário...');
-      let processedFields = 0;
-      for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
-        let val = req.body[envVar];
-        
-        // Para checkboxes que não foram enviados (não marcados), definir como false
-        const currentVal = getNested(CONFIG, cfgPath);
-        if (typeof currentVal === 'boolean' && val === undefined) {
-          val = 'false';
-        }
-        
-        if (val === undefined) continue;
-        
-        // Conversões de tipo
-        if (typeof currentVal === 'number') {
-          val = Number(val);
-        } else if (typeof currentVal === 'boolean') {
-          // Converte para boolean: true se for 'true', '1', 1, ou true
-          val = val === 'true' || val === true || val === '1' || val === 1;
-          logger.debug(`🔄 Convertendo checkbox ${envVar}: '${req.body[envVar]}' -> ${val}`);
-        } else if (cfgPath === 'featureToggles.features' && typeof val === 'string') {
-          try {
-            val = JSON.parse(val);
-          } catch (e) {
-            val = {};
-          }
-        }
-        setNested(saved, cfgPath, val);
-        processedFields++;
-        logger.debug(`📝 Campo ${envVar} = ${val} (tipo: ${typeof val})`);
-      }
-      logger.info(`✅ Processados ${processedFields} campos do formulário`);
-
-
-      if (saved.piper?.enabled) {
-        try {
-          await fs.access(saved.piper.executable, fs.constants.X_OK);
-          await fs.access(saved.piper.model, fs.constants.R_OK);
-        } catch (error) {
-          logger.warn('⚠️ Piper habilitado mas arquivos não encontrados, desabilitando automaticamente:', error.message);
-          saved.piper.enabled = false;
-        }
-      }
-
-        logger.info('💾 Salvando configuração no MongoDB...');
-        logger.debug('📋 Dados a serem salvos:', JSON.stringify(saved, null, 2));
-        await this.configService.setConfig(saved);
-        logger.info('✅ Configuração salva com sucesso, redirecionando...');
-        
-        // Verificar se foi realmente salvo
-        const savedConfig = await this.configService.getConfig();
-        logger.info('🔍 Verificação: configuração após salvar:', Object.keys(savedConfig));
-        
-        res.redirect('/config?success=1');
-      } catch (error) {
-        logger.error('❌ Erro ao salvar configuração:', error);
-        res.redirect('/config?error=' + encodeURIComponent(error.message));
-      }
-
-      // Log para confirmar que a rota foi registrada
-      logger.info('✅ Rota POST /config registrada');
     });
 
     // Rotas de exportação/importação de configuração completa

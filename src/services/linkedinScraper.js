@@ -440,6 +440,11 @@ export async function fetchProfileStructured(url, options = {}) {
     } catch (err) {
       logger.error(`Attempt ${attempt} failed`, { message: err.message });
       
+      // Handle specific errors for retrying
+      if (err.message.includes('net::ERR_TOO_MANY_REDIRECTS')) {
+        return { success: false, error: 'REDIRECT_LOOP', url, scrapedAt: new Date().toISOString() };
+      }
+      
       if (attempt === retries) {
         return {
           url,

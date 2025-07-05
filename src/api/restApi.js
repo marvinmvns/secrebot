@@ -408,92 +408,25 @@ class RestAPI {
     });
 
     // ===== LINKEDIN ROUTES =====
-    this.app.get('/linkedin', (req, res) => {
-      res.render('linkedin', { result: null, url: '' });
+    this.app.get('/linkedin', async (req, res) => {
+        const credentialStatus = await this.getCredentialStatus();
+        res.render('linkedin', { credentialStatus, url: '', analysisType: 'structured', analysis: null, error: null });
     });
-
-    this.app.post('/linkedin', async (req, res) => {
-      const url = req.body.url || '';
-      const detailed = req.body.detailed === 'on';
-      const includeSkills = req.body.skills === 'on';
-      const includeEducation = req.body.education === 'on';
-      const linkedinEmail = req.body.linkedinEmail;
-      const linkedinPassword = req.body.linkedinPassword;
-      
-      if (!url.trim()) {
-        return res.render('linkedin', { result: '❌ URL inválida.', url });
-      }
-      
+    
+    this.app.post('/linkedin/analyze', async (req, res) => {
+      const { url, analysisType } = req.body;
       try {
-        logger.info('🔗 Iniciando análise LinkedIn:', { url, detailed, includeSkills, includeEducation });
-        
-        // Buscar credenciais do MongoDB
-        let liAt = CONFIG.linkedin.liAt;
-        let hasCredentials = false;
-        
-        try {
-          const savedConfig = await this.configService.getConfig();
-          if (savedConfig?.linkedin?.liAt) {
-            liAt = savedConfig.linkedin.liAt;
-            hasCredentials = true;
-            logger.info('✅ Credenciais encontradas no MongoDB');
-          }
-        } catch (error) {
-          logger.warn('⚠️ Erro ao buscar credenciais do MongoDB:', error.message);
-        }
-        
-        // Se não tem credenciais e foram fornecidas, tentar login
-        if (!hasCredentials && linkedinEmail && linkedinPassword) {
-          logger.info('🔑 Tentando login com credenciais fornecidas...');
-          const { loginAndGetLiAt } = await import('../services/linkedinScraper.js');
-          const newLiAt = await loginAndGetLiAt(linkedinEmail, linkedinPassword, CONFIG.linkedin.timeoutMs);
-          
-          if (newLiAt) {
-            liAt = newLiAt;
-            hasCredentials = true;
-            logger.info('✅ Login realizado com sucesso');
-            
-            // Salvar no MongoDB
-            try {
-              const savedConfig = await this.configService.getConfig();
-              if (!savedConfig.linkedin) savedConfig.linkedin = {};
-              savedConfig.linkedin.liAt = newLiAt;
-              savedConfig.linkedin.user = linkedinEmail;
-              await this.configService.setConfig(savedConfig);
-              logger.info('💾 Credenciais salvas no MongoDB');
-            } catch (error) {
-              logger.warn('⚠️ Erro ao salvar credenciais:', error.message);
-            }
-          } else {
-            logger.error('❌ Falha no login do LinkedIn');
-            return res.render('linkedin', { 
-              result: '❌ Falha no login do LinkedIn. Verifique suas credenciais.', 
-              url 
-            });
-          }
-        }
-        
-        if (!hasCredentials) {
-          return res.render('linkedin', { 
-            result: '❌ Credenciais do LinkedIn não configuradas. Configure-as na seção de configurações ou forneça-as no formulário.', 
-            url 
-          });
-        }
-        
-        // Realizar análise com retry e resiliência
-        const response = await this.analyzeLinkedInProfile(url, liAt, {
-          detailed,
-          includeSkills,
-          includeEducation
-        });
-        
-        res.render('linkedin', { result: response, url });
-        
-      } catch (err) {
-        logger.error('❌ Erro em /linkedin:', err);
+        const result = await this.analyzeLinkedInProfile(url, analysisType);
+        const credentialStatus = await this.getCredentialStatus();
+        res.render('linkedin', { analysis: result, url, analysisType, credentialStatus });
+      } catch (error) {
+        logger.error(`❌ Erro na análise do LinkedIn para ${url}:`, error);
+        const credentialStatus = await this.getCredentialStatus();
         res.render('linkedin', { 
-          result: `❌ Erro ao analisar perfil: ${err.message}`, 
-          url 
+          error: `Falha na análise: ${error.message}`, 
+          url, 
+          analysisType,
+          credentialStatus 
         });
       }
     });
@@ -935,6 +868,9 @@ class RestAPI {
       }
     });
 
+    this.app.get('/config-test', (req, res) => {
+      res.render('config-test');
+    });
 
     // Rota catch-all para 404
     this.app.use((req, res) => {
@@ -950,63 +886,67 @@ class RestAPI {
     logger.info('✅ SETUP ROUTES CONCLUÍDO - Todas as rotas registradas');
   }
 
-  /**
-   * Analisa um perfil do LinkedIn de forma resiliente
-   * @param {string} url - URL do perfil
-   * @param {string} liAt - Token de autenticação
-   * @param {object} options - Opções de análise
-   * @returns {Promise<string>} - Resumo detalhado do perfil
-   */
-  async analyzeLinkedInProfile(url, liAt, options = {}) {
-    const { detailed = true, includeSkills = true, includeEducation = true } = options;
-    
-    try {
-      logger.info('🔍 Iniciando análise resiliente do LinkedIn:', { url, detailed });
-      
-      // Primeira tentativa: análise estruturada
-      const { fetchProfileStructured } = await import('../services/linkedinScraper.js');
-      const result = await fetchProfileStructured(url, {
-        liAt,
-        timeoutMs: CONFIG.linkedin.timeoutMs,
-        retries: 3
-      });
-      
-      if (!result.success) {
-        logger.warn('⚠️ Análise estruturada falhou, tentando análise básica...');
-        
-        // Segunda tentativa: análise básica
-        const { fetchProfileRaw } = await import('../services/linkedinScraper.js');
-        const rawResult = await fetchProfileRaw(url, {
-          liAt,
-          timeoutMs: CONFIG.linkedin.timeoutMs
-        });
-        
-        if (!rawResult.success) {
-          throw new Error(`Falha na análise: ${rawResult.error}`);
-        }
-        
-        // Processar texto bruto com LLM
-        return await this.processRawLinkedInData(rawResult.rawText, url);
-      }
-      
-      // Processar dados estruturados
-      return await this.processStructuredLinkedInData(result.data, result.dataQuality, {
-        detailed,
-        includeSkills,
-        includeEducation
-      });
-      
-    } catch (error) {
-      logger.error('❌ Erro na análise LinkedIn:', error);
-      throw new Error(`Falha na análise do perfil: ${error.message}`);
+  async getCredentialStatus() {
+    // Esta função pode ser expandida para checar mais detalhes
+    const { liAt, user, pass } = CONFIG.linkedin;
+    const hasLiAt = !!liAt;
+    const hasUserPass = !!user && !!pass;
+
+    if (hasLiAt) {
+      return { hasCredentials: true, status: 'Pronto para Análise', message: 'Um cookie de sessão (li_at) está configurado e pronto para ser usado.' };
     }
+    if (hasUserPass) {
+      return { hasCredentials: true, status: 'Pronto para Login', message: 'Credenciais de usuário e senha estão salvas. O login será feito na primeira análise.' };
+    }
+    return { hasCredentials: false, status: 'Credenciais Ausentes', message: 'Nenhuma credencial do LinkedIn foi configurada. Por favor, adicione-as abaixo.' };
   }
 
-  /**
-   * Processa dados estruturados do LinkedIn
-   */
-  async processStructuredLinkedInData(data, quality, options) {
-    const { detailed, includeSkills, includeEducation } = options;
+  async analyzeLinkedInProfile(url, analysisType = 'structured') {
+    const { fetchProfileStructured, fetchProfileRaw, loginAndGetLiAt } = await import('../services/linkedinScraper.js');
+    let liAt = CONFIG.linkedin.liAt;
+
+    const performScraping = async (currentLiAt) => {
+      if (analysisType === 'raw') {
+        return await fetchProfileRaw(url, { liAt: currentLiAt, timeoutMs: CONFIG.linkedin.rawTimeoutMs });
+      }
+      return await fetchProfileStructured(url, { liAt: currentLiAt, timeoutMs: CONFIG.linkedin.structuredTimeoutMs, retries: 2 });
+    };
+
+    let result = await performScraping(liAt);
+
+    // Lógica de recuperação automática
+    if (result.error === 'REDIRECT_LOOP' || result.error === 'INVALID_COOKIE') {
+      logger.warn(`⚠️ Loop de redirecionamento ou cookie inválido detectado para ${url}. Tentando re-autenticação automática...`);
+      
+      const { user, pass } = CONFIG.linkedin;
+      if (!user || !pass) {
+        throw new Error('Sessão inválida e nenhuma credencial salva para tentar o login automático. Por favor, configure suas credenciais.');
+      }
+
+      const newLiAt = await loginAndGetLiAt(user, pass);
+      if (!newLiAt) {
+        throw new Error('A re-autenticação automática falhou. Verifique suas credenciais salvas na página de configuração.');
+      }
+
+      logger.info('✅ Re-autenticação bem-sucedida. Salvando novo cookie de sessão...');
+      await this.configService.setConfig({ linkedin: { liAt: newLiAt } });
+      CONFIG.linkedin.liAt = newLiAt; // Atualiza a configuração em tempo de execução
+
+      // Tenta o scraping novamente com o novo cookie
+      logger.info('🔁 Tentando a análise novamente com o novo cookie...');
+      result = await performScraping(newLiAt);
+    }
+    
+    if (!result.success) {
+      throw new Error(`A análise falhou após todas as tentativas. Erro final: ${result.error}`);
+    }
+
+    return result;
+  }
+
+  async processStructuredLinkedInData(data, quality, options = {}) {
+    const { generateSummary = true } = options;
+    const { detailed = true, includeSkills = true, includeEducation = true } = options;
     
     let analysis = `🔗 **ANÁLISE DETALHADA DO PERFIL LINKEDIN**\n\n`;
     
@@ -1068,7 +1008,7 @@ class RestAPI {
     }
     
     // Resumo profissional gerado por IA
-    if (detailed) {
+    if (generateSummary) {
       try {
         const summary = await this.bot.llmService.getAssistantResponse('web', 
           `Com base nos dados extraídos do LinkedIn, crie um resumo profissional conciso e bem estruturado:\n\n${analysis}`
@@ -1083,41 +1023,6 @@ class RestAPI {
     analysis += `\n⏰ **Análise realizada em:** ${new Date().toLocaleString('pt-BR')}`;
     
     return analysis;
-  }
-
-  /**
-   * Processa dados brutos do LinkedIn
-   */
-  async processRawLinkedInData(rawText, url) {
-    try {
-      // Limpar e estruturar o texto
-      const cleanedText = rawText
-        .replace(/\s+/g, ' ')
-        .trim()
-        .substring(0, 8000); // Limitar tamanho
-      
-      const prompt = `Analise o seguinte texto extraído de um perfil do LinkedIn e crie um resumo profissional estruturado:
-
-${cleanedText}
-
-URL do perfil: ${url}
-
-Crie um resumo que inclua:
-- Nome e cargo
-- Localização
-- Experiência profissional (se encontrada)
-- Educação (se encontrada)
-- Skills/habilidades (se encontradas)
-- Resumo profissional
-
-Use emojis e formatação clara para facilitar a leitura.`;
-
-      return await this.bot.llmService.getAssistantResponse('web', prompt);
-      
-    } catch (error) {
-      logger.error('❌ Erro ao processar dados brutos:', error);
-      return `❌ Erro ao processar dados do perfil: ${error.message}`;
-    }
   }
 
   start() {

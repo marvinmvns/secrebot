@@ -1749,38 +1749,49 @@ usuario@email.com:senha`);
     try {
       await this.sendResponse(contactId, '🔍 *Analisando perfil do LinkedIn...* \n\nEste processo pode levar até 2 minutos, por favor, aguarde.', true);
       
+      const { fetchProfileStructured, fetchProfileRaw } = await import('../services/linkedinScraper.js');
+
+      const promptForLogin = async () => {
+        await this.sendResponse(contactId, '⚠️ Sua sessão do LinkedIn parece ter expirado ou é inválida. Por favor, faça o login novamente para continuar.', true);
+        this.awaitingLinkedinCreds.set(contactId, true);
+        await this.sendResponse(contactId, `🔑 *Configuração do LinkedIn*\n\nPara analisar perfis do LinkedIn, preciso das suas credenciais.\n\n📝 *Envie no formato:*\nusuario@email.com:senha`);
+      };
+
       // Primeira tentativa: análise estruturada
-      const { fetchProfileStructured } = await import('../services/linkedinScraper.js');
       const result = await fetchProfileStructured(url, {
         liAt,
         timeoutMs: CONFIG.linkedin.structuredTimeoutMs,
         retries: 2
       });
       
+      if (!result.success && result.error === 'INVALID_COOKIE') {
+        await promptForLogin();
+        return;
+      }
+      
       if (!result.success) {
         await this.sendResponse(contactId, '⚠️ *Análise detalhada falhou.* Tentando um método mais simples...', true);
         
         // Segunda tentativa: análise básica
-        const { fetchProfileRaw } = await import('../services/linkedinScraper.js');
         const rawResult = await fetchProfileRaw(url, {
           liAt,
           timeoutMs: CONFIG.linkedin.rawTimeoutMs
         });
         
+        if (!rawResult.success && rawResult.error === 'INVALID_COOKIE') {
+          await promptForLogin();
+          return;
+        }
+        
         if (!rawResult.success) {
           throw new Error(`Falha na análise: ${rawResult.error}`);
         }
-        
-        // Processar texto bruto com LLM
-        const response = await this.processRawLinkedInData(rawResult.rawText, url);
-        await this.sendResponse(contactId, response);
-        return;
       }
       
-             // Processar dados estruturados
-       const response = await this.processStructuredLinkedInData(result.data, result.dataQuality, contactId);
-       await this.sendResponse(contactId, response);
-      
+      // Processar texto bruto com LLM
+      const response = await this.processRawLinkedInData(rawResult.rawText, url);
+      await this.sendResponse(contactId, response);
+      return;
     } catch (error) {
       logger.error('❌ Erro na análise LinkedIn WhatsApp:', error);
       

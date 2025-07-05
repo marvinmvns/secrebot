@@ -59,6 +59,12 @@ export async function fetchProfileRaw(url, options = {}) {
       waitUntil: 'networkidle',
       timeout: timeoutMs
     });
+
+    const currentUrl = page.url();
+    if (currentUrl.includes('/login') || currentUrl.includes('/checkpoint/challenge')) {
+      return { success: false, error: 'INVALID_COOKIE', url, scrapedAt: new Date().toISOString() };
+    }
+
     const rawHtml = await page.content();
     const rawText = await page.evaluate(() => document.body.innerText);
     await page.close();
@@ -141,6 +147,11 @@ export async function fetchProfileStructured(url, options = {}) {
         waitUntil: 'domcontentloaded',
         timeout: timeoutMs
       });
+
+      const currentUrl = page.url();
+      if (currentUrl.includes('/login') || currentUrl.includes('/checkpoint/challenge')) {
+        return { success: false, error: 'INVALID_COOKIE', url, scrapedAt: new Date().toISOString() };
+      }
 
       // Aguardar carregamento dinâmico
       await page.waitForTimeout(3000);
@@ -414,8 +425,8 @@ function calculateDataQuality(data) {
  * Perform a basic login on LinkedIn and return the `li_at` cookie.
  * Returns null on failure.
  */
-export async function loginAndGetLiAt(email, password, timeoutMs = 30000) {
-  const browser = await chromium.launch({ headless: true });
+export async function loginAndGetLiAt(email, password, timeoutMs = CONFIG.linkedin.timeoutMs) {
+  const browser = await launchBrowser({ timeout: timeoutMs });
   const context = await browser.newContext();
   const page = await context.newPage();
   try {
@@ -425,15 +436,51 @@ export async function loginAndGetLiAt(email, password, timeoutMs = 30000) {
     });
     await page.fill('input[name="session_key"]', email);
     await page.fill('input[name="session_password"]', password);
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'networkidle', timeout: timeoutMs }),
-      page.click('button[type="submit"]')
-    ]);
+    
+    await page.click('button[type="submit"]');
+
+    try {
+      await page.waitForNavigation({ waitUntil: 'networkidle', timeout: timeoutMs });
+    } catch (e) {
+      logger.warn(`A navegação falhou após a tentativa de login, o que pode ser esperado. Verificando o resultado...`);
+    }
+
     const cookies = await context.cookies();
-    const liAt = cookies.find(c => c.name === 'li_at');
-    return liAt ? liAt.value : null;
-  } catch {
-    return null;
+    const liAtCookie = cookies.find(c => c.name === 'li_at');
+
+    if (liAtCookie) {
+      return liAtCookie.value;
+    }
+
+    // Se o cookie não foi encontrado, o login falhou. Vamos descobrir o porquê.
+    const errorSelector = '#error-for-password, #error-for-username';
+    try {
+      const errorElement = await page.waitForSelector(errorSelector, { timeout: 5000 });
+      if (errorElement) {
+        const errorMessage = await errorElement.textContent();
+        throw new Error(`Credenciais inválidas: ${errorMessage.trim()}`);
+      }
+    } catch (e) {
+      // O seletor de erro não foi encontrado, verificar outros problemas.
+    }
+
+    // Verificar outros problemas comuns, como verificações de segurança/CAPTCHA
+    const pageTitle = await page.title();
+    if (pageTitle.includes('Security Verification') || pageTitle.includes('Verificação de segurança')) {
+      throw new Error('O LinkedIn está exigindo uma verificação de segurança (CAPTCHA). Tente fazer login manualmente no navegador para resolver.');
+    }
+
+    const pageContent = await page.content();
+    if (pageContent.includes('checkpoint/challenge')) {
+      throw new Error('O LinkedIn apresentou um desafio de segurança. Tente fazer login manualmente no navegador.');
+    }
+
+    throw new Error('Falha no login. O cookie li_at não foi encontrado e nenhuma mensagem de erro específica foi detectada.');
+
+  } catch (err) {
+    logger.error('Erro detalhado no loginAndGetLiAt:', err);
+    // Re-lançar o erro específico para ser capturado pelo bot
+    throw err;
   } finally {
     await context.close().catch(() => {});
     await browser.close().catch(() => {});

@@ -157,25 +157,41 @@ export async function fetchProfileStructured(url, options = {}) {
       await page.waitForTimeout(3000);
       
       // Scroll para carregar conteúdo lazy
-      await page.evaluate(() => {
-        window.scrollTo(0, document.body.scrollHeight);
-        return new Promise(resolve => setTimeout(resolve, 2000));
+      await page.evaluate(async () => {
+        for (let i = 0; i < 3; i++) {
+          window.scrollTo(0, document.body.scrollHeight);
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
       });
       
-              const profileData = await page.evaluate(() => {
+      const profileData = await page.evaluate(() => {
           const data = {
             profile: {},
             experience: [],
             education: [],
             skills: [],
+            certifications: [],
+            publications: [],
+            honors: [],
+            languages: [],
+            volunteering: [],
             about: '',
             location: '',
             connections: '',
             headline: '',
-            name: ''
+            name: '',
+            profilePictureUrl: '',
+            bannerUrl: ''
           };
 
+          const getText = (node, selector) => node?.querySelector(selector)?.textContent?.trim() || '';
+          const getAttribute = (node, selector, attribute) => node?.querySelector(selector)?.getAttribute(attribute) || '';
+
           try {
+            // Foto de Perfil e Banner
+            data.profilePictureUrl = getAttribute(document, 'img.pv-top-card-profile-picture__image', 'src');
+            data.bannerUrl = getAttribute(document, '.profile-banner__image-container img', 'src');
+
             // Múltiplos seletores para nome
             const nameSelectors = [
               'h1.text-heading-xlarge',
@@ -348,6 +364,50 @@ export async function fetchProfileStructured(url, options = {}) {
               }
             }
 
+            // Certificações
+            document.querySelectorAll('#certifications ~ .pvs-list__container .pvs-entity, [data-section="certifications"] .pvs-entity').forEach(item => {
+              data.certifications.push({
+                name: getText(item, '.t-bold span[aria-hidden="true"]'),
+                issuer: getText(item, '.t-14.t-normal span[aria-hidden="true"]'),
+                issuedDate: getText(item, '.t-14.t-normal.t-black--light span[aria-hidden="true"]')
+              });
+            });
+
+            // Publicações
+            document.querySelectorAll('#publications ~ .pvs-list__container .pvs-entity, [data-section="publications"] .pvs-entity').forEach(item => {
+              data.publications.push({
+                title: getText(item, '.t-bold span[aria-hidden="true"]'),
+                publisher: getText(item, '.t-14.t-normal span[aria-hidden="true"]'),
+                date: getText(item, '.t-14.t-normal.t-black--light span[aria-hidden="true"]')
+              });
+            });
+
+            // Honras e Prêmios
+            document.querySelectorAll('#honors_and_awards ~ .pvs-list__container .pvs-entity, [data-section="honors_and_awards"] .pvs-entity').forEach(item => {
+              data.honors.push({
+                title: getText(item, '.t-bold span[aria-hidden="true"]'),
+                issuer: getText(item, '.t-14.t-normal span[aria-hidden="true"]'),
+                date: getText(item, '.t-14.t-normal.t-black--light span[aria-hidden="true"]')
+              });
+            });
+            
+            // Idiomas
+            document.querySelectorAll('#languages ~ .pvs-list__container .pvs-entity, [data-section="languages"] .pvs-entity').forEach(item => {
+                data.languages.push({
+                    language: getText(item, '.t-bold span[aria-hidden="true"]'),
+                    proficiency: getText(item, '.t-14.t-normal span[aria-hidden="true"]')
+                });
+            });
+            
+            // Voluntariado
+            document.querySelectorAll('#volunteering_experience ~ .pvs-list__container .pvs-entity, [data-section="volunteering_experience"] .pvs-entity').forEach(item => {
+                data.volunteering.push({
+                    role: getText(item, '.t-bold span[aria-hidden="true"]'),
+                    organization: getText(item, '.t-14.t-normal span[aria-hidden="true"]'),
+                    duration: getText(item, '.t-14.t-normal.t-black--light span[aria-hidden="true"]')
+                });
+            });
+
             data.profile = {
               name: data.name,
               headline: data.headline,
@@ -402,7 +462,7 @@ export async function fetchProfileStructured(url, options = {}) {
 
 function calculateDataQuality(data) {
   let score = 0;
-  let maxScore = 8;
+  let maxScore = 12;
   
   if (data.name) score++;
   if (data.headline) score++;
@@ -412,12 +472,16 @@ function calculateDataQuality(data) {
   if (data.education && data.education.length > 0) score++;
   if (data.skills && data.skills.length > 3) score++;
   if (data.connections) score++;
+  if (data.certifications && data.certifications.length > 0) score++;
+  if (data.publications && data.publications.length > 0) score++;
+  if (data.languages && data.languages.length > 0) score++;
+  if (data.profilePictureUrl) score++;
   
   return {
     score,
     maxScore,
     percentage: Math.round((score / maxScore) * 100),
-    quality: score >= 6 ? 'high' : score >= 4 ? 'medium' : 'low'
+    quality: score >= 8 ? 'high' : score >= 5 ? 'medium' : 'low'
   };
 }
 

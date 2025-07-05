@@ -523,12 +523,6 @@
                 <button type="submit" class="btn btn-success btn-lg">
                   <i class="fas fa-save me-2"></i> Salvar Configurações
                 </button>
-                <button type="button" class="btn btn-primary btn-lg ms-2" onclick="saveConfigAlternative()">
-                  <i class="fas fa-save me-2"></i> Salvar (Alt)
-                </button>
-                <button type="button" class="btn btn-warning btn-sm ms-2" onclick="testSave()">
-                  <i class="fas fa-bug me-1"></i> Teste
-                </button>
               </div>
             </div>
             
@@ -841,7 +835,7 @@ function setLoadingState(isLoading) {
 
 function handleSubmit(event) {
   event.preventDefault();
-  console.log('📝 Formulário sendo enviado via handleSubmit...');
+  console.log('📝 Formulário sendo enviado...');
   
   const form = document.getElementById('configForm');
   if (form) {
@@ -857,21 +851,8 @@ function handleSubmit(event) {
     });
     console.log('📋 Dados do formulário:', Object.fromEntries(formData));
     
-    fetch('/config', {
-      method: 'POST',
-      body: formData
-    })
-    .then(response => {
-      console.log('📡 Resposta do servidor:', response.status, response.statusText);
-      if (response.redirected) {
-        console.log('🔄 Redirecionando para:', response.url);
-        window.location.href = response.url;
-      }
-    })
-    .catch(error => {
-      console.error('❌ Erro no salvamento:', error);
-      alert('Erro ao salvar configurações: ' + error.message);
-    });
+    // Usar o método de envio padrão do form
+    form.submit();
   } else {
     console.error('❌ Formulário não encontrado!');
   }
@@ -892,81 +873,7 @@ function syncToggleStates() {
   });
 }
 
-function testSave() {
-  console.log('🧪 Testando salvamento...');
-  const form = document.getElementById('configForm');
-  if (form) {
-    const formData = new FormData(form);
-    console.log('📋 Dados do formulário:', Object.fromEntries(formData));
-    
-    // Teste manual do POST
-    fetch('/config', {
-      method: 'POST',
-      body: formData
-    })
-    .then(response => {
-      console.log('📡 Resposta do servidor:', response.status, response.statusText);
-      if (response.redirected) {
-        console.log('🔄 Redirecionando para:', response.url);
-        window.location.href = response.url;
-      }
-    })
-    .catch(error => {
-      console.error('❌ Erro no teste:', error);
-    });
-  }
-}
 
-function saveConfigAlternative() {
-  console.log('🔄 Salvamento alternativo iniciado...');
-  
-  // Coletar todos os dados do formulário manualmente
-  const formData = new FormData();
-  const form = document.getElementById('configForm');
-  
-  if (!form) {
-    console.error('❌ Formulário não encontrado!');
-    return;
-  }
-  
-  // Coletar todos os inputs
-  form.querySelectorAll('input, select, textarea').forEach(input => {
-    if (input.type === 'checkbox') {
-      if (input.name) {
-        formData.append(input.name, input.checked ? 'true' : 'false');
-      }
-    } else if (input.type === 'radio') {
-      if (input.checked && input.name) {
-        formData.append(input.name, input.value);
-      }
-    } else {
-      if (input.name && input.value !== undefined && input.value !== '') {
-        formData.append(input.name, input.value);
-      }
-    }
-  });
-  
-  console.log('📋 Dados coletados:', Object.fromEntries(formData));
-  
-  // Enviar via fetch
-  fetch('/config', {
-    method: 'POST',
-    body: formData
-  })
-  .then(response => {
-    console.log('📡 Resposta do servidor:', response.status, response.statusText);
-    if (response.redirected) {
-      console.log('🔄 Redirecionando para:', response.url);
-      window.location.href = response.url;
-    } else {
-      console.log('⚠️ Não houve redirecionamento');
-    }
-  })
-  .catch(error => {
-    console.error('❌ Erro no salvamento alternativo:', error);
-    alert('Erro ao salvar configurações: ' + error.message);
-  });
-}
 
 // Verificar status das configurações
 function updateConfigStatus() {

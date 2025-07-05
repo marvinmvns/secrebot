@@ -619,18 +619,40 @@ class WhatsAppBot {
 
     if (this.awaitingLinkedinCreds.get(contactId)) {
       const [user, pass] = text.split(/[:\s]+/);
+      if (!user || !pass) {
+        await this.sendResponse(contactId, '❌ Formato inválido. Envie no formato: usuario@email.com:senha');
+        return;
+      }
+      
+      this.awaitingLinkedinCreds.delete(contactId);
+      await this.sendResponse(contactId, '🔑 Tentando fazer login no LinkedIn... Isso pode levar um minuto.');
+
       try {
+        const { loginAndGetLiAt } = await import('../services/linkedinScraper.js');
         const cookie = await loginAndGetLiAt(user, pass, CONFIG.linkedin.timeoutMs);
+
         if (cookie) {
+          // Salvar na sessão atual
           this.linkedinSessions.set(contactId, cookie);
-          await this.sendResponse(contactId, '✅ Login do LinkedIn salvo!');
+          await this.sendResponse(contactId, '✅ Login bem-sucedido! O acesso foi salvo para esta sessão.');
+
+          // Salvar no banco de dados para uso futuro
+          try {
+            const { configService } = await import('../services/configService.js');
+            await configService.setConfig({ linkedin: { liAt: cookie } });
+            CONFIG.linkedin.liAt = cookie; // Atualiza a configuração em tempo de execução
+            await this.sendResponse(contactId, '💾 As credenciais foram salvas permanentemente. Você não precisará fazer login novamente.');
+          } catch (dbError) {
+            logger.error('❌ Falha ao salvar o cookie do LinkedIn no DB:', dbError);
+            await this.sendResponse(contactId, '⚠️ Não foi possível salvar suas credenciais permanentemente. O acesso funcionará apenas nesta sessão.');
+          }
         } else {
-          await this.sendResponse(contactId, '❌ Falha ao obter cookie li_at');
+          await this.sendResponse(contactId, '❌ Falha ao obter o cookie de acesso (li_at). Verifique suas credenciais.');
         }
       } catch (err) {
-        await this.sendResponse(contactId, '❌ Erro no login: ' + err.message);
+        logger.error(`❌ Erro no login do LinkedIn para ${contactId}:`, err);
+        await this.sendResponse(contactId, `❌ Erro no login: ${err.message}`);
       }
-      this.awaitingLinkedinCreds.delete(contactId);
       return;
     }
 
@@ -1642,7 +1664,16 @@ usuario@email.com:senha
     // Comando para remover login
     if (arg.toLowerCase() === 'logout') {
       this.linkedinSessions.delete(contactId);
-      await this.sendResponse(contactId, '✅ Credenciais do LinkedIn removidas!');
+      await this.sendResponse(contactId, '✅ Credenciais da sessão atual removidas.');
+      try {
+        const { configService } = await import('../services/configService.js');
+        await configService.setConfig({ linkedin: { liAt: '' } });
+        CONFIG.linkedin.liAt = ''; // Limpa a configuração em tempo de execução
+        await this.sendResponse(contactId, '🗑️ As credenciais salvas permanentemente também foram removidas.');
+      } catch (dbError) {
+        logger.error('❌ Falha ao limpar o cookie do LinkedIn no DB:', dbError);
+        await this.sendResponse(contactId, '⚠️ Não foi possível remover as credenciais permanentes. Tente novamente.');
+      }
       return;
     }
     

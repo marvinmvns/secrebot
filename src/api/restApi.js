@@ -44,7 +44,7 @@ class RestAPI {
     this.app.use(express.static(path.join(__dirname, '../public')));
     this.app.use((req, res, next) => {
       // Log simples de requisições
-      logger.info(`🌐 ${req.method} ${req.path} - IP: ${req.ip}`);
+      logger.info(`🌐 ${req.method} ${req.path} - IP: ${req.ip}`); 
       
       // Log especial para POST /config
       if (req.method === 'POST' && req.path === '/config') {

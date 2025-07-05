@@ -409,8 +409,27 @@ class RestAPI {
 
     // ===== LINKEDIN ROUTES =====
     this.app.get('/linkedin', async (req, res) => {
+      try {
         const credentialStatus = await this.getCredentialStatus();
-        res.render('linkedin', { credentialStatus, url: '', analysisType: 'structured', analysis: null, error: null });
+        res.render('linkedin', { 
+          analysis: null, 
+          url: '', 
+          analysisType: 'structured', 
+          credentialStatus,
+          error: null,
+          requestNewLogin: false
+        });
+      } catch (error) {
+        logger.error('Erro ao carregar a página do LinkedIn:', error);
+        res.render('linkedin', { 
+          analysis: null, 
+          url: '', 
+          analysisType: 'structured', 
+          credentialStatus: { hasCredentials: false, status: 'Credenciais Ausentes', message: 'Nenhuma credencial do LinkedIn foi configurada. Por favor, adicione-as abaixo.' },
+          error: null,
+          requestNewLogin: false
+        });
+      }
     });
     
     this.app.post('/linkedin/analyze', async (req, res) => {

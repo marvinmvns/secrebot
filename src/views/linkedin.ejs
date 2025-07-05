@@ -1,195 +1,221 @@
-<div class="container mx-auto p-4 md:p-6">
-    <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-6 flex items-center">
-        <svg class="w-10 h-10 mr-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-        Análise de Perfil do LinkedIn
-    </h1>
-
-    <!-- Credential Status -->
-    <div class="mb-6 p-4 rounded-lg <%= locals.credentialStatus?.hasCredentials ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' %>">
-        <h2 class="font-bold text-lg"><%= locals.credentialStatus?.status || 'Status das Credenciais Indisponível' %></h2>
-        <p><%= locals.credentialStatus?.message || 'Não foi possível verificar as credenciais.' %></p>
-        <% if (!locals.credentialStatus?.hasCredentials) { %>
-            <a href="/config" class="text-blue-600 hover:underline mt-2 inline-block">Ir para a página de configuração</a>
-        <% } %>
-    </div>
-    
-    <!-- Formulário de Análise -->
-    <form action="/linkedin/analyze" method="POST" class="bg-white p-6 rounded-lg shadow-md mb-8">
-        <div class="mb-4">
-            <label for="url" class="block text-gray-700 font-bold mb-2">URL do Perfil do LinkedIn:</label>
-            <input type="url" id="url" name="url" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" placeholder="https://www.linkedin.com/in/..." required value="<%= locals.url || '' %>">
+<div class="container-fluid mt-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h3 class="mb-0"><i class="fab fa-linkedin me-2"></i>Análise de Perfil do LinkedIn</h3>
         </div>
-        <div class="mb-4">
-             <label for="analysisType" class="block text-gray-700 font-bold mb-2">Tipo de Análise:</label>
-             <select id="analysisType" name="analysisType" class="shadow border rounded w-full py-2 px-3 text-gray-700">
-                 <option value="structured" <%= (locals.analysisType === 'structured' || !locals.analysisType) ? 'selected' : '' %>>Estruturada (Completa)</option>
-                 <option value="raw" <%= locals.analysisType === 'raw' ? 'selected' : '' %>>Apenas Texto Bruto</option>
-             </select>
-        </div>
-        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
-            Analisar Perfil
-        </button>
-    </form>
-    
-    <!-- Resultados da Análise -->
-    <% if (locals.analysis) { %>
-        <% const data = analysis.data; %>
-        <div class="bg-white p-4 md:p-6 rounded-lg shadow-xl">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">Resultados da Análise</h2>
-
-            <!-- Profile Header -->
-            <div class="relative mb-6">
-                <% if (data.bannerUrl) { %>
-                    <img src="<%= data.bannerUrl %>" alt="Banner do Perfil" class="w-full h-32 md:h-48 object-cover rounded-t-lg">
-                <% } else { %>
-                    <div class="w-full h-32 md:h-48 bg-gray-200 rounded-t-lg"></div>
+        <div class="card-body">
+            <!-- Credential Status -->
+            <div id="credentialStatus" class="alert <%= locals.credentialStatus?.hasCredentials ? 'alert-success' : 'alert-warning' %>" role="alert">
+                <h5 class="alert-heading"><%= locals.credentialStatus?.status || 'Status Indisponível' %></h5>
+                <p><%= locals.credentialStatus?.message || 'Não foi possível verificar as credenciais.' %></p>
+                <% if (!locals.credentialStatus?.hasCredentials) { %>
+                    <hr>
+                    <a href="/config" class="btn btn-sm btn-outline-primary mt-2">Ir para Configurações</a>
                 <% } %>
-                <div class="absolute bottom-0 left-4 transform translate-y-1/2">
-                    <% if (data.profilePictureUrl) { %>
-                        <img src="<%= data.profilePictureUrl %>" alt="Foto do Perfil" class="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-white shadow-lg">
-                    <% } %>
-                </div>
             </div>
 
-            <div class="pt-12 md:pt-16 px-4">
-                <h3 class="text-3xl font-bold"><%= data.name || 'Nome não encontrado' %></h3>
-                <p class="text-lg text-gray-700"><%= data.headline || 'Título não encontrado' %></p>
-                <p class="text-md text-gray-500"><%= data.location || 'Localização não encontrada' %></p>
-                <p class="text-md text-gray-500"><%= data.connections || 'Conexões não encontradas' %></p>
+            <!-- Formulário de Análise -->
+            <form action="/linkedin/analyze" method="POST" class="mb-4">
+                <div class="mb-3">
+                    <label for="url" class="form-label"><strong>URL do Perfil do LinkedIn:</strong></label>
+                    <input type="url" id="url" name="url" class="form-control" placeholder="https://www.linkedin.com/in/..." required value="<%= locals.url || '' %>">
+                </div>
+                <div class="mb-3">
+                    <label for="analysisType" class="form-label"><strong>Tipo de Análise:</strong></label>
+                    <select id="analysisType" name="analysisType" class="form-select">
+                        <option value="structured" <%= (locals.analysisType === 'structured' || !locals.analysisType) ? 'selected' : '' %>>Estruturada (Completa)</option>
+                        <option value="raw" <%= locals.analysisType === 'raw' ? 'selected' : '' %>>Apenas Texto Bruto</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-search me-2"></i>Analisar Perfil
+                </button>
+            </form>
+
+            <% if (locals.error) { %>
+            <div class="alert alert-danger" role="alert">
+                <h5 class="alert-heading">Erro na Análise</h5>
+                <p><%= locals.error %></p>
             </div>
-            
-            <div class="mt-4 border-t border-gray-200 pt-4 px-4">
-                <div class="flex items-center">
-                    <span class="font-bold mr-2">Qualidade dos Dados:</span>
-                    <div class="w-full bg-gray-200 rounded-full h-4">
-                        <div class="bg-blue-500 h-4 rounded-full" style="width: <%= analysis.dataQuality.percentage %>%"></div>
+            <% } %>
+
+            <!-- Resultados da Análise -->
+            <% if (locals.analysis && locals.analysis.data) { %>
+                <% const data = locals.analysis.data; %>
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h4 class="mb-0">Resultados da Análise para: <%= data.name || 'Perfil' %></h4>
                     </div>
-                    <span class="ml-2 font-semibold"><%= analysis.dataQuality.percentage %>%</span>
-                </div>
-            </div>
-
-            <!-- Main Content Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-                <!-- Coluna Esquerda: Sobre e Texto Bruto -->
-                <div class="md:col-span-1 space-y-6">
-                    <!-- Sobre -->
-                    <% if (data.about) { %>
-                        <div class="bg-gray-50 p-4 rounded-lg shadow-sm">
-                            <h4 class="font-bold text-xl mb-2">Sobre</h4>
-                            <p class="text-gray-700 whitespace-pre-wrap"><%= data.about %></p>
-                        </div>
-                    <% } %>
-                    <!-- Texto Bruto -->
-                    <div class="bg-gray-50 p-4 rounded-lg shadow-sm">
-                        <h4 class="font-bold text-xl mb-2">Texto Bruto Extraído</h4>
-                        <textarea class="w-full h-64 bg-gray-100 p-2 border rounded text-sm" readonly><%= analysis.rawText || 'Nenhum texto bruto foi extraído.' %></textarea>
-                    </div>
-                </div>
-
-                <!-- Coluna Direita: Detalhes em Acordeão -->
-                <div class="md:col-span-2 space-y-4">
-                    <!-- Experiência -->
-                    <% if (data.experience && data.experience.length > 0) { %>
-                    <details class="bg-white shadow rounded group" open>
-                        <summary class="flex justify-between items-center font-medium cursor-pointer list-none p-4">
-                            <span class="text-lg">💼 Experiência Profissional</span>
-                            <span class="transition group-open:rotate-180">
-                                <svg fill="none" height="24" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="24"><path d="M6 9l6 6 6-6"></path></svg>
-                            </span>
-                        </summary>
-                        <div class="text-neutral-600 border-t p-4">
-                            <% data.experience.forEach(exp => { %>
-                                <div class="mb-4 pb-4 border-b last:border-b-0">
-                                    <h5 class="font-bold"><%= exp.title %></h5>
-                                    <p class="text-gray-700"><%= exp.company %></p>
-                                    <p class="text-sm text-gray-500"><%= exp.duration %></p>
-                                    <p class="text-sm text-gray-600 mt-1"><%= exp.description %></p>
-                                </div>
-                            <% }); %>
-                        </div>
-                    </details>
-                    <% } %>
-
-                    <!-- Educação -->
-                    <% if (data.education && data.education.length > 0) { %>
-                    <details class="bg-white shadow rounded group">
-                        <summary class="flex justify-between items-center font-medium cursor-pointer list-none p-4">
-                            <span class="text-lg">🎓 Educação</span>
-                            <span class="transition group-open:rotate-180">
-                                <svg fill="none" height="24" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="24"><path d="M6 9l6 6 6-6"></path></svg>
-                            </span>
-                        </summary>
-                        <div class="text-neutral-600 border-t p-4">
-                            <% data.education.forEach(edu => { %>
-                                <div class="mb-3 pb-3 border-b last:border-b-0">
-                                    <h5 class="font-bold"><%= edu.degree %></h5>
-                                    <p class="text-gray-700"><%= edu.school %></p>
-                                    <p class="text-sm text-gray-500"><%= edu.years %></p>
-                                </div>
-                            <% }); %>
-                        </div>
-                    </details>
-                    <% } %>
-                    
-                    <!-- Skills -->
-                    <% if (data.skills && data.skills.length > 0) { %>
-                    <details class="bg-white shadow rounded group">
-                        <summary class="flex justify-between items-center font-medium cursor-pointer list-none p-4">
-                            <span class="text-lg">🛠️ Habilidades</span>
-                        </summary>
-                        <div class="text-neutral-600 border-t p-4">
-                             <div class="flex flex-wrap gap-2">
-                                <% data.skills.forEach(skill => { %>
-                                    <span class="bg-blue-100 text-blue-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded"><%= skill %></span>
-                                <% }); %>
-                            </div>
-                        </div>
-                    </details>
-                    <% } %>
-                    
-                    <!-- Outras Seções (Certificações, Publicações, etc.) -->
-                    <% const otherSections = [
-                        { title: '📜 Certificações', data: data.certifications, key: 'cert' },
-                        { title: '📚 Publicações', data: data.publications, key: 'pub' },
-                        { title: '🏆 Honras e Prêmios', data: data.honors, key: 'honor' },
-                        { title: '🌐 Idiomas', data: data.languages, key: 'lang' },
-                        { title: '🤝 Voluntariado', data: data.volunteering, key: 'vol' }
-                    ]; %>
-
-                    <% otherSections.forEach(section => { %>
-                        <% if (section.data && section.data.length > 0) { %>
-                        <details class="bg-white shadow rounded group">
-                             <summary class="flex justify-between items-center font-medium cursor-pointer list-none p-4">
-                                <span class="text-lg"><%- section.title %></span>
-                             </summary>
-                             <div class="text-neutral-600 border-t p-4">
-                                <% section.data.forEach(item => { %>
-                                    <div class="mb-3 pb-3 border-b last:border-b-0">
-                                    <% if (section.key === 'cert') { %>
-                                        <h5 class="font-bold"><%= item.name %></h5>
-                                        <p><%= item.issuer %> - <%= item.issuedDate %></p>
-                                    <% } else if (section.key === 'pub') { %>
-                                         <h5 class="font-bold"><%= item.title %></h5>
-                                         <p><%= item.publisher %> - <%= item.date %></p>
-                                    <% } else if (section.key === 'honor') { %>
-                                         <h5 class="font-bold"><%= item.title %></h5>
-                                         <p><%= item.issuer %> - <%= item.date %></p>
-                                    <% } else if (section.key === 'lang') { %>
-                                         <h5 class="font-bold"><%= item.language %></h5>
-                                         <p><%= item.proficiency %></p>
-                                    <% } else if (section.key === 'vol') { %>
-                                        <h5 class="font-bold"><%= item.role %></h5>
-                                        <p><%= item.organization %> - <%= item.duration %></p>
-                                    <% } %>
+                    <div class="card-body">
+                        <!-- Profile Header -->
+                        <div class="row align-items-center mb-4">
+                            <div class="col-md-2 text-center">
+                                <% if (data.profilePictureUrl) { %>
+                                    <img src="<%= data.profilePictureUrl %>" alt="Foto do Perfil" class="img-fluid rounded-circle shadow-sm" style="width: 120px; height: 120px; object-fit: cover;">
+                                <% } else { %>
+                                    <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center text-white" style="width: 120px; height: 120px;">
+                                        <span>Sem Foto</span>
                                     </div>
-                                <% }); %>
+                                <% } %>
                             </div>
-                        </details>
+                            <div class="col-md-10">
+                                <h3><%= data.name || 'Nome não encontrado' %></h3>
+                                <p class="lead text-muted"><%= data.headline || 'Título não encontrado' %></p>
+                                <p><i class="fas fa-map-marker-alt me-2 text-secondary"></i><%= data.location || 'Localização não encontrada' %></p>
+                                <p><i class="fas fa-users me-2 text-secondary"></i><%= data.connections || 'Conexões não encontradas' %></p>
+                            </div>
+                        </div>
+
+                        <!-- Data Quality -->
+                        <% if (locals.analysis.dataQuality) { %>
+                        <div class="mb-4">
+                            <strong>Qualidade dos Dados: <%= locals.analysis.dataQuality.percentage %>%</strong>
+                            <div class="progress">
+                                <div class="progress-bar" role="progressbar" style="width: <%= locals.analysis.dataQuality.percentage %>%;" aria-valuenow="<%= locals.analysis.dataQuality.percentage %>" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
                         <% } %>
-                    <% }); %>
+
+                        <!-- Accordion for Details -->
+                        <div class="accordion" id="linkedinAccordion">
+                            <% if (data.about) { %>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingAbout">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAbout" aria-expanded="true" aria-controls="collapseAbout">
+                                        <strong><i class="fas fa-user-circle me-2"></i>Sobre</strong>
+                                    </button>
+                                </h2>
+                                <div id="collapseAbout" class="accordion-collapse collapse show" aria-labelledby="headingAbout">
+                                    <div class="accordion-body">
+                                        <p style="white-space: pre-wrap;"><%= data.about %></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <% } %>
+                            
+                            <% if (data.experience && data.experience.length > 0) { %>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingExperience">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExperience" aria-expanded="false" aria-controls="collapseExperience">
+                                        <strong><i class="fas fa-briefcase me-2"></i>Experiência Profissional</strong>
+                                    </button>
+                                </h2>
+                                <div id="collapseExperience" class="accordion-collapse collapse" aria-labelledby="headingExperience">
+                                    <div class="accordion-body">
+                                        <% data.experience.forEach(exp => { %>
+                                            <div class="mb-3 border-bottom pb-3">
+                                                <h5><%= exp.title %></h5>
+                                                <p class="mb-1"><strong><%= exp.company %></strong></p>
+                                                <p class="text-muted small"><%= exp.duration %></p>
+                                                <p><%= exp.description %></p>
+                                            </div>
+                                        <% }); %>
+                                    </div>
+                                </div>
+                            </div>
+                            <% } %>
+                            
+                            <% if (data.education && data.education.length > 0) { %>
+                             <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingEducation">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEducation" aria-expanded="false" aria-controls="collapseEducation">
+                                        <strong><i class="fas fa-graduation-cap me-2"></i>Educação</strong>
+                                    </button>
+                                </h2>
+                                <div id="collapseEducation" class="accordion-collapse collapse" aria-labelledby="headingEducation">
+                                    <div class="accordion-body">
+                                        <% data.education.forEach(edu => { %>
+                                            <div class="mb-3 border-bottom pb-3">
+                                                <h5><%= edu.degree %></h5>
+                                                <p class="mb-1"><%= edu.school %></p>
+                                                <p class="text-muted small"><%= edu.years %></p>
+                                            </div>
+                                        <% }); %>
+                                    </div>
+                                </div>
+                            </div>
+                            <% } %>
+
+                            <% if (data.skills && data.skills.length > 0) { %>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingSkills">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSkills" aria-expanded="false" aria-controls="collapseSkills">
+                                        <strong><i class="fas fa-cogs me-2"></i>Habilidades</strong>
+                                    </button>
+                                </h2>
+                                <div id="collapseSkills" class="accordion-collapse collapse" aria-labelledby="headingSkills">
+                                    <div class="accordion-body">
+                                        <% data.skills.forEach(skill => { %>
+                                            <span class="badge bg-info text-dark me-2 mb-2"><%= skill %></span>
+                                        <% }); %>
+                                    </div>
+                                </div>
+                            </div>
+                            <% } %>
+
+                            <!-- Outras Seções -->
+                             <% const otherSections = [
+                                { title: 'Certificações', data: data.certifications, icon: 'fa-certificate', key: 'cert' },
+                                { title: 'Publicações', data: data.publications, icon: 'fa-book-open', key: 'pub' },
+                                { title: 'Honras e Prêmios', data: data.honors, icon: 'fa-trophy', key: 'honor' },
+                                { title: 'Idiomas', data: data.languages, icon: 'fa-language', key: 'lang' },
+                                { title: 'Voluntariado', data: data.volunteering, icon: 'fa-hands-helping', key: 'vol' }
+                            ]; %>
+
+                            <% otherSections.forEach((section, index) => { %>
+                                <% if (section.data && section.data.length > 0) { %>
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="heading<%= section.key %>">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse<%= section.key %>" aria-expanded="false" aria-controls="collapse<%= section.key %>">
+                                            <strong><i class="fas <%= section.icon %> me-2"></i><%= section.title %></strong>
+                                        </button>
+                                    </h2>
+                                    <div id="collapse<%= section.key %>" class="accordion-collapse collapse" aria-labelledby="heading<%= section.key %>">
+                                        <div class="accordion-body">
+                                            <% section.data.forEach(item => { %>
+                                                <div class="mb-3 border-bottom pb-3">
+                                                    <% if (section.key === 'cert') { %>
+                                                        <h5><%= item.name %></h5>
+                                                        <p><%= item.issuer %> - <%= item.issuedDate %></p>
+                                                    <% } else if (section.key === 'pub') { %>
+                                                        <h5><%= item.title %></h5>
+                                                        <p><%= item.publisher %> - <%= item.date %></p>
+                                                    <% } else if (section.key === 'honor') { %>
+                                                        <h5><%= item.title %></h5>
+                                                        <p><%= item.issuer %> - <%= item.date %></p>
+                                                    <% } else if (section.key === 'lang') { %>
+                                                        <h5><%= item.language %></h5>
+                                                        <p><%= item.proficiency %></p>
+                                                    <% } else if (section.key === 'vol') { %>
+                                                        <h5><%= item.role %></h5>
+                                                        <p><%= item.organization %> - <%= item.duration %></p>
+                                                    <% } %>
+                                                </div>
+                                            <% }); %>
+                                        </div>
+                                    </div>
+                                </div>
+                                <% } %>
+                            <% }); %>
+
+                            <!-- Raw Text -->
+                             <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingRawText">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRawText" aria-expanded="false" aria-controls="collapseRawText">
+                                        <strong><i class="fas fa-file-alt me-2"></i>Texto Bruto Extraído</strong>
+                                    </button>
+                                </h2>
+                                <div id="collapseRawText" class="accordion-collapse collapse" aria-labelledby="headingRawText">
+                                    <div class="accordion-body">
+                                        <textarea class="form-control" rows="15" readonly><%= locals.analysis.rawText || 'Nenhum texto bruto foi extraído.' %></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            <% } %>
         </div>
-    <% } %>
+    </div>
 </div>
 

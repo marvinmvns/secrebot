@@ -543,14 +543,27 @@ class RestAPI {
       for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
         // Garante que todos os campos estejam presentes, mesmo se undefined
         const value = getNested(saved, cfgPath);
-        // Se o valor é undefined e o valor padrão é booleano, usar false
         const defaultVal = getNested(CONFIG, cfgPath);
-        if (value === undefined && typeof defaultVal === 'boolean') {
-          env[envVar] = false;
-        } else if (value === undefined) {
-          env[envVar] = defaultVal !== undefined ? defaultVal : '';
+        
+        if (value === undefined) {
+          // Se o valor é undefined, usar o valor padrão
+          if (typeof defaultVal === 'boolean') {
+            env[envVar] = false;
+          } else {
+            env[envVar] = defaultVal !== undefined ? defaultVal : '';
+          }
         } else {
-          env[envVar] = value;
+          // Garantir que valores booleanos são tratados corretamente
+          if (typeof defaultVal === 'boolean') {
+            env[envVar] = value === true || value === 'true' || value === '1' || value === 1;
+          } else {
+            env[envVar] = value;
+          }
+        }
+        
+        // Debug para checkboxes
+        if (typeof defaultVal === 'boolean') {
+          logger.debug(`🔄 Campo boolean ${envVar}: DB=${value} -> Frontend=${env[envVar]}`);
         }
         descriptions[envVar] = CONFIG_DESCRIPTIONS[cfgPath];
         examples[envVar] = CONFIG_EXAMPLES[cfgPath];
@@ -619,9 +632,13 @@ class RestAPI {
         if (val === undefined) continue;
         
         // Conversões de tipo
-        if (typeof currentVal === 'number') val = Number(val);
-        if (typeof currentVal === 'boolean') val = val === 'true' || val === true || val === 'on';
-        if (cfgPath === 'featureToggles.features' && typeof val === 'string') {
+        if (typeof currentVal === 'number') {
+          val = Number(val);
+        } else if (typeof currentVal === 'boolean') {
+          // Converte para boolean: true se for 'true', '1', 1, ou true
+          val = val === 'true' || val === true || val === '1' || val === 1;
+          logger.debug(`🔄 Convertendo checkbox ${envVar}: '${req.body[envVar]}' -> ${val}`);
+        } else if (cfgPath === 'featureToggles.features' && typeof val === 'string') {
           try {
             val = JSON.parse(val);
           } catch (e) {
@@ -629,7 +646,7 @@ class RestAPI {
           }
         }
         setNested(saved, cfgPath, val);
-        logger.debug(`📝 Campo ${envVar} = ${val}`);
+        logger.debug(`📝 Campo ${envVar} = ${val} (tipo: ${typeof val})`);
       }
 
 

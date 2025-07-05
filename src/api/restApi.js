@@ -678,8 +678,9 @@ class RestAPI {
           logger.warn('Não foi possível buscar modelos do Ollama:', error.message);
         }
 
-        // Renderizar página de configuração
-        res.render('config', {
+        // Renderizar página de configuração usando o template configs.ejs
+        res.render('configs', {
+          config: currentConfig,
           env,
           descriptions,
           examples,
@@ -744,6 +745,22 @@ class RestAPI {
       } catch (error) {
         logger.error('Erro ao atualizar configurações:', error);
         res.status(500).json({ error: 'Erro ao atualizar configurações' });
+      }
+    });
+
+    // API endpoint para resetar configurações para valores padrão
+    this.app.post('/api/configs/reset', async (req, res) => {
+      try {
+        // Reinicializar configuração com valores padrão
+        const defaultConfig = await this.configService.init();
+        await this.configService.setConfig(defaultConfig);
+        
+        logger.info('Configurações resetadas para valores padrão');
+        res.json(defaultConfig);
+        
+      } catch (error) {
+        logger.error('Erro ao resetar configurações:', error);
+        res.status(500).json({ error: 'Erro ao resetar configurações' });
       }
     });
 

@@ -55,8 +55,8 @@ export const config = {
     timeoutMs: parseInt(process.env.WHISPER_TIMEOUT_MS || '120000', 10)
   },
   elevenlabs: {
-    apiKey: process.env.ELEVENLABS_API_KEY,
-    voiceId: process.env.ELEVENLABS_VOICE_ID,
+    apiKey: process.env.ELEVENLABS_API_KEY || '',
+    voiceId: process.env.ELEVENLABS_VOICE_ID || '',
     modelId: process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2',
     stability: parseFloat(process.env.ELEVENLABS_STABILITY || '0.5'),
     similarityBoost: parseFloat(process.env.ELEVENLABS_SIMILARITY || '0.75')
@@ -85,7 +85,6 @@ export const config = {
     botToken: process.env.TELEGRAM_BOT_TOKEN || '',
     enableTTS: process.env.TELEGRAM_ENABLE_TTS === 'true',
     maxFileSize: parseInt(process.env.TELEGRAM_MAX_FILE_SIZE || '20971520', 10), // 20MB
-    webhookUrl: process.env.TELEGRAM_WEBHOOK_URL || '',
     features: {
       aiChat: process.env.TELEGRAM_FEATURE_AI_CHAT !== 'false',
       scheduler: process.env.TELEGRAM_FEATURE_SCHEDULER !== 'false',

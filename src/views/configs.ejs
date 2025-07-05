@@ -13,27 +13,63 @@
             border: 1px solid #dee2e6;
             padding: 20px;
             border-radius: 8px;
-            max-height: 600px;
+            max-height: 800px;
             overflow-y: auto;
+        }
+        .config-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .config-section-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #007bff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         .config-item {
             margin-bottom: 15px;
-            padding: 10px;
-            background: white;
+            padding: 15px;
+            background: #fafbfc;
             border: 1px solid #e9ecef;
             border-radius: 5px;
+            transition: all 0.2s ease;
+        }
+        .config-item:hover {
+            border-color: #007bff;
+            box-shadow: 0 2px 8px rgba(0,123,255,0.1);
         }
         .config-key {
             font-weight: bold;
             color: #495057;
             margin-bottom: 5px;
+            font-size: 0.95rem;
+        }
+        .config-description {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-bottom: 8px;
+            font-style: italic;
         }
         .config-value {
             font-family: monospace;
-            background: #f8f9fa;
-            padding: 5px;
-            border-radius: 3px;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 4px;
             border: 1px solid #dee2e6;
+            transition: border-color 0.2s ease;
+        }
+        .config-value:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
         }
         .save-btn {
             position: sticky;
@@ -45,23 +81,62 @@
         .nested-config {
             margin-left: 20px;
             border-left: 3px solid #007bff;
-            padding-left: 10px;
+            padding-left: 15px;
+            background: rgba(0,123,255,0.02);
+            border-radius: 4px;
         }
         .array-item {
             background: #e3f2fd;
             margin: 5px 0;
-            padding: 5px;
-            border-radius: 3px;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #bbdefb;
         }
         .config-actions {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 5px;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
         }
         .spinner-border {
             width: 1rem;
             height: 1rem;
+        }
+        .config-search {
+            margin-bottom: 20px;
+        }
+        .config-tabs {
+            margin-bottom: 20px;
+        }
+        .tab-content {
+            min-height: 400px;
+        }
+        .toggle-section {
+            cursor: pointer;
+            user-select: none;
+        }
+        .toggle-section:hover {
+            background-color: #f8f9fa;
+        }
+        .section-collapsed .config-item {
+            display: none;
+        }
+        .form-switch {
+            padding-left: 2.5rem;
+        }
+        .sensitive-field {
+            position: relative;
+        }
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: none;
+            background: none;
+            color: #6c757d;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -95,27 +170,69 @@
             <div class="col-12">
                 <div class="card">
                     <div class="card-header">
-                        <h4><i class="fas fa-database"></i> Todas as Configurações da Base de Dados</h4>
-                        <small class="text-muted">Visualize e edite todas as configurações armazenadas na base de dados</small>
+                        <h4><i class="fas fa-database"></i> Configurações do Sistema</h4>
+                        <small class="text-muted">Visualize e edite todas as configurações armazenadas na base de dados de forma organizada e intuitiva</small>
                     </div>
                     <div class="card-body">
                         <div class="alert alert-info">
                             <i class="fas fa-info-circle"></i>
                             <strong>Atenção:</strong> Esta tela permite editar diretamente todas as configurações da base de dados. 
-                            Após salvar, a solução será reiniciada automaticamente.
+                            As configurações são organizadas por categoria para facilitar a navegação. Após salvar, a solução será reiniciada automaticamente.
+                        </div>
+
+                        <!-- Busca e Filtros -->
+                        <div class="config-search">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                        <input type="text" class="form-control" id="searchConfig" placeholder="Buscar configuração...">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="showAdvanced">
+                                        <label class="form-check-label" for="showAdvanced">
+                                            <i class="fas fa-cogs"></i> Mostrar configurações avançadas
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tabs de Categorias -->
+                        <div class="config-tabs">
+                            <ul class="nav nav-tabs" id="configTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="visual-tab" data-bs-toggle="tab" data-bs-target="#visual" type="button" role="tab">
+                                        <i class="fas fa-eye"></i> Visual
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="json-tab" data-bs-toggle="tab" data-bs-target="#json" type="button" role="tab">
+                                        <i class="fas fa-code"></i> JSON
+                                    </button>
+                                </li>
+                            </ul>
                         </div>
 
                         <div class="config-actions">
                             <div class="row">
-                                <div class="col-md-6">
+                                <div class="col-md-8">
                                     <button type="button" class="btn btn-primary" onclick="loadConfigs()">
-                                        <i class="fas fa-sync-alt"></i> Recarregar Configurações
+                                        <i class="fas fa-sync-alt"></i> Recarregar
                                     </button>
                                     <button type="button" class="btn btn-secondary" onclick="formatJson()">
                                         <i class="fas fa-code"></i> Formatar JSON
                                     </button>
+                                    <button type="button" class="btn btn-info" onclick="expandAllSections()">
+                                        <i class="fas fa-expand-alt"></i> Expandir Todas
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="collapseAllSections()">
+                                        <i class="fas fa-compress-alt"></i> Recolher Todas
+                                    </button>
                                 </div>
-                                <div class="col-md-6 text-end">
+                                <div class="col-md-4 text-end">
                                     <button type="button" class="btn btn-success" onclick="saveConfigs()" id="saveBtn">
                                         <i class="fas fa-save"></i> Salvar e Reiniciar
                                     </button>
@@ -123,20 +240,39 @@
                             </div>
                         </div>
 
-                        <div id="configEditor" class="config-editor">
-                            <div class="text-center">
-                                <div class="spinner-border" role="status">
-                                    <span class="visually-hidden">Carregando...</span>
+                        <div class="tab-content" id="configTabContent">
+                            <div class="tab-pane fade show active" id="visual" role="tabpanel">
+                                <div id="configEditor" class="config-editor">
+                                    <div class="text-center">
+                                        <div class="spinner-border" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                        <p class="mt-2">Carregando configurações...</p>
+                                    </div>
                                 </div>
-                                <p class="mt-2">Carregando configurações...</p>
                             </div>
-                        </div>
-
-                        <div class="mt-3">
-                            <label for="jsonEditor" class="form-label">
-                                <i class="fas fa-edit"></i> Editor JSON Direto:
-                            </label>
-                            <textarea id="jsonEditor" class="form-control" rows="20" style="font-family: monospace;"></textarea>
+                            <div class="tab-pane fade" id="json" role="tabpanel">
+                                <div class="mt-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label for="jsonEditor" class="form-label mb-0">
+                                            <i class="fas fa-edit"></i> Editor JSON Avançado:
+                                        </label>
+                                        <div>
+                                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="validateJson()">
+                                                <i class="fas fa-check-circle"></i> Validar
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="minifyJson()">
+                                                <i class="fas fa-compress"></i> Minificar
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <textarea id="jsonEditor" class="form-control" rows="25" style="font-family: 'Courier New', monospace; font-size: 0.9rem;"></textarea>
+                                    <small class="text-muted mt-1 d-block">
+                                        <i class="fas fa-info-circle"></i> 
+                                        Edite o JSON diretamente aqui. Use Ctrl+A para selecionar tudo, Ctrl+F para buscar.
+                                    </small>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -323,8 +459,171 @@
             }, 5000);
         }
 
-        // Carregar configurações ao iniciar
-        document.addEventListener('DOMContentLoaded', loadConfigs);
+        // Funções auxiliares para melhorar a experiência do usuário
+        function getConfigDescription(path) {
+            const descriptions = {
+                'debug.enabled': 'Ativa logs detalhados para depuração',
+                'debug.verbose': 'Exibe informações técnicas extras nos logs',
+                'server.port': 'Porta onde o servidor web será executado',
+                'mongo.uri': 'Endereço de conexão com o banco MongoDB',
+                'llm.model': 'Modelo de IA usado para respostas',
+                'llm.host': 'Endereço do servidor Ollama',
+                'telegram.botToken': 'Token do bot obtido no @BotFather',
+                'elevenlabs.apiKey': 'Chave da API ElevenLabs para síntese de voz',
+                'elevenlabs.voiceId': 'ID da voz específica no ElevenLabs'
+            };
+            return descriptions[path] || '';
+        }
+        
+        function formatConfigKey(key) {
+            return key.replace(/([A-Z])/g, ' $1')
+                     .replace(/^./, str => str.toUpperCase())
+                     .replace(/api/gi, 'API')
+                     .replace(/tts/gi, 'TTS')
+                     .replace(/llm/gi, 'LLM')
+                     .replace(/uri/gi, 'URI');
+        }
+        
+        function toggleSection(sectionId) {
+            const section = document.getElementById(`section-${sectionId}`);
+            const icon = section.querySelector('.toggle-icon');
+            section.classList.toggle('section-collapsed');
+            icon.classList.toggle('fa-chevron-down');
+            icon.classList.toggle('fa-chevron-right');
+        }
+        
+        function expandAllSections() {
+            document.querySelectorAll('.config-section').forEach(section => {
+                section.classList.remove('section-collapsed');
+                const icon = section.querySelector('.toggle-icon');
+                icon.className = 'fas fa-chevron-down ms-auto toggle-icon';
+            });
+        }
+        
+        function collapseAllSections() {
+            document.querySelectorAll('.config-section').forEach(section => {
+                section.classList.add('section-collapsed');
+                const icon = section.querySelector('.toggle-icon');
+                icon.className = 'fas fa-chevron-right ms-auto toggle-icon';
+            });
+        }
+        
+        function togglePasswordVisibility(fieldId) {
+            const field = document.getElementById(fieldId);
+            const button = field.nextElementSibling;
+            const icon = button.querySelector('i');
+            
+            if (field.type === 'password') {
+                field.type = 'text';
+                icon.className = 'fas fa-eye-slash';
+            } else {
+                field.type = 'password';
+                icon.className = 'fas fa-eye';
+            }
+        }
+        
+        function applySearchFilter() {
+            const searchTerm = document.getElementById('searchConfig').value.toLowerCase();
+            const items = document.querySelectorAll('.config-item');
+            
+            items.forEach(item => {
+                const searchData = item.getAttribute('data-search') || '';
+                if (searchData.includes(searchTerm)) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = searchTerm ? 'none' : 'block';
+                }
+            });
+        }
+        
+        function toggleAdvancedSections() {
+            const showAdvanced = document.getElementById('showAdvanced').checked;
+            const advancedSections = document.querySelectorAll('.advanced-section');
+            
+            advancedSections.forEach(section => {
+                section.style.display = showAdvanced ? 'block' : 'none';
+            });
+        }
+        
+        function validateJson() {
+            const jsonEditor = document.getElementById('jsonEditor');
+            try {
+                JSON.parse(jsonEditor.value);
+                showAlert('JSON válido! ✅', 'success');
+            } catch (error) {
+                showAlert('JSON inválido: ' + error.message, 'danger');
+            }
+        }
+        
+        function minifyJson() {
+            const jsonEditor = document.getElementById('jsonEditor');
+            try {
+                const parsed = JSON.parse(jsonEditor.value);
+                jsonEditor.value = JSON.stringify(parsed);
+                showAlert('JSON minificado!', 'info');
+            } catch (error) {
+                showAlert('Erro ao minificar JSON: ' + error.message, 'danger');
+            }
+        }
+        
+        function addArrayItem(path) {
+            const keys = path.split('.');
+            let current = currentConfig;
+            
+            for (let i = 0; i < keys.length - 1; i++) {
+                current = current[keys[i]];
+            }
+            
+            const lastKey = keys[keys.length - 1];
+            if (Array.isArray(current[lastKey])) {
+                current[lastKey].push('');
+                renderConfigEditor();
+                updateJsonEditor();
+            }
+        }
+        
+        function removeArrayItem(path, index) {
+            const keys = path.split('.');
+            let current = currentConfig;
+            
+            for (let i = 0; i < keys.length - 1; i++) {
+                current = current[keys[i]];
+            }
+            
+            const lastKey = keys[keys.length - 1];
+            if (Array.isArray(current[lastKey])) {
+                current[lastKey].splice(index, 1);
+                renderConfigEditor();
+                updateJsonEditor();
+            }
+        }
+        
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            loadConfigs();
+            
+            // Busca em tempo real
+            document.getElementById('searchConfig').addEventListener('input', applySearchFilter);
+            
+            // Toggle seções avançadas
+            document.getElementById('showAdvanced').addEventListener('change', toggleAdvancedSections);
+            
+            // Sync entre tabs
+            document.getElementById('json-tab').addEventListener('shown.bs.tab', function() {
+                updateJsonEditor();
+            });
+            
+            document.getElementById('visual-tab').addEventListener('shown.bs.tab', function() {
+                try {
+                    const jsonEditor = document.getElementById('jsonEditor');
+                    const parsed = JSON.parse(jsonEditor.value);
+                    currentConfig = parsed;
+                    renderConfigEditor();
+                } catch (error) {
+                    console.warn('JSON inválido no editor, mantendo configuração atual');
+                }
+            });
+        });
     </script>
 </body>
 </html>

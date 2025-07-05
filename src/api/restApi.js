@@ -50,6 +50,8 @@ class RestAPI {
   }
 
   setupRoutes() {
+    logger.info('🔧 Configurando rotas da API...');
+    
     // Rota para enviar mensagem via API
     this.app.post('/send-message', async (req, res) => {
       const { phone, message } = req.body;
@@ -688,6 +690,9 @@ class RestAPI {
         logger.error('❌ Erro ao salvar configuração:', error);
         res.redirect('/config?error=' + encodeURIComponent(error.message));
       }
+
+      // Log para confirmar que a rota foi registrada
+      logger.info('✅ Rota POST /config registrada');
     });
 
     // Rotas de exportação/importação de configuração completa

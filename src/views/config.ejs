@@ -523,6 +523,9 @@
                 <button type="submit" class="btn btn-success btn-lg">
                   <i class="fas fa-save me-2"></i> Salvar Configurações
                 </button>
+                <button type="button" class="btn btn-warning btn-sm ms-2" onclick="testSave()">
+                  <i class="fas fa-bug me-1"></i> Teste
+                </button>
               </div>
             </div>
             
@@ -847,14 +850,58 @@ function handleSubmit(event) {
         formData.delete(cb.name);
         // Adiciona o valor correto baseado no estado do checkbox
         formData.append(cb.name, cb.checked ? 'true' : 'false');
+        console.log(`Checkbox ${cb.name}: ${cb.checked}`);
       }
     });
     console.log('📋 Dados do formulário:', Object.fromEntries(formData));
     
-    // Usar o método de envio padrão do form
-    form.submit();
+    // Usar fetch para enviar os dados
+    fetch('/config', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => {
+      console.log('📡 Resposta do servidor:', response.status, response.statusText);
+      if (response.redirected) {
+        console.log('🔄 Redirecionando para:', response.url);
+        window.location.href = response.url;
+      } else {
+        console.log('⚠️ Não houve redirecionamento');
+        // Se não houve redirecionamento, recarregar a página
+        window.location.reload();
+      }
+    })
+    .catch(error => {
+      console.error('❌ Erro no salvamento:', error);
+      alert('Erro ao salvar configurações: ' + error.message);
+    });
   } else {
     console.error('❌ Formulário não encontrado!');
+  }
+}
+
+function testSave() {
+  console.log('🧪 Testando salvamento...');
+  const form = document.getElementById('configForm');
+  if (form) {
+    const formData = new FormData(form);
+    console.log('📋 Dados do formulário:', Object.fromEntries(formData));
+    
+    // Teste manual do POST
+    fetch('/config', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => {
+      console.log('📡 Resposta do servidor:', response.status, response.statusText);
+      if (response.redirected) {
+        console.log('🔄 Redirecionando para:', response.url);
+        window.location.href = response.url;
+      }
+    })
+    .catch(error => {
+      console.error('❌ Erro no teste:', error);
+    });
   }
 }
 
@@ -917,19 +964,15 @@ function updateStatusBadge(elementId, isConfigured, successText, errorText) {
 
 // Inicializar estados dos componentes
 document.addEventListener('DOMContentLoaded', function() {
-  var form = document.getElementById('configForm');
+  togglePiperSettings();
+  
+  // Adicionar event listener para o formulário
+  const form = document.getElementById('configForm');
   if (form) {
+    console.log('✅ Formulário encontrado, adicionando event listener...');
     form.addEventListener('submit', handleSubmit);
-    
-    // Monitorar mudanças nos campos principais para atualizar status
-    form.addEventListener('input', updateConfigStatus);
-    form.addEventListener('change', updateConfigStatus);
-    
-    // Inicializar toggle states
-    initializeToggleStates();
-    
-    // Atualizar status inicial
-    updateConfigStatus();
+  } else {
+    console.error('❌ Formulário não encontrado!');
   }
 });
 

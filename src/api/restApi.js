@@ -38,35 +38,16 @@ class RestAPI {
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
     
-    // Middleware específico para FormData (multipart/form-data)
-    this.app.use((req, res, next) => {
-      if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
-        logger.info('🎯 MIDDLEWARE: FormData detectado, processando...');
-      }
-      next();
-    });
     
     this.app.use(methodOverride('_method'));
     this.app.use(expressLayouts);
     this.app.set('view engine', 'ejs');
     this.app.set('views', path.join(__dirname, '../views'));
     this.app.use(express.static(path.join(__dirname, '../public')));
-        this.app.use((req, res, next) => {
-      // Log simples de requisições
-      logger.info(`🌐 ${req.method} ${req.path} - IP: ${req.ip}`);
-      
-      // Log especial para POST /config
+    this.app.use((req, res, next) => {
       if (req.method === 'POST' && req.path === '/config') {
-        logger.info('🎯 MIDDLEWARE: Requisição POST /config detectada!');
-        logger.info('📋 Headers:', Object.keys(req.headers));
-        logger.info('📋 Content-Type:', req.headers['content-type']);
+        logger.info('📝 Recebendo solicitação POST /config');
       }
-      
-      // Log para TODOS os POSTs
-      if (req.method === 'POST') {
-        logger.info(`🎯 MIDDLEWARE: POST detectado - Path: ${req.path}, URL: ${req.url}`);
-      }
-      
       next();
     });
   }
@@ -74,19 +55,10 @@ class RestAPI {
   setupRoutes() {
     logger.info('🔧 Configurando rotas da API...');
     
-    // ===== CONFIG ROUTES (PRIMEIRO) =====
-    logger.info('🔧 REGISTRANDO ROTA POST /config...');
+    // ===== CONFIG ROUTES =====
     this.app.post('/config', async (req, res, next) => {
-      logger.info('🚀 ROTA POST /config INICIADA - PRIMEIRA LINHA');
-      logger.info('🎯 ROTA POST /config: Método =', req.method);
-      logger.info('🎯 ROTA POST /config: Path =', req.path);
-      logger.info('🎯 ROTA POST /config: URL =', req.url);
-      logger.info('🎯 ROTA POST /config: Content-Type =', req.headers['content-type']);
-      logger.info('🎯 ROTA POST /config: Body keys =', Object.keys(req.body || {}));
-      logger.info('🎯 ROTA POST /config: Body =', req.body);
       try {
-        logger.info('📝 Recebendo requisição POST /config');
-        logger.info('📋 Body recebido:', Object.keys(req.body));
+        logger.info('📝 Processando salvamento de configuração');
         
         // Verificar se configService está disponível
         if (!this.configService) {
@@ -94,13 +66,11 @@ class RestAPI {
           return res.redirect('/config?error=ConfigService não disponível');
         }
         
-        logger.info('✅ ConfigService disponível, carregando configuração...');
-        let saved = await this.configService.getConfig();
-        if (!saved) {
-          logger.info('⚠️ Configuração não encontrada, inicializando...');
-          saved = await this.configService.init();
+        // Obter configuração atual do banco
+        let currentConfig = await this.configService.getConfig();
+        if (!currentConfig) {
+          currentConfig = await this.configService.init();
         }
-        logger.info('📋 Configuração atual carregada:', Object.keys(saved));
 
       const getNested = (obj, pathStr) =>
         pathStr.split('.').reduce((o, k) => (o || {})[k], obj);
@@ -115,8 +85,7 @@ class RestAPI {
         curr[keys[keys.length - 1]] = value;
       };
 
-      // Processar campos normais
-      logger.info('🔄 Processando campos do formulário...');
+      // Processar campos do formulário
       let processedFields = 0;
       for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
         let val = req.body[envVar];
@@ -133,9 +102,7 @@ class RestAPI {
         if (typeof currentVal === 'number') {
           val = Number(val);
         } else if (typeof currentVal === 'boolean') {
-          // Converte para boolean: true se for 'true', '1', 1, ou true
           val = val === 'true' || val === true || val === '1' || val === 1;
-          logger.debug(`🔄 Convertendo checkbox ${envVar}: '${req.body[envVar]}' -> ${val}`);
         } else if (cfgPath === 'featureToggles.features' && typeof val === 'string') {
           try {
             val = JSON.parse(val);
@@ -143,40 +110,40 @@ class RestAPI {
             val = {};
           }
         }
-        setNested(saved, cfgPath, val);
+        setNested(currentConfig, cfgPath, val);
         processedFields++;
-        logger.debug(`📝 Campo ${envVar} = ${val} (tipo: ${typeof val})`);
       }
       logger.info(`✅ Processados ${processedFields} campos do formulário`);
 
 
-      if (saved.piper?.enabled) {
+      // Validar configuração do Piper se habilitado
+      if (currentConfig.piper?.enabled) {
         try {
-          await fs.access(saved.piper.executable, fs.constants.X_OK);
-          await fs.access(saved.piper.model, fs.constants.R_OK);
+          await fs.access(currentConfig.piper.executable, fs.constants.X_OK);
+          await fs.access(currentConfig.piper.model, fs.constants.R_OK);
         } catch (error) {
           logger.warn('⚠️ Piper habilitado mas arquivos não encontrados, desabilitando automaticamente:', error.message);
-          saved.piper.enabled = false;
+          currentConfig.piper.enabled = false;
         }
       }
 
+        // Salvar configuração no MongoDB
         logger.info('💾 Salvando configuração no MongoDB...');
-        logger.debug('📋 Dados a serem salvos:', JSON.stringify(saved, null, 2));
-        await this.configService.setConfig(saved);
-        logger.info('✅ Configuração salva com sucesso, redirecionando...');
+        await this.configService.setConfig(currentConfig);
         
         // Verificar se foi realmente salvo
         const savedConfig = await this.configService.getConfig();
-        logger.info('🔍 Verificação: configuração após salvar:', Object.keys(savedConfig));
-        
-        res.redirect('/config?success=1');
+        if (savedConfig) {
+          logger.info('✅ Configuração salva com sucesso');
+          res.redirect('/config?success=1');
+        } else {
+          throw new Error('Falha ao verificar configuração salva');
+        }
       } catch (error) {
         logger.error('❌ Erro ao salvar configuração:', error);
         res.redirect('/config?error=' + encodeURIComponent(error.message));
       }
 
-      // Log para confirmar que a rota foi registrada
-      logger.info('✅ Rota POST /config registrada');
     });
     
     // Rota para enviar mensagem via API
@@ -657,61 +624,61 @@ class RestAPI {
 
     this.app.get('/config', async (req, res, next) => {
       try {
-        // Garantir que a configuração seja inicializada primeiro
-        let saved = await this.configService.getConfig();
-        if (!saved) {
-          saved = await this.configService.init();
+        // Obter configuração atual do banco de dados
+        let currentConfig = await this.configService.getConfig();
+        if (!currentConfig) {
+          logger.info('⚠️ Configuração não encontrada, inicializando...');
+          currentConfig = await this.configService.init();
         }
 
-      const getNested = (obj, pathStr) =>
-        pathStr.split('.').reduce((o, k) => (o || {})[k], obj);
+        const getNested = (obj, pathStr) =>
+          pathStr.split('.').reduce((o, k) => (o || {})[k], obj);
 
-      const env = {};
-      const descriptions = {};
-      const examples = {};
-      for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
-        // Garante que todos os campos estejam presentes, mesmo se undefined
-        const value = getNested(saved, cfgPath);
-        const defaultVal = getNested(CONFIG, cfgPath);
+        const env = {};
+        const descriptions = {};
+        const examples = {};
         
-        if (value === undefined) {
-          // Se o valor é undefined, usar o valor padrão
-          if (typeof defaultVal === 'boolean') {
-            env[envVar] = false;
+        // Mapear todos os campos da configuração para o formato esperado pelo frontend
+        for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
+          const savedValue = getNested(currentConfig, cfgPath);
+          const defaultValue = getNested(CONFIG, cfgPath);
+          
+          // Usar valor salvo se existir, senão usar valor padrão
+          if (savedValue !== undefined) {
+            if (typeof defaultValue === 'boolean') {
+              env[envVar] = savedValue === true || savedValue === 'true' || savedValue === '1' || savedValue === 1;
+            } else {
+              env[envVar] = savedValue;
+            }
           } else {
-            env[envVar] = defaultVal !== undefined ? defaultVal : '';
+            // Usar valor padrão se não houver valor salvo
+            if (typeof defaultValue === 'boolean') {
+              env[envVar] = false;
+            } else {
+              env[envVar] = defaultValue !== undefined ? defaultValue : '';
+            }
           }
-        } else {
-          // Garantir que valores booleanos são tratados corretamente
-          if (typeof defaultVal === 'boolean') {
-            env[envVar] = value === true || value === 'true' || value === '1' || value === 1;
-          } else {
-            env[envVar] = value;
+          
+          descriptions[envVar] = CONFIG_DESCRIPTIONS[cfgPath];
+          examples[envVar] = CONFIG_EXAMPLES[cfgPath];
+        }
+
+
+        // Buscar modelos disponíveis no Ollama
+        let availableModels = [];
+        let whisperModels = WHISPER_MODELS_LIST || [];
+        try {
+          const ollamaHost = currentConfig.llm?.host || CONFIG.llm.host;
+          const response = await fetch(`${ollamaHost}/api/tags`);
+          if (response.ok) {
+            const data = await response.json();
+            availableModels = data.models?.map(m => m.name) || [];
           }
+        } catch (error) {
+          logger.warn('Não foi possível buscar modelos do Ollama:', error.message);
         }
-        
-        // Debug para checkboxes
-        if (typeof defaultVal === 'boolean') {
-          logger.debug(`🔄 Campo boolean ${envVar}: DB=${value} -> Frontend=${env[envVar]}`);
-        }
-        descriptions[envVar] = CONFIG_DESCRIPTIONS[cfgPath];
-        examples[envVar] = CONFIG_EXAMPLES[cfgPath];
-      }
 
-
-      // Buscar modelos disponíveis no Ollama
-      let availableModels = [];
-      let whisperModels = WHISPER_MODELS_LIST || [];
-      try {
-        const response = await fetch(`${CONFIG.llm.host}/api/tags`);
-        if (response.ok) {
-          const data = await response.json();
-          availableModels = data.models?.map(m => m.name) || [];
-        }
-      } catch (error) {
-        logger.warn('Não foi possível buscar modelos do Ollama:', error.message);
-      }
-
+        // Renderizar página de configuração
         res.render('config', {
           env,
           descriptions,
@@ -722,6 +689,61 @@ class RestAPI {
       } catch (error) {
         logger.error('Erro ao obter configuração', error);
         next(error);
+      }
+    });
+
+    // Nova rota para exibir todas as configurações da base de dados
+    this.app.get('/configs', async (req, res, next) => {
+      try {
+        const currentConfig = await this.configService.getConfig();
+        if (!currentConfig) {
+          logger.info('⚠️ Configuração não encontrada, inicializando...');
+          currentConfig = await this.configService.init();
+        }
+
+        res.render('configs', {
+          config: currentConfig
+        });
+      } catch (error) {
+        logger.error('Erro ao obter configurações:', error);
+        next(error);
+      }
+    });
+
+    // API endpoint para obter todas as configurações
+    this.app.get('/api/configs', async (req, res) => {
+      try {
+        const currentConfig = await this.configService.getConfig();
+        if (!currentConfig) {
+          return res.status(404).json({ error: 'Configuração não encontrada' });
+        }
+        res.json(currentConfig);
+      } catch (error) {
+        logger.error('Erro ao obter configurações:', error);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    });
+
+    // API endpoint para atualizar configurações
+    this.app.put('/api/configs', async (req, res) => {
+      try {
+        const updatedConfig = req.body;
+        await this.configService.setConfig(updatedConfig);
+        
+        // Reiniciar a solução
+        logger.info('Configurações atualizadas, reiniciando solução...');
+        
+        res.json({ success: true, message: 'Configurações atualizadas com sucesso' });
+        
+        // Reiniciar processo após um pequeno delay para permitir que a resposta seja enviada
+        setTimeout(() => {
+          logger.info('🔄 Reiniciando aplicação devido a mudanças na configuração...');
+          process.exit(0);
+        }, 1000);
+        
+      } catch (error) {
+        logger.error('Erro ao atualizar configurações:', error);
+        res.status(500).json({ error: 'Erro ao atualizar configurações' });
       }
     });
 
@@ -755,17 +777,6 @@ class RestAPI {
       }
     });
 
-    // Rota de teste para verificar se POST está funcionando
-    this.app.post('/test-post', (req, res) => {
-      logger.info('🧪 Teste POST recebido');
-      res.json({ success: true, message: 'POST funcionando' });
-    });
-    
-    // Rota de teste para /config
-    this.app.post('/config-test', (req, res) => {
-      logger.info('🧪 Teste POST /config-test recebido');
-      res.json({ success: true, message: 'POST /config-test funcionando' });
-    });
 
     // Rota catch-all para 404
     this.app.use((req, res) => {

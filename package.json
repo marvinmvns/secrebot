@@ -46,5 +46,11 @@
     "whatsapp-web.js": "^1.23.0",
     "youtubei.js": "14.0.0",
     "ytdl-core": "^4.11.5"
+  },
+  "devDependencies": {
+    "chai": "^5.2.0",
+    "jsdom": "^26.1.0",
+    "mocha": "^11.7.1",
+    "supertest": "^7.1.1"
   }
 }

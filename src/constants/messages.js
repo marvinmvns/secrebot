@@ -75,10 +75,16 @@ export const SUBMENU_MESSAGES = {
   profissional: `💼 *Ferramentas Profissionais*
 
 4.1 🔗 Analisar um perfil do LinkedIn
+   _Análise detalhada com IA e resumo profissional_
+
+💡 *Comandos diretos:*
+• ${COMMANDS.LINKEDIN} - Ativar modo LinkedIn
+• ${COMMANDS.LINKEDIN} login - Configurar credenciais
+• ${COMMANDS.LINKEDIN} test - Testar conexão
 
 0️⃣ Voltar ao Menu Principal
 
-🎤 _Dica: Envie o link de um perfil para começar._`,
+🎤 _Dica: Fale "analisar perfil do LinkedIn" ou envie o link diretamente._`,
 
   config: `⚙️ *Configurações*
 
@@ -148,9 +154,16 @@ Envie o áudio para que eu possa transcrever e criar um resumo.
 Para sair, digite ${COMMANDS.VOLTAR}`,
 
   [CHAT_MODES.LINKEDIN]: `💼 *Modo Análise de LinkedIn Ativado!*
-Envie o link do perfil que deseja analisar.
 
-Para sair, digite ${COMMANDS.VOLTAR}`,
+📝 *Envie o link do perfil que deseja analisar:*
+https://www.linkedin.com/in/nome-do-perfil
+
+💡 *Comandos disponíveis:*
+• ${COMMANDS.LINKEDIN} login - Configurar credenciais
+• ${COMMANDS.LINKEDIN} logout - Remover credenciais  
+• ${COMMANDS.LINKEDIN} test - Testar conexão
+
+🔙 Para sair, digite ${COMMANDS.VOLTAR}`,
   
   [CHAT_MODES.DELETAR]: `🗑️ *Modo Deletar Agendamento*
 Aguarde, estou buscando seus compromissos...`,

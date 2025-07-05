@@ -72,7 +72,20 @@ export async function fetchProfileStructured(url, options = {}) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     const browser = await chromium.launch({ 
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox', 
+        '--disable-dev-shm-usage',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor',
+        '--disable-extensions',
+        '--disable-plugins',
+        '--disable-images',
+        '--disable-javascript',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding'
+      ]
     });
     let context;
     
@@ -80,7 +93,14 @@ export async function fetchProfileStructured(url, options = {}) {
       context = await browser.newContext({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         viewport: { width: 1920, height: 1080 },
-        locale: 'en-US'
+        locale: 'en-US',
+        extraHTTPHeaders: {
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
       });
 
       if (liAt) {
@@ -99,104 +119,230 @@ export async function fetchProfileStructured(url, options = {}) {
 
       const page = await context.newPage();
       
+      // Interceptar requisições para melhorar performance
+      await page.route('**/*', (route) => {
+        const resourceType = route.request().resourceType();
+        if (['image', 'media', 'font', 'stylesheet'].includes(resourceType)) {
+          route.abort();
+        } else {
+          route.continue();
+        }
+      });
+      
       await page.goto(url, {
         waitUntil: 'domcontentloaded',
         timeout: timeoutMs
       });
 
-      await page.waitForTimeout(2000);
+      // Aguardar carregamento dinâmico
+      await page.waitForTimeout(3000);
       
-      const profileData = await page.evaluate(() => {
-        const data = {
-          profile: {},
-          experience: [],
-          education: [],
-          skills: [],
-          about: '',
-          location: '',
-          connections: '',
-          headline: '',
-          name: ''
-        };
-
-        try {
-          const nameElement = document.querySelector('h1.text-heading-xlarge') || 
-                             document.querySelector('h1[data-generated-suggestion-target]') ||
-                             document.querySelector('.pv-text-details__left-panel h1');
-          data.name = nameElement?.textContent?.trim() || '';
-
-          const headlineElement = document.querySelector('.text-body-medium.break-words') ||
-                                 document.querySelector('.pv-text-details__left-panel .text-body-medium');
-          data.headline = headlineElement?.textContent?.trim() || '';
-
-          const locationElement = document.querySelector('.text-body-small.inline.t-black--light.break-words') ||
-                                 document.querySelector('.pv-text-details__left-panel .text-body-small');
-          data.location = locationElement?.textContent?.trim() || '';
-
-          const connectionsElement = document.querySelector('span.t-black--light.t-normal') ||
-                                   document.querySelector('.pv-text-details__left-panel .hoverable-link-text span');
-          data.connections = connectionsElement?.textContent?.trim() || '';
-
-          const aboutSection = document.querySelector('#about') || document.querySelector('[data-generated-suggestion-target="about"]');
-          if (aboutSection) {
-            const aboutText = aboutSection.closest('section')?.querySelector('.pv-shared-text-with-see-more .visually-hidden') ||
-                             aboutSection.closest('section')?.querySelector('.pv-shared-text-with-see-more span[aria-hidden="true"]') ||
-                             aboutSection.closest('section')?.querySelector('.display-flex .t-14');
-            data.about = aboutText?.textContent?.trim() || '';
-          }
-
-          const experienceItems = document.querySelectorAll('#experience ~ .pvs-list__container .pvs-entity, #experience ~ * .pvs-entity');
-          experienceItems.forEach(item => {
-            const company = item.querySelector('.t-14.t-normal span[aria-hidden="true"]')?.textContent?.trim() || '';
-            const title = item.querySelector('.t-14.t-bold span[aria-hidden="true"]')?.textContent?.trim() || '';
-            const duration = item.querySelector('.t-12.t-normal.t-black--light span[aria-hidden="true"]')?.textContent?.trim() || '';
-            
-            if (company || title) {
-              data.experience.push({
-                title: title,
-                company: company,
-                duration: duration
-              });
-            }
-          });
-
-          const educationItems = document.querySelectorAll('#education ~ .pvs-list__container .pvs-entity, #education ~ * .pvs-entity');
-          educationItems.forEach(item => {
-            const school = item.querySelector('.t-14.t-normal span[aria-hidden="true"]')?.textContent?.trim() || '';
-            const degree = item.querySelector('.t-14.t-bold span[aria-hidden="true"]')?.textContent?.trim() || '';
-            const years = item.querySelector('.t-12.t-normal.t-black--light span[aria-hidden="true"]')?.textContent?.trim() || '';
-            
-            if (school || degree) {
-              data.education.push({
-                degree: degree,
-                school: school,
-                years: years
-              });
-            }
-          });
-
-          const skillsSection = document.querySelectorAll('#skills ~ .pvs-list__container .pvs-entity span[aria-hidden="true"], #skills ~ * .pvs-entity span[aria-hidden="true"]');
-          skillsSection.forEach(skill => {
-            const skillName = skill.textContent?.trim();
-            if (skillName && !data.skills.includes(skillName) && skillName.length < 50) {
-              data.skills.push(skillName);
-            }
-          });
-
-          data.profile = {
-            name: data.name,
-            headline: data.headline,
-            location: data.location,
-            connections: data.connections,
-            profileUrl: window.location.href
+      // Scroll para carregar conteúdo lazy
+      await page.evaluate(() => {
+        window.scrollTo(0, document.body.scrollHeight);
+        return new Promise(resolve => setTimeout(resolve, 2000));
+      });
+      
+              const profileData = await page.evaluate(() => {
+          const data = {
+            profile: {},
+            experience: [],
+            education: [],
+            skills: [],
+            about: '',
+            location: '',
+            connections: '',
+            headline: '',
+            name: ''
           };
 
-        } catch (error) {
-          logger.error('Error extracting profile data', error);
-        }
+          try {
+            // Múltiplos seletores para nome
+            const nameSelectors = [
+              'h1.text-heading-xlarge',
+              'h1[data-generated-suggestion-target]',
+              '.pv-text-details__left-panel h1',
+              '.pv-top-card-section__name',
+              '.profile-name',
+              'h1',
+              '[data-section="name"] h1'
+            ];
+            
+            for (const selector of nameSelectors) {
+              const element = document.querySelector(selector);
+              if (element && element.textContent.trim()) {
+                data.name = element.textContent.trim();
+                break;
+              }
+            }
 
-        return data;
-      });
+            // Múltiplos seletores para headline
+            const headlineSelectors = [
+              '.text-body-medium.break-words',
+              '.pv-text-details__left-panel .text-body-medium',
+              '.pv-top-card-section__headline',
+              '.profile-headline',
+              '[data-section="headline"] .text-body-medium'
+            ];
+            
+            for (const selector of headlineSelectors) {
+              const element = document.querySelector(selector);
+              if (element && element.textContent.trim()) {
+                data.headline = element.textContent.trim();
+                break;
+              }
+            }
+
+            // Múltiplos seletores para localização
+            const locationSelectors = [
+              '.text-body-small.inline.t-black--light.break-words',
+              '.pv-text-details__left-panel .text-body-small',
+              '.pv-top-card-section__location',
+              '.profile-location',
+              '[data-section="location"] .text-body-small'
+            ];
+            
+            for (const selector of locationSelectors) {
+              const element = document.querySelector(selector);
+              if (element && element.textContent.trim()) {
+                data.location = element.textContent.trim();
+                break;
+              }
+            }
+
+            // Múltiplos seletores para conexões
+            const connectionsSelectors = [
+              'span.t-black--light.t-normal',
+              '.pv-text-details__left-panel .hoverable-link-text span',
+              '.pv-top-card-section__connections',
+              '.profile-connections'
+            ];
+            
+            for (const selector of connectionsSelectors) {
+              const element = document.querySelector(selector);
+              if (element && element.textContent.trim()) {
+                data.connections = element.textContent.trim();
+                break;
+              }
+            }
+
+            // Sobre - múltiplas estratégias
+            const aboutSelectors = [
+              '#about ~ .pvs-list__container .pvs-entity span[aria-hidden="true"]',
+              '[data-generated-suggestion-target="about"] ~ .pvs-list__container .pvs-entity span[aria-hidden="true"]',
+              '.pv-shared-text-with-see-more .visually-hidden',
+              '.pv-shared-text-with-see-more span[aria-hidden="true"]',
+              '.display-flex .t-14',
+              '.about-section .text-body-medium'
+            ];
+            
+            for (const selector of aboutSelectors) {
+              const element = document.querySelector(selector);
+              if (element && element.textContent.trim()) {
+                data.about = element.textContent.trim();
+                break;
+              }
+            }
+
+            // Experiência - múltiplas estratégias
+            const experienceSelectors = [
+              '#experience ~ .pvs-list__container .pvs-entity',
+              '#experience ~ * .pvs-entity',
+              '.experience-section .pvs-entity',
+              '[data-section="experience"] .pvs-entity'
+            ];
+            
+            for (const selector of experienceSelectors) {
+              const items = document.querySelectorAll(selector);
+              if (items.length > 0) {
+                items.forEach(item => {
+                  const company = item.querySelector('.t-14.t-normal span[aria-hidden="true"]')?.textContent?.trim() || 
+                                item.querySelector('.company-name')?.textContent?.trim() || '';
+                  const title = item.querySelector('.t-14.t-bold span[aria-hidden="true"]')?.textContent?.trim() || 
+                               item.querySelector('.job-title')?.textContent?.trim() || '';
+                  const duration = item.querySelector('.t-12.t-normal.t-black--light span[aria-hidden="true"]')?.textContent?.trim() || 
+                                  item.querySelector('.job-duration')?.textContent?.trim() || '';
+                  
+                  if (company || title) {
+                    data.experience.push({
+                      title: title,
+                      company: company,
+                      duration: duration
+                    });
+                  }
+                });
+                break;
+              }
+            }
+
+            // Educação - múltiplas estratégias
+            const educationSelectors = [
+              '#education ~ .pvs-list__container .pvs-entity',
+              '#education ~ * .pvs-entity',
+              '.education-section .pvs-entity',
+              '[data-section="education"] .pvs-entity'
+            ];
+            
+            for (const selector of educationSelectors) {
+              const items = document.querySelectorAll(selector);
+              if (items.length > 0) {
+                items.forEach(item => {
+                  const school = item.querySelector('.t-14.t-normal span[aria-hidden="true"]')?.textContent?.trim() || 
+                               item.querySelector('.school-name')?.textContent?.trim() || '';
+                  const degree = item.querySelector('.t-14.t-bold span[aria-hidden="true"]')?.textContent?.trim() || 
+                                item.querySelector('.degree-name')?.textContent?.trim() || '';
+                  const years = item.querySelector('.t-12.t-normal.t-black--light span[aria-hidden="true"]')?.textContent?.trim() || 
+                               item.querySelector('.education-years')?.textContent?.trim() || '';
+                  
+                  if (school || degree) {
+                    data.education.push({
+                      degree: degree,
+                      school: school,
+                      years: years
+                    });
+                  }
+                });
+                break;
+              }
+            }
+
+            // Skills - múltiplas estratégias
+            const skillsSelectors = [
+              '#skills ~ .pvs-list__container .pvs-entity span[aria-hidden="true"]',
+              '#skills ~ * .pvs-entity span[aria-hidden="true"]',
+              '.skills-section .pvs-entity span[aria-hidden="true"]',
+              '[data-section="skills"] .pvs-entity span[aria-hidden="true"]',
+              '.skill-item',
+              '.endorsed-skill'
+            ];
+            
+            for (const selector of skillsSelectors) {
+              const skills = document.querySelectorAll(selector);
+              if (skills.length > 0) {
+                skills.forEach(skill => {
+                  const skillName = skill.textContent?.trim();
+                  if (skillName && !data.skills.includes(skillName) && skillName.length < 50) {
+                    data.skills.push(skillName);
+                  }
+                });
+                break;
+              }
+            }
+
+            data.profile = {
+              name: data.name,
+              headline: data.headline,
+              location: data.location,
+              connections: data.connections,
+              profileUrl: window.location.href
+            };
+
+          } catch (error) {
+            console.error('Error extracting profile data:', error);
+          }
+
+          return data;
+        });
 
       const rawText = await page.evaluate(() => document.body.innerText);
       

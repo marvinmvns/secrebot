@@ -556,6 +556,8 @@ class WhatsAppBot {
       'profissional': 'submenu_profissional',
       'linkedin': 'submenu_profissional',
       'perfil': 'submenu_profissional',
+      'analisar': 'submenu_profissional',
+      'analise': 'submenu_profissional',
       'config': 'submenu_config',
       'configuracao': 'submenu_config',
       'configurar': 'submenu_config',
@@ -1619,24 +1621,331 @@ async handleRecursoCommand(contactId) {
 
   async handleLinkedinCommand(contactId, text) {
     const arg = text.substring(COMMANDS.LINKEDIN.length).trim();
+    
+    // Comando para configurar login
     if (arg.toLowerCase() === 'login') {
       this.awaitingLinkedinCreds.set(contactId, true);
-      await this.sendResponse(contactId, '🔑 Envie usuario e senha separados por ":"');
+      await this.sendResponse(contactId, `🔑 *Configuração do LinkedIn*
+
+Para analisar perfis do LinkedIn, preciso das suas credenciais.
+
+📝 *Envie no formato:*
+usuario@email.com:senha
+
+⚠️ *Importante:*
+• Use ":" para separar email e senha
+• Suas credenciais ficam salvas apenas no seu dispositivo
+• Para remover credenciais, use: ${COMMANDS.LINKEDIN} logout`);
       return;
     }
+    
+    // Comando para remover login
+    if (arg.toLowerCase() === 'logout') {
+      this.linkedinSessions.delete(contactId);
+      await this.sendResponse(contactId, '✅ Credenciais do LinkedIn removidas!');
+      return;
+    }
+    
+    // Comando para testar conexão
+    if (arg.toLowerCase() === 'test') {
+      await this.testLinkedInConnection(contactId);
+      return;
+    }
+    
+    // Se não tem argumento, ativar modo LinkedIn
     if (!arg) {
+      this.setMode(contactId, CHAT_MODES.LINKEDIN);
       await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.LINKEDIN]);
       return;
     }
-    const liAt = this.linkedinSessions.get(contactId) || CONFIG.linkedin.liAt;
-    if (!liAt) {
-      this.awaitingLinkedinCreds.set(contactId, true);
-      await this.sendResponse(contactId, '🔑 Nenhum login encontrado. Envie usuario e senha separados por ":"');
+    
+    // Validar se é uma URL do LinkedIn
+    if (!this.isValidLinkedInUrl(arg)) {
+      await this.sendResponse(contactId, `❌ *URL inválida!*
+
+Por favor, envie uma URL válida do LinkedIn no formato:
+https://www.linkedin.com/in/nome-do-perfil
+
+💡 *Exemplos válidos:*
+• https://www.linkedin.com/in/username
+• https://linkedin.com/in/username`);
       return;
     }
-    await this.sendResponse(contactId, '💼 Analisando perfil...', true);
-    const response = await this.llmService.getAssistantResponseLinkedin(contactId, arg, liAt);
-    await this.sendResponse(contactId, response);
+    
+    // Buscar credenciais
+    let liAt = this.linkedinSessions.get(contactId) || CONFIG.linkedin.liAt;
+    let hasCredentials = false;
+    
+    // Tentar buscar do MongoDB se não tem na sessão
+    if (!liAt) {
+      try {
+        const { configService } = await import('../services/configService.js');
+        const savedConfig = await configService.getConfig();
+        if (savedConfig?.linkedin?.liAt) {
+          liAt = savedConfig.linkedin.liAt;
+          hasCredentials = true;
+          logger.info('✅ Credenciais encontradas no MongoDB para WhatsApp');
+        }
+      } catch (error) {
+        logger.warn('⚠️ Erro ao buscar credenciais do MongoDB:', error.message);
+      }
+    } else {
+      hasCredentials = true;
+    }
+    
+    if (!hasCredentials) {
+      this.awaitingLinkedinCreds.set(contactId, true);
+      await this.sendResponse(contactId, `🔑 *Credenciais não configuradas!*
+
+Para analisar perfis do LinkedIn, preciso das suas credenciais.
+
+📝 *Configure enviando:*
+${COMMANDS.LINKEDIN} login
+
+Ou envie diretamente:
+usuario@email.com:senha`);
+      return;
+    }
+    
+    // Realizar análise resiliente
+    await this.analyzeLinkedInProfileResilient(contactId, arg, liAt);
+  }
+
+  /**
+   * Analisa um perfil do LinkedIn de forma resiliente via WhatsApp
+   */
+  async analyzeLinkedInProfileResilient(contactId, url, liAt) {
+    try {
+      await this.sendResponse(contactId, '🔍 *Iniciando análise do LinkedIn...*', true);
+      
+      // Primeira tentativa: análise estruturada
+      const { fetchProfileStructured } = await import('../services/linkedinScraper.js');
+      const result = await fetchProfileStructured(url, {
+        liAt,
+        timeoutMs: CONFIG.linkedin.timeoutMs,
+        retries: 3
+      });
+      
+      if (!result.success) {
+        await this.sendResponse(contactId, '⚠️ *Análise estruturada falhou, tentando método alternativo...*', true);
+        
+        // Segunda tentativa: análise básica
+        const { fetchProfileRaw } = await import('../services/linkedinScraper.js');
+        const rawResult = await fetchProfileRaw(url, {
+          liAt,
+          timeoutMs: CONFIG.linkedin.timeoutMs
+        });
+        
+        if (!rawResult.success) {
+          throw new Error(`Falha na análise: ${rawResult.error}`);
+        }
+        
+        // Processar texto bruto com LLM
+        const response = await this.processRawLinkedInData(rawResult.rawText, url);
+        await this.sendResponse(contactId, response);
+        return;
+      }
+      
+             // Processar dados estruturados
+       const response = await this.processStructuredLinkedInData(result.data, result.dataQuality, contactId);
+       await this.sendResponse(contactId, response);
+      
+    } catch (error) {
+      logger.error('❌ Erro na análise LinkedIn WhatsApp:', error);
+      
+      let errorMessage = '❌ *Erro ao analisar perfil do LinkedIn*';
+      
+      if (error.message.includes('timeout')) {
+        errorMessage += '\n\n⏱️ *Timeout:* O perfil demorou muito para carregar.';
+      } else if (error.message.includes('login')) {
+        errorMessage += '\n\n🔑 *Erro de login:* Suas credenciais podem estar inválidas.';
+        errorMessage += `\n\nUse: ${COMMANDS.LINKEDIN} login`;
+      } else if (error.message.includes('not found')) {
+        errorMessage += '\n\n🔍 *Perfil não encontrado:* Verifique se a URL está correta.';
+      } else {
+        errorMessage += `\n\n💡 *Dica:* Tente novamente em alguns minutos.`;
+      }
+      
+      errorMessage += `\n\n🔙 Para voltar: ${COMMANDS.VOLTAR}`;
+      
+      await this.sendResponse(contactId, errorMessage);
+    }
+  }
+
+  /**
+   * Processa dados estruturados do LinkedIn para WhatsApp
+   */
+  async processStructuredLinkedInData(data, quality, contactId) {
+    let analysis = `🔗 *ANÁLISE DETALHADA DO PERFIL LINKEDIN*\n\n`;
+    
+    // Informações básicas
+    if (data.name) {
+      analysis += `👤 *Nome:* ${data.name}\n`;
+    }
+    
+    if (data.headline) {
+      analysis += `💼 *Cargo:* ${data.headline}\n`;
+    }
+    
+    if (data.location) {
+      analysis += `📍 *Localização:* ${data.location}\n`;
+    }
+    
+    if (data.connections) {
+      analysis += `🔗 *Conexões:* ${data.connections}\n`;
+    }
+    
+    analysis += `\n📊 *Qualidade dos Dados:* ${quality.percentage}% (${quality.score}/${quality.maxScore} campos)\n\n`;
+    
+    // Sobre
+    if (data.about) {
+      analysis += `📝 *SOBRE:*\n${data.about}\n\n`;
+    }
+    
+    // Experiência profissional
+    if (data.experience && data.experience.length > 0) {
+      analysis += `💼 *EXPERIÊNCIA PROFISSIONAL:*\n`;
+      data.experience.slice(0, 8).forEach((exp, index) => {
+        analysis += `${index + 1}. *${exp.title || 'Cargo não especificado'}*\n`;
+        analysis += `   🏢 ${exp.company || 'Empresa não especificada'}\n`;
+        if (exp.duration) {
+          analysis += `   ⏰ ${exp.duration}\n`;
+        }
+        analysis += '\n';
+      });
+    }
+    
+    // Educação
+    if (data.education && data.education.length > 0) {
+      analysis += `🎓 *EDUCAÇÃO:*\n`;
+      data.education.slice(0, 5).forEach((edu, index) => {
+        analysis += `${index + 1}. *${edu.degree || 'Curso não especificado'}*\n`;
+        analysis += `   🏫 ${edu.school || 'Instituição não especificada'}\n`;
+        if (edu.years) {
+          analysis += `   📅 ${edu.years}\n`;
+        }
+        analysis += '\n';
+      });
+    }
+    
+    // Skills
+    if (data.skills && data.skills.length > 0) {
+      analysis += `🛠️ *PRINCIPAIS HABILIDADES:*\n`;
+      const topSkills = data.skills.slice(0, 15);
+      analysis += topSkills.join(' • ') + '\n\n';
+    }
+    
+    // Resumo profissional gerado por IA
+    try {
+      const summary = await this.llmService.getAssistantResponse(contactId, 
+        `Com base nos dados extraídos do LinkedIn, crie um resumo profissional conciso e bem estruturado:\n\n${analysis}`
+      );
+      
+      analysis += `🤖 *RESUMO PROFISSIONAL:*\n${summary}\n\n`;
+    } catch (error) {
+      logger.warn('⚠️ Erro ao gerar resumo com IA:', error.message);
+    }
+    
+    analysis += `\n⏰ *Análise realizada em:* ${new Date().toLocaleString('pt-BR')}`;
+    
+    return analysis;
+  }
+
+  /**
+   * Processa dados brutos do LinkedIn para WhatsApp
+   */
+  async processRawLinkedInData(rawText, url) {
+    try {
+      // Limpar e estruturar o texto
+      const cleanedText = rawText
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 6000); // Limitar tamanho para WhatsApp
+      
+      const prompt = `Analise o seguinte texto extraído de um perfil do LinkedIn e crie um resumo profissional estruturado:
+
+${cleanedText}
+
+URL do perfil: ${url}
+
+Crie um resumo que inclua:
+- Nome e cargo
+- Localização
+- Experiência profissional (se encontrada)
+- Educação (se encontrada)
+- Skills/habilidades (se encontradas)
+- Resumo profissional
+
+Use emojis e formatação clara para facilitar a leitura.`;
+
+      // Usar um contactId temporário para o LLM
+      const tempContactId = 'linkedin-analysis';
+      return await this.llmService.getAssistantResponse(tempContactId, prompt);
+      
+    } catch (error) {
+      logger.error('❌ Erro ao processar dados brutos:', error);
+      return `❌ Erro ao processar dados do perfil: ${error.message}`;
+    }
+  }
+
+  /**
+   * Testa conexão com LinkedIn
+   */
+  async testLinkedInConnection(contactId) {
+    try {
+      await this.sendResponse(contactId, '🔍 *Testando conexão com LinkedIn...*', true);
+      
+      const liAt = this.linkedinSessions.get(contactId) || CONFIG.linkedin.liAt;
+      
+      if (!liAt) {
+        await this.sendResponse(contactId, '❌ *Credenciais não configuradas!*\n\nUse: !linkedin login');
+        return;
+      }
+      
+      // Testar com um perfil público conhecido
+      const testUrl = 'https://www.linkedin.com/in/williamhgates/';
+      const { fetchProfileStructured } = await import('../services/linkedinScraper.js');
+      
+      const result = await fetchProfileStructured(testUrl, {
+        liAt,
+        timeoutMs: 15000,
+        retries: 1
+      });
+      
+      if (result.success) {
+        await this.sendResponse(contactId, `✅ *Conexão com LinkedIn funcionando!*
+
+📊 *Qualidade dos dados:* ${result.dataQuality.percentage}%
+🎯 *Status:* Conectado e operacional
+
+💡 *Dica:* Agora você pode analisar qualquer perfil público do LinkedIn.`);
+      } else {
+        await this.sendResponse(contactId, `❌ *Falha na conexão*
+
+🔍 *Erro:* ${result.error || 'Falha ao acessar perfil de teste'}
+
+💡 *Soluções:*
+• Verifique suas credenciais: !linkedin login
+• Tente novamente em alguns minutos
+• Verifique se o LinkedIn não está bloqueado`);
+      }
+      
+    } catch (error) {
+      logger.error('❌ Erro ao testar LinkedIn:', error);
+      await this.sendResponse(contactId, `❌ *Erro ao testar conexão*
+
+🔍 *Erro:* ${error.message}
+
+💡 *Tente:* !linkedin login`);
+    }
+  }
+
+  /**
+   * Valida se a URL é do LinkedIn
+   */
+  isValidLinkedInUrl(url) {
+    const linkedinRegex = /^(https?:\/\/)?(www\.)?linkedin\.com\/in\/.+/;
+    return linkedinRegex.test(url);
   }
 
   async handleListarCommand(contactId) {
@@ -1712,18 +2021,41 @@ async handleRecursoCommand(contactId) {
     const commandPrompt = PROMPTS.audioCommandMapping(transcription);
     let mappedCommand = 'INVALIDO';
     
-    try {
-      const response = await ollamaClient.chat({
-          model: CONFIG.llm.model,
-          messages: [{ role: 'user', content: commandPrompt }],
-          options: { temperature: 0.2 }
-      });
-      mappedCommand = response.message.content.trim();
-      logger.api(`🤖 LLM mapeou áudio para: ${mappedCommand}`);
-    } catch (error) {
-      logger.error('❌ Erro ao mapear comando de áudio via LLM:', error);
-      // Fallback: tentar navegação por submenu diretamente
-      logger.flow('🔄 Tentando fallback para navegação por submenu');
+    // Mapeamento direto para comandos comuns
+    const directMapping = {
+      'linkedin': COMMANDS.LINKEDIN,
+      'analisar linkedin': COMMANDS.LINKEDIN,
+      'perfil linkedin': COMMANDS.LINKEDIN,
+      'analisar perfil': COMMANDS.LINKEDIN,
+      'linkedin login': `${COMMANDS.LINKEDIN} login`,
+      'linkedin test': `${COMMANDS.LINKEDIN} test`,
+      'testar linkedin': `${COMMANDS.LINKEDIN} test`
+    };
+    
+    const lowerTranscription = transcription.toLowerCase();
+    for (const [keyword, command] of Object.entries(directMapping)) {
+      if (lowerTranscription.includes(keyword)) {
+        mappedCommand = command;
+        logger.api(`🎯 Mapeamento direto de áudio para: ${mappedCommand}`);
+        break;
+      }
+    }
+    
+    // Se não encontrou mapeamento direto, usar LLM
+    if (mappedCommand === 'INVALIDO') {
+      try {
+        const response = await ollamaClient.chat({
+            model: CONFIG.llm.model,
+            messages: [{ role: 'user', content: commandPrompt }],
+            options: { temperature: 0.2 }
+        });
+        mappedCommand = response.message.content.trim();
+        logger.api(`🤖 LLM mapeou áudio para: ${mappedCommand}`);
+      } catch (error) {
+        logger.error('❌ Erro ao mapear comando de áudio via LLM:', error);
+        // Fallback: tentar navegação por submenu diretamente
+        logger.flow('🔄 Tentando fallback para navegação por submenu');
+      }
     }
     
     if (mappedCommand !== 'INVALIDO' && Object.values(COMMANDS).includes(mappedCommand)) {
@@ -1792,15 +2124,56 @@ ${currentMenuText}`);
         await this.sendResponse(contactId, ERROR_MESSAGES.AUDIO_REQUIRED);
         break;
       case CHAT_MODES.LINKEDIN:
-        const liAtCookie = this.linkedinSessions.get(contactId) || CONFIG.linkedin.liAt;
-        if (!liAtCookie) {
-          this.awaitingLinkedinCreds.set(contactId, true);
-          await this.sendResponse(contactId, '🔑 Nenhum login encontrado. Envie usuario e senha separados por ":"');
+        // Validar se é uma URL do LinkedIn
+        if (!this.isValidLinkedInUrl(text)) {
+          await this.sendResponse(contactId, `❌ *URL inválida!*
+
+Por favor, envie uma URL válida do LinkedIn no formato:
+https://www.linkedin.com/in/nome-do-perfil
+
+💡 *Exemplos válidos:*
+• https://www.linkedin.com/in/username
+• https://linkedin.com/in/username
+
+🔙 Para sair do modo: ${COMMANDS.VOLTAR}`);
           break;
         }
-        await this.sendResponse(contactId, '💼 Analisando perfil...', true);
-        const linkedinResponse = await this.llmService.getAssistantResponseLinkedin(contactId, `Analisar perfil: ${text}`, liAtCookie);
-        await this.sendResponse(contactId, linkedinResponse);
+        
+        // Buscar credenciais
+        let liAt = this.linkedinSessions.get(contactId) || CONFIG.linkedin.liAt;
+        let hasCredentials = false;
+        
+        // Tentar buscar do MongoDB se não tem na sessão
+        if (!liAt) {
+          try {
+            const { configService } = await import('../services/configService.js');
+            const savedConfig = await configService.getConfig();
+            if (savedConfig?.linkedin?.liAt) {
+              liAt = savedConfig.linkedin.liAt;
+              hasCredentials = true;
+            }
+          } catch (error) {
+            logger.warn('⚠️ Erro ao buscar credenciais do MongoDB:', error.message);
+          }
+        } else {
+          hasCredentials = true;
+        }
+        
+        if (!hasCredentials) {
+          this.awaitingLinkedinCreds.set(contactId, true);
+          await this.sendResponse(contactId, `🔑 *Credenciais não configuradas!*
+
+Para analisar perfis do LinkedIn, preciso das suas credenciais.
+
+📝 *Configure enviando:*
+usuario@email.com:senha
+
+🔙 Para sair do modo: ${COMMANDS.VOLTAR}`);
+          break;
+        }
+        
+        // Realizar análise resiliente
+        await this.analyzeLinkedInProfileResilient(contactId, text, liAt);
         this.setMode(contactId, null);
         break;
       case CHAT_MODES.DELETAR:

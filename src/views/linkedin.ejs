@@ -1,12 +1,250 @@
-<h2>Análise de Perfil LinkedIn</h2>
-<form action="/linkedin" method="POST">
-  <div class="mb-3">
-    <input type="text" name="url" class="form-control" placeholder="URL do perfil" value="<%= url %>" required>
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h3><i class="fab fa-linkedin me-2"></i>Análise de Perfil LinkedIn</h3>
+          <p class="mb-0">Analise perfis do LinkedIn de forma detalhada e resiliente</p>
+        </div>
+        <div class="card-body">
+          
+          <!-- Status de Login -->
+          <div class="alert alert-info" id="loginStatus">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Status:</strong> 
+            <span id="statusText">Verificando credenciais...</span>
+          </div>
+
+          <!-- Formulário de Análise -->
+          <form id="linkedinForm" action="/linkedin" method="POST">
+            <div class="row">
+              <div class="col-md-8">
+                <div class="mb-3">
+                  <label for="profileUrl" class="form-label">
+                    <i class="fas fa-link me-1"></i>URL do Perfil LinkedIn
+                  </label>
+                  <input 
+                    type="url" 
+                    id="profileUrl"
+                    name="url" 
+                    class="form-control" 
+                    placeholder="https://www.linkedin.com/in/nome-do-perfil" 
+                    value="<%= url %>" 
+                    required
+                    pattern="https?://.*linkedin\.com/in/.*"
+                  >
+                  <div class="form-text">
+                    <i class="fas fa-lightbulb me-1"></i>
+                    Cole aqui o link completo do perfil do LinkedIn
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-md-4">
+                <div class="mb-3">
+                  <label class="form-label">
+                    <i class="fas fa-cog me-1"></i>Opções de Análise
+                  </label>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="detailedAnalysis" name="detailed" checked>
+                    <label class="form-check-label" for="detailedAnalysis">
+                      Análise Detalhada
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="includeSkills" name="skills" checked>
+                    <label class="form-check-label" for="includeSkills">
+                      Incluir Skills
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="includeEducation" name="education" checked>
+                    <label class="form-check-label" for="includeEducation">
+                      Incluir Educação
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Credenciais (se necessário) -->
+            <div id="credentialsSection" class="mb-3" style="display: none;">
+              <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>Login Necessário:</strong> Para acessar este perfil, precisamos das suas credenciais do LinkedIn.
+              </div>
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <label for="linkedinEmail" class="form-label">
+                      <i class="fas fa-envelope me-1"></i>Email do LinkedIn
+                    </label>
+                    <input type="email" id="linkedinEmail" name="linkedinEmail" class="form-control" placeholder="seu@email.com">
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <label for="linkedinPassword" class="form-label">
+                      <i class="fas fa-lock me-1"></i>Senha do LinkedIn
+                    </label>
+                    <input type="password" id="linkedinPassword" name="linkedinPassword" class="form-control" placeholder="Sua senha">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Botões de Ação -->
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary" id="analyzeBtn">
+                <i class="fas fa-search me-1"></i>
+                <span id="analyzeText">Analisar Perfil</span>
+                <div class="spinner-border spinner-border-sm ms-2" id="analyzeSpinner" style="display: none;"></div>
+              </button>
+              
+              <button type="button" class="btn btn-outline-secondary" onclick="testLinkedInConnection()">
+                <i class="fas fa-vial me-1"></i>Testar Conexão
+              </button>
+              
+              <button type="button" class="btn btn-outline-info" onclick="clearForm()">
+                <i class="fas fa-eraser me-1"></i>Limpar
+              </button>
+            </div>
+          </form>
+
+          <!-- Resultado da Análise -->
+          <% if (result) { %>
+            <div class="mt-4">
+              <div class="card">
+                <div class="card-header bg-success text-white">
+                  <h5><i class="fas fa-chart-line me-2"></i>Resultado da Análise</h5>
+                </div>
+                <div class="card-body">
+                  <div class="result-content">
+                    <pre class="result"><%= result %></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% } %>
+
+          <!-- Histórico de Análises -->
+          <div class="mt-4" id="historySection" style="display: none;">
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-history me-2"></i>Histórico de Análises</h5>
+              </div>
+              <div class="card-body">
+                <div id="analysisHistory"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
   </div>
-  <button type="submit" class="btn btn-primary">Enviar</button>
-</form>
-<% if (result) { %>
-  <h3 class="mt-4">Resultado</h3>
-  <pre class="result"><%= result %></pre>
-<% } %>
+</div>
+
+<script>
+// Verificar status de login ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+  checkLinkedInStatus();
+});
+
+async function checkLinkedInStatus() {
+  try {
+    const response = await fetch('/api/linkedin/status');
+    const data = await response.json();
+    
+    const statusText = document.getElementById('statusText');
+    const loginStatus = document.getElementById('loginStatus');
+    const credentialsSection = document.getElementById('credentialsSection');
+    
+    if (data.hasCredentials) {
+      statusText.textContent = '✅ Credenciais configuradas';
+      loginStatus.className = 'alert alert-success';
+      credentialsSection.style.display = 'none';
+    } else {
+      statusText.textContent = '⚠️ Credenciais não configuradas';
+      loginStatus.className = 'alert alert-warning';
+      credentialsSection.style.display = 'block';
+    }
+  } catch (error) {
+    console.error('Erro ao verificar status:', error);
+    document.getElementById('statusText').textContent = '❌ Erro ao verificar status';
+    document.getElementById('loginStatus').className = 'alert alert-danger';
+  }
+}
+
+async function testLinkedInConnection() {
+  const testBtn = event.target;
+  const originalText = testBtn.innerHTML;
+  
+  testBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Testando...';
+  testBtn.disabled = true;
+  
+  try {
+    const response = await fetch('/api/linkedin/test', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      showAlert('success', '✅ Conexão com LinkedIn funcionando!');
+    } else {
+      showAlert('danger', '❌ Erro na conexão: ' + data.error);
+    }
+  } catch (error) {
+    showAlert('danger', '❌ Erro ao testar conexão: ' + error.message);
+  } finally {
+    testBtn.innerHTML = originalText;
+    testBtn.disabled = false;
+  }
+}
+
+function clearForm() {
+  document.getElementById('linkedinForm').reset();
+  const resultSection = document.querySelector('.result-content');
+  if (resultSection) {
+    resultSection.remove();
+  }
+}
+
+function showAlert(type, message) {
+  const alertDiv = document.createElement('div');
+  alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+  alertDiv.innerHTML = `
+    ${message}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  `;
+  
+  document.querySelector('.card-body').insertBefore(alertDiv, document.querySelector('.card-body').firstChild);
+  
+  setTimeout(() => {
+    alertDiv.remove();
+  }, 5000);
+}
+
+// Melhorar o formulário de envio
+document.getElementById('linkedinForm').addEventListener('submit', function(e) {
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const analyzeText = document.getElementById('analyzeText');
+  const analyzeSpinner = document.getElementById('analyzeSpinner');
+  
+  analyzeText.style.display = 'none';
+  analyzeSpinner.style.display = 'inline-block';
+  analyzeBtn.disabled = true;
+  
+  // Reativar após 30 segundos (timeout)
+  setTimeout(() => {
+    analyzeText.style.display = 'inline';
+    analyzeSpinner.style.display = 'none';
+    analyzeBtn.disabled = false;
+  }, 30000);
+});
+</script>
 

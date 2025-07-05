@@ -73,6 +73,7 @@ class RestAPI {
 
   setupRoutes() {
     logger.info('🔧 Configurando rotas da API...');
+    console.log('🔧 CONSOLE: Configurando rotas da API...');
     
     // ===== CONFIG ROUTES (PRIMEIRO) =====
     logger.info('🔧 REGISTRANDO ROTA POST /config...');
@@ -439,20 +440,160 @@ class RestAPI {
       }
     });
 
+    // ===== LINKEDIN ROUTES =====
     this.app.get('/linkedin', (req, res) => {
       res.render('linkedin', { result: null, url: '' });
     });
 
     this.app.post('/linkedin', async (req, res) => {
       const url = req.body.url || '';
-      if (!url.trim()) return res.render('linkedin', { result: 'URL inválida.', url });
+      const detailed = req.body.detailed === 'on';
+      const includeSkills = req.body.skills === 'on';
+      const includeEducation = req.body.education === 'on';
+      const linkedinEmail = req.body.linkedinEmail;
+      const linkedinPassword = req.body.linkedinPassword;
+      
+      if (!url.trim()) {
+        return res.render('linkedin', { result: '❌ URL inválida.', url });
+      }
+      
       try {
-        const liAt = CONFIG.linkedin.liAt;
-        const response = await this.bot.llmService.getAssistantResponseLinkedin('web', url, liAt);
+        logger.info('🔗 Iniciando análise LinkedIn:', { url, detailed, includeSkills, includeEducation });
+        
+        // Buscar credenciais do MongoDB
+        let liAt = CONFIG.linkedin.liAt;
+        let hasCredentials = false;
+        
+        try {
+          const savedConfig = await this.configService.getConfig();
+          if (savedConfig?.linkedin?.liAt) {
+            liAt = savedConfig.linkedin.liAt;
+            hasCredentials = true;
+            logger.info('✅ Credenciais encontradas no MongoDB');
+          }
+        } catch (error) {
+          logger.warn('⚠️ Erro ao buscar credenciais do MongoDB:', error.message);
+        }
+        
+        // Se não tem credenciais e foram fornecidas, tentar login
+        if (!hasCredentials && linkedinEmail && linkedinPassword) {
+          logger.info('🔑 Tentando login com credenciais fornecidas...');
+          const { loginAndGetLiAt } = await import('../services/linkedinScraper.js');
+          const newLiAt = await loginAndGetLiAt(linkedinEmail, linkedinPassword, CONFIG.linkedin.timeoutMs);
+          
+          if (newLiAt) {
+            liAt = newLiAt;
+            hasCredentials = true;
+            logger.info('✅ Login realizado com sucesso');
+            
+            // Salvar no MongoDB
+            try {
+              const savedConfig = await this.configService.getConfig();
+              if (!savedConfig.linkedin) savedConfig.linkedin = {};
+              savedConfig.linkedin.liAt = newLiAt;
+              savedConfig.linkedin.user = linkedinEmail;
+              await this.configService.setConfig(savedConfig);
+              logger.info('💾 Credenciais salvas no MongoDB');
+            } catch (error) {
+              logger.warn('⚠️ Erro ao salvar credenciais:', error.message);
+            }
+          } else {
+            logger.error('❌ Falha no login do LinkedIn');
+            return res.render('linkedin', { 
+              result: '❌ Falha no login do LinkedIn. Verifique suas credenciais.', 
+              url 
+            });
+          }
+        }
+        
+        if (!hasCredentials) {
+          return res.render('linkedin', { 
+            result: '❌ Credenciais do LinkedIn não configuradas. Configure-as na seção de configurações ou forneça-as no formulário.', 
+            url 
+          });
+        }
+        
+        // Realizar análise com retry e resiliência
+        const response = await this.analyzeLinkedInProfile(url, liAt, {
+          detailed,
+          includeSkills,
+          includeEducation
+        });
+        
         res.render('linkedin', { result: response, url });
+        
       } catch (err) {
-        logger.error('Erro em /linkedin', err);
-        res.render('linkedin', { result: 'Erro ao analisar perfil.', url });
+        logger.error('❌ Erro em /linkedin:', err);
+        res.render('linkedin', { 
+          result: `❌ Erro ao analisar perfil: ${err.message}`, 
+          url 
+        });
+      }
+    });
+
+    // API para verificar status das credenciais
+    this.app.get('/api/linkedin/status', async (req, res) => {
+      try {
+        const savedConfig = await this.configService.getConfig();
+        const hasCredentials = !!(savedConfig?.linkedin?.liAt || CONFIG.linkedin.liAt);
+        
+        res.json({
+          success: true,
+          hasCredentials,
+          hasUser: !!(savedConfig?.linkedin?.user || CONFIG.linkedin.user)
+        });
+      } catch (error) {
+        logger.error('❌ Erro ao verificar status LinkedIn:', error);
+        res.json({
+          success: false,
+          hasCredentials: false,
+          error: error.message
+        });
+      }
+    });
+
+    // API para testar conexão com LinkedIn
+    this.app.post('/api/linkedin/test', async (req, res) => {
+      try {
+        const savedConfig = await this.configService.getConfig();
+        const liAt = savedConfig?.linkedin?.liAt || CONFIG.linkedin.liAt;
+        
+        if (!liAt) {
+          return res.json({
+            success: false,
+            error: 'Credenciais do LinkedIn não configuradas'
+          });
+        }
+        
+        // Testar com um perfil público conhecido
+        const testUrl = 'https://www.linkedin.com/in/williamhgates/';
+        const { fetchProfileStructured } = await import('../services/linkedinScraper.js');
+        
+        const result = await fetchProfileStructured(testUrl, {
+          liAt,
+          timeoutMs: 15000,
+          retries: 1
+        });
+        
+        if (result.success) {
+          res.json({
+            success: true,
+            message: 'Conexão com LinkedIn funcionando',
+            dataQuality: result.dataQuality
+          });
+        } else {
+          res.json({
+            success: false,
+            error: result.error || 'Falha ao acessar perfil de teste'
+          });
+        }
+        
+      } catch (error) {
+        logger.error('❌ Erro ao testar LinkedIn:', error);
+        res.json({
+          success: false,
+          error: error.message
+        });
       }
     });
 
@@ -764,6 +905,7 @@ class RestAPI {
     // Rota de teste para /config
     this.app.post('/config-test', (req, res) => {
       logger.info('🧪 Teste POST /config-test recebido');
+      console.log('🧪 CONSOLE: Teste POST /config-test recebido');
       res.json({ success: true, message: 'POST /config-test funcionando' });
     });
 
@@ -779,6 +921,176 @@ class RestAPI {
     });
     
     logger.info('✅ SETUP ROUTES CONCLUÍDO - Todas as rotas registradas');
+  }
+
+  /**
+   * Analisa um perfil do LinkedIn de forma resiliente
+   * @param {string} url - URL do perfil
+   * @param {string} liAt - Token de autenticação
+   * @param {object} options - Opções de análise
+   * @returns {Promise<string>} - Resumo detalhado do perfil
+   */
+  async analyzeLinkedInProfile(url, liAt, options = {}) {
+    const { detailed = true, includeSkills = true, includeEducation = true } = options;
+    
+    try {
+      logger.info('🔍 Iniciando análise resiliente do LinkedIn:', { url, detailed });
+      
+      // Primeira tentativa: análise estruturada
+      const { fetchProfileStructured } = await import('../services/linkedinScraper.js');
+      const result = await fetchProfileStructured(url, {
+        liAt,
+        timeoutMs: CONFIG.linkedin.timeoutMs,
+        retries: 3
+      });
+      
+      if (!result.success) {
+        logger.warn('⚠️ Análise estruturada falhou, tentando análise básica...');
+        
+        // Segunda tentativa: análise básica
+        const { fetchProfileRaw } = await import('../services/linkedinScraper.js');
+        const rawResult = await fetchProfileRaw(url, {
+          liAt,
+          timeoutMs: CONFIG.linkedin.timeoutMs
+        });
+        
+        if (!rawResult.success) {
+          throw new Error(`Falha na análise: ${rawResult.error}`);
+        }
+        
+        // Processar texto bruto com LLM
+        return await this.processRawLinkedInData(rawResult.rawText, url);
+      }
+      
+      // Processar dados estruturados
+      return await this.processStructuredLinkedInData(result.data, result.dataQuality, {
+        detailed,
+        includeSkills,
+        includeEducation
+      });
+      
+    } catch (error) {
+      logger.error('❌ Erro na análise LinkedIn:', error);
+      throw new Error(`Falha na análise do perfil: ${error.message}`);
+    }
+  }
+
+  /**
+   * Processa dados estruturados do LinkedIn
+   */
+  async processStructuredLinkedInData(data, quality, options) {
+    const { detailed, includeSkills, includeEducation } = options;
+    
+    let analysis = `🔗 **ANÁLISE DETALHADA DO PERFIL LINKEDIN**\n\n`;
+    
+    // Informações básicas
+    if (data.name) {
+      analysis += `👤 **Nome:** ${data.name}\n`;
+    }
+    
+    if (data.headline) {
+      analysis += `💼 **Cargo:** ${data.headline}\n`;
+    }
+    
+    if (data.location) {
+      analysis += `📍 **Localização:** ${data.location}\n`;
+    }
+    
+    if (data.connections) {
+      analysis += `🔗 **Conexões:** ${data.connections}\n`;
+    }
+    
+    analysis += `\n📊 **Qualidade dos Dados:** ${quality.percentage}% (${quality.score}/${quality.maxScore} campos)\n\n`;
+    
+    // Sobre
+    if (data.about && detailed) {
+      analysis += `📝 **SOBRE:**\n${data.about}\n\n`;
+    }
+    
+    // Experiência profissional
+    if (data.experience && data.experience.length > 0) {
+      analysis += `💼 **EXPERIÊNCIA PROFISSIONAL:**\n`;
+      data.experience.slice(0, detailed ? 10 : 5).forEach((exp, index) => {
+        analysis += `${index + 1}. **${exp.title || 'Cargo não especificado'}**\n`;
+        analysis += `   🏢 ${exp.company || 'Empresa não especificada'}\n`;
+        if (exp.duration) {
+          analysis += `   ⏰ ${exp.duration}\n`;
+        }
+        analysis += '\n';
+      });
+    }
+    
+    // Educação
+    if (includeEducation && data.education && data.education.length > 0) {
+      analysis += `🎓 **EDUCAÇÃO:**\n`;
+      data.education.slice(0, detailed ? 5 : 3).forEach((edu, index) => {
+        analysis += `${index + 1}. **${edu.degree || 'Curso não especificado'}**\n`;
+        analysis += `   🏫 ${edu.school || 'Instituição não especificada'}\n`;
+        if (edu.years) {
+          analysis += `   📅 ${edu.years}\n`;
+        }
+        analysis += '\n';
+      });
+    }
+    
+    // Skills
+    if (includeSkills && data.skills && data.skills.length > 0) {
+      analysis += `🛠️ **PRINCIPAIS HABILIDADES:**\n`;
+      const topSkills = data.skills.slice(0, detailed ? 20 : 10);
+      analysis += topSkills.join(' • ') + '\n\n';
+    }
+    
+    // Resumo profissional gerado por IA
+    if (detailed) {
+      try {
+        const summary = await this.bot.llmService.getAssistantResponse('web', 
+          `Com base nos dados extraídos do LinkedIn, crie um resumo profissional conciso e bem estruturado:\n\n${analysis}`
+        );
+        
+        analysis += `🤖 **RESUMO PROFISSIONAL:**\n${summary}\n\n`;
+      } catch (error) {
+        logger.warn('⚠️ Erro ao gerar resumo com IA:', error.message);
+      }
+    }
+    
+    analysis += `\n⏰ **Análise realizada em:** ${new Date().toLocaleString('pt-BR')}`;
+    
+    return analysis;
+  }
+
+  /**
+   * Processa dados brutos do LinkedIn
+   */
+  async processRawLinkedInData(rawText, url) {
+    try {
+      // Limpar e estruturar o texto
+      const cleanedText = rawText
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 8000); // Limitar tamanho
+      
+      const prompt = `Analise o seguinte texto extraído de um perfil do LinkedIn e crie um resumo profissional estruturado:
+
+${cleanedText}
+
+URL do perfil: ${url}
+
+Crie um resumo que inclua:
+- Nome e cargo
+- Localização
+- Experiência profissional (se encontrada)
+- Educação (se encontrada)
+- Skills/habilidades (se encontradas)
+- Resumo profissional
+
+Use emojis e formatação clara para facilitar a leitura.`;
+
+      return await this.bot.llmService.getAssistantResponse('web', prompt);
+      
+    } catch (error) {
+      logger.error('❌ Erro ao processar dados brutos:', error);
+      return `❌ Erro ao processar dados do perfil: ${error.message}`;
+    }
   }
 
   start() {

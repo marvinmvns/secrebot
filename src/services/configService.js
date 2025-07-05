@@ -58,12 +58,30 @@ class ConfigService {
   }
 
   async setConfig(values) {
-    // Garantir que todos os campos estejam presentes antes de salvar
-    const defaults = JSON.parse(JSON.stringify(CONFIG));
-    const mergedValues = JSON.parse(JSON.stringify(defaults));
-    deepMerge(mergedValues, values);
-    
-    await this.collection.updateOne({ _id: 'app' }, { $set: { values: mergedValues } }, { upsert: true });
+    try {
+      console.log('💾 ConfigService.setConfig() chamado');
+      console.log('📋 Valores recebidos:', Object.keys(values));
+      
+      // Garantir que todos os campos estejam presentes antes de salvar
+      const defaults = JSON.parse(JSON.stringify(CONFIG));
+      const mergedValues = JSON.parse(JSON.stringify(defaults));
+      deepMerge(mergedValues, values);
+      
+      console.log('🔄 Valores mesclados:', Object.keys(mergedValues));
+      console.log('💾 Salvando no MongoDB...');
+      
+      const result = await this.collection.updateOne(
+        { _id: 'app' }, 
+        { $set: { values: mergedValues } }, 
+        { upsert: true }
+      );
+      
+      console.log('✅ Salvamento no MongoDB concluído:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Erro no ConfigService.setConfig():', error);
+      throw error;
+    }
   }
 
   applyToRuntime(values) {

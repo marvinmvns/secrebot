@@ -418,17 +418,81 @@ class RestAPI {
       try {
         const result = await this.analyzeLinkedInProfile(url, analysisType);
         const credentialStatus = await this.getCredentialStatus();
-        res.render('linkedin', { analysis: result, url, analysisType, credentialStatus });
+        res.render('linkedin', { analysis: result, url, analysisType, credentialStatus, error: null, requestNewLogin: false });
       } catch (error) {
         logger.error(`❌ Erro na análise do LinkedIn para ${url}:`, error);
+        
         const credentialStatus = await this.getCredentialStatus();
+        const errorMessage = error.message || 'Ocorreu um erro desconhecido.';
+        
+        // Verifica se o erro indica a necessidade de um novo login
+        const needsLogin = errorMessage.includes('Sessão inválida') || 
+                           errorMessage.includes('re-autenticação automática falhou');
+
         res.render('linkedin', { 
-          error: `Falha na análise: ${error.message}`, 
+          error: errorMessage, 
           url, 
           analysisType,
-          credentialStatus 
+          credentialStatus,
+          analysis: null,
+          requestNewLogin: needsLogin 
         });
       }
+    });
+
+    this.app.post('/linkedin/re-login-and-analyze', async (req, res) => {
+        const { url, analysisType, linkedinEmail, linkedinPassword } = req.body;
+        
+        const renderError = async (message) => {
+            res.render('linkedin', {
+                error: message,
+                url,
+                analysisType,
+                credentialStatus: await this.getCredentialStatus(),
+                analysis: null,
+                requestNewLogin: true
+            });
+        };
+
+        if (!linkedinEmail || !linkedinPassword) {
+            return await renderError('Email e senha são obrigatórios para tentar o login.');
+        }
+        
+        try {
+            // 1. Tenta o login com as credenciais fornecidas
+            const { loginAndGetLiAt } = await import('../services/linkedinScraper.js');
+            const newLiAt = await loginAndGetLiAt(linkedinEmail, linkedinPassword);
+            
+            // 2. Salva o novo cookie e as credenciais
+            logger.info('✅ Login manual via UI bem-sucedido. Salvando novas credenciais...');
+            const newConfig = { 
+                linkedin: { 
+                    liAt: newLiAt,
+                    user: linkedinEmail,
+                    pass: linkedinPassword // Salva a senha para futuras re-autenticações
+                } 
+            };
+            await this.configService.setConfig(newConfig);
+            Object.assign(CONFIG.linkedin, newConfig.linkedin); // Atualiza a configuração em tempo de execução
+
+            // 3. Tenta a análise novamente com o novo cookie
+            logger.info(`🔁 Tentando a análise para ${url} com o novo cookie...`);
+            const result = await this.analyzeLinkedInProfile(url, analysisType);
+
+            // 4. Renderiza o resultado
+            res.render('linkedin', {
+                analysis: result,
+                url,
+                analysisType,
+                credentialStatus: await this.getCredentialStatus(),
+                error: null,
+                requestNewLogin: false
+            });
+
+        } catch (error) {
+            logger.error(`❌ Falha no fluxo de re-login para ${url}:`, error);
+            await renderError(`A tentativa de login falhou: ${error.message}. Verifique suas credenciais.`);
+        }
     });
 
     // API para verificar status das credenciais

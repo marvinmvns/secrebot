@@ -599,6 +599,7 @@ class RestAPI {
     this.app.post('/config', async (req, res, next) => {
       try {
         logger.info('📝 Recebendo requisição POST /config');
+        logger.info('📋 Body recebido:', Object.keys(req.body));
         
         // Verificar se configService está disponível
         if (!this.configService) {
@@ -606,8 +607,10 @@ class RestAPI {
           return res.redirect('/config?error=ConfigService não disponível');
         }
         
+        logger.info('✅ ConfigService disponível, carregando configuração...');
         let saved = await this.configService.getConfig();
         if (!saved) {
+          logger.info('⚠️ Configuração não encontrada, inicializando...');
           saved = await this.configService.init();
         }
         logger.info('📋 Configuração atual carregada:', Object.keys(saved));
@@ -627,6 +630,7 @@ class RestAPI {
 
       // Processar campos normais
       logger.info('🔄 Processando campos do formulário...');
+      let processedFields = 0;
       for (const [cfgPath, envVar] of Object.entries(CONFIG_ENV_MAP)) {
         let val = req.body[envVar];
         
@@ -653,8 +657,10 @@ class RestAPI {
           }
         }
         setNested(saved, cfgPath, val);
+        processedFields++;
         logger.debug(`📝 Campo ${envVar} = ${val} (tipo: ${typeof val})`);
       }
+      logger.info(`✅ Processados ${processedFields} campos do formulário`);
 
 
       if (saved.piper?.enabled) {

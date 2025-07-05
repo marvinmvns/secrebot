@@ -3,6 +3,30 @@ import logger from '../utils/logger.js';
 import { CONFIG } from '../config/index.js';
 
 /**
+ * Launches a browser instance with specified options.
+ */
+async function launchBrowser(options = {}) {
+  const { headless = true, timeout = 60000 } = options;
+  return chromium.launch({
+    headless,
+    timeout,
+    args: [
+      '--no-sandbox', 
+      '--disable-setuid-sandbox', 
+      '--disable-dev-shm-usage',
+      '--disable-web-security',
+      '--disable-features=VizDisplayCompositor',
+      '--disable-extensions',
+      '--disable-plugins',
+      '--disable-images',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding'
+    ]
+  });
+}
+
+/**
  * Fetch raw text and HTML from a LinkedIn profile page.
  * Only minimal navigation is performed. Use a valid `li_at` cookie
  * if the profile requires authentication.
@@ -12,8 +36,8 @@ import { CONFIG } from '../config/index.js';
  * @returns {Promise<object>} result with rawText, rawHtml and success flag
  */
 export async function fetchProfileRaw(url, options = {}) {
-  const { liAt, timeoutMs = 30000 } = options;
-  const browser = await chromium.launch({ headless: true });
+  const { liAt, timeoutMs = CONFIG.linkedin.rawTimeoutMs } = options;
+  const browser = await launchBrowser({ timeout: timeoutMs });
   let context;
   try {
     context = await browser.newContext();
@@ -67,26 +91,10 @@ export async function fetchProfileRaw(url, options = {}) {
  * @returns {Promise<object>} structured profile data with summary
  */
 export async function fetchProfileStructured(url, options = {}) {
-  const { liAt, timeoutMs = 45000, retries = 3 } = options;
+  const { liAt, timeoutMs = CONFIG.linkedin.structuredTimeoutMs, retries = 2 } = options;
   
   for (let attempt = 1; attempt <= retries; attempt++) {
-    const browser = await chromium.launch({ 
-      headless: true,
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox', 
-        '--disable-dev-shm-usage',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        '--disable-extensions',
-        '--disable-plugins',
-        '--disable-images',
-        '--disable-javascript',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding'
-      ]
-    });
+    const browser = await launchBrowser({ timeout: timeoutMs });
     let context;
     
     try {

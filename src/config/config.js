@@ -79,7 +79,9 @@ export const config = {
     user: process.env.LINKEDIN_USER || '',
     pass: process.env.LINKEDIN_PASS || '',
     liAt: process.env.LINKEDIN_LI_AT || '',
-    timeoutMs: parseInt(process.env.LINKEDIN_TIMEOUT_MS || '30000', 10)
+    timeoutMs: parseInt(process.env.LINKEDIN_TIMEOUT_MS || '60000', 10),
+    structuredTimeoutMs: parseInt(process.env.LINKEDIN_STRUCTURED_TIMEOUT_MS || '90000', 10),
+    rawTimeoutMs: parseInt(process.env.LINKEDIN_RAW_TIMEOUT_MS || '45000', 10)
   },
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN || '',

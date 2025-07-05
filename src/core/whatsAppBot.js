@@ -1716,24 +1716,24 @@ usuario@email.com:senha`);
    */
   async analyzeLinkedInProfileResilient(contactId, url, liAt) {
     try {
-      await this.sendResponse(contactId, '🔍 *Iniciando análise do LinkedIn...*', true);
+      await this.sendResponse(contactId, '🔍 *Analisando perfil do LinkedIn...* \n\nEste processo pode levar até 2 minutos, por favor, aguarde.', true);
       
       // Primeira tentativa: análise estruturada
       const { fetchProfileStructured } = await import('../services/linkedinScraper.js');
       const result = await fetchProfileStructured(url, {
         liAt,
-        timeoutMs: CONFIG.linkedin.timeoutMs,
-        retries: 3
+        timeoutMs: CONFIG.linkedin.structuredTimeoutMs,
+        retries: 2
       });
       
       if (!result.success) {
-        await this.sendResponse(contactId, '⚠️ *Análise estruturada falhou, tentando método alternativo...*', true);
+        await this.sendResponse(contactId, '⚠️ *Análise detalhada falhou.* Tentando um método mais simples...', true);
         
         // Segunda tentativa: análise básica
         const { fetchProfileRaw } = await import('../services/linkedinScraper.js');
         const rawResult = await fetchProfileRaw(url, {
           liAt,
-          timeoutMs: CONFIG.linkedin.timeoutMs
+          timeoutMs: CONFIG.linkedin.rawTimeoutMs
         });
         
         if (!rawResult.success) {
@@ -1908,7 +1908,7 @@ Use emojis e formatação clara para facilitar a leitura.`;
       
       const result = await fetchProfileStructured(testUrl, {
         liAt,
-        timeoutMs: 15000,
+        timeoutMs: CONFIG.linkedin.rawTimeoutMs, // Usar timeout menor para teste
         retries: 1
       });
       

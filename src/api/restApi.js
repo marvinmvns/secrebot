@@ -37,20 +37,34 @@ class RestAPI {
   setupMiddleware() {
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
+    
+    // Middleware específico para FormData (multipart/form-data)
+    this.app.use((req, res, next) => {
+      if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
+        logger.info('🎯 MIDDLEWARE: FormData detectado, processando...');
+      }
+      next();
+    });
+    
     this.app.use(methodOverride('_method'));
     this.app.use(expressLayouts);
     this.app.set('view engine', 'ejs');
     this.app.set('views', path.join(__dirname, '../views'));
     this.app.use(express.static(path.join(__dirname, '../public')));
-    this.app.use((req, res, next) => {
+        this.app.use((req, res, next) => {
       // Log simples de requisições
-      logger.info(`🌐 ${req.method} ${req.path} - IP: ${req.ip}`); 
+      logger.info(`🌐 ${req.method} ${req.path} - IP: ${req.ip}`);
       
       // Log especial para POST /config
       if (req.method === 'POST' && req.path === '/config') {
         logger.info('🎯 MIDDLEWARE: Requisição POST /config detectada!');
         logger.info('📋 Headers:', Object.keys(req.headers));
         logger.info('📋 Content-Type:', req.headers['content-type']);
+      }
+      
+      // Log para TODOS os POSTs
+      if (req.method === 'POST') {
+        logger.info(`🎯 MIDDLEWARE: POST detectado - Path: ${req.path}, URL: ${req.url}`);
       }
       
       next();
@@ -61,11 +75,15 @@ class RestAPI {
     logger.info('🔧 Configurando rotas da API...');
     
     // ===== CONFIG ROUTES (PRIMEIRO) =====
+    logger.info('🔧 REGISTRANDO ROTA POST /config...');
     this.app.post('/config', async (req, res, next) => {
       logger.info('🚀 ROTA POST /config INICIADA - PRIMEIRA LINHA');
       logger.info('🎯 ROTA POST /config: Método =', req.method);
       logger.info('🎯 ROTA POST /config: Path =', req.path);
       logger.info('🎯 ROTA POST /config: URL =', req.url);
+      logger.info('🎯 ROTA POST /config: Content-Type =', req.headers['content-type']);
+      logger.info('🎯 ROTA POST /config: Body keys =', Object.keys(req.body || {}));
+      logger.info('🎯 ROTA POST /config: Body =', req.body);
       try {
         logger.info('📝 Recebendo requisição POST /config');
         logger.info('📋 Body recebido:', Object.keys(req.body));
@@ -753,6 +771,8 @@ class RestAPI {
         logger.error('Erro inesperado na API', err);
         res.status(500).json({ error: '❌ Erro interno do servidor' });
     });
+    
+    logger.info('✅ SETUP ROUTES CONCLUÍDO - Todas as rotas registradas');
   }
 
   start() {

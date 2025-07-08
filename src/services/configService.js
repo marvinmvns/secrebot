@@ -1,4 +1,5 @@
 import { CONFIG } from '../config/index.js';
+import logger from '../utils/logger.js';
 
 function deepMerge(target, source) {
   for (const key of Object.keys(source)) {
@@ -59,16 +60,15 @@ class ConfigService {
 
   async setConfig(values) {
     try {
-      console.log('💾 ConfigService.setConfig() chamado');
-      console.log('📋 Valores recebidos:', Object.keys(values));
+      logger.service('ConfigService', 'setConfig called', { keys: Object.keys(values) });
       
       // Garantir que todos os campos estejam presentes antes de salvar
       const defaults = JSON.parse(JSON.stringify(CONFIG));
       const mergedValues = JSON.parse(JSON.stringify(defaults));
       deepMerge(mergedValues, values);
       
-      console.log('🔄 Valores mesclados:', Object.keys(mergedValues));
-      console.log('💾 Salvando no MongoDB...');
+      logger.verbose('Config values merged', { keys: Object.keys(mergedValues) });
+      logger.service('ConfigService', 'Saving to MongoDB');
       
       const result = await this.collection.updateOne(
         { _id: 'app' }, 
@@ -76,10 +76,16 @@ class ConfigService {
         { upsert: true }
       );
       
-      console.log('✅ Salvamento no MongoDB concluído:', result);
+      logger.success('Config saved to MongoDB');
+      
+      // Apply logging config changes to runtime immediately
+      if (values.debug) {
+        this.applyLoggingConfig(values.debug);
+      }
+      
       return result;
     } catch (error) {
-      console.error('❌ Erro no ConfigService.setConfig():', error);
+      logger.error('Error in ConfigService.setConfig()', error);
       throw error;
     }
   }
@@ -87,6 +93,31 @@ class ConfigService {
   applyToRuntime(values) {
     if (!values) return;
     deepMerge(CONFIG, values);
+    
+    // Apply logging config changes immediately
+    if (values.debug) {
+      this.applyLoggingConfig(values.debug);
+    }
+  }
+
+  applyLoggingConfig(debugConfig) {
+    // Update logger runtime configuration
+    const loggerInstance = logger;
+    if (debugConfig.enabled !== undefined) {
+      loggerInstance.debugEnabled = debugConfig.enabled;
+    }
+    if (debugConfig.verbose !== undefined) {
+      loggerInstance.verboseEnabled = debugConfig.verbose;
+    }
+    if (debugConfig.logLevel !== undefined) {
+      loggerInstance.currentLevel = debugConfig.logLevel.toUpperCase();
+    }
+    
+    logger.info('Logger configuration updated', {
+      enabled: loggerInstance.debugEnabled,
+      verbose: loggerInstance.verboseEnabled,
+      logLevel: loggerInstance.currentLevel
+    });
   }
 }
 

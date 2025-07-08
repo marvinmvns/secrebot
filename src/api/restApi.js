@@ -13,6 +13,7 @@ import si from 'systeminformation';
 import YouTubeService from '../services/youtubeService.js';
 import CalorieService from '../services/calorieService.js';
 import GoogleCalendarService from '../services/googleCalendarService.js';
+import FlowService from '../services/flowService.js';
 import Utils from '../utils/index.js';
 import { CONFIG, COMMANDS, CONFIG_DESCRIPTIONS, CONFIG_ENV_MAP, CONFIG_EXAMPLES, WHISPER_MODELS_LIST } from '../config/index.js';
 import logger from '../utils/logger.js';
@@ -30,6 +31,7 @@ class RestAPI {
     this.configService = configService;
     this.app = express();
     this.googleService = new GoogleCalendarService();
+    this.flowService = new FlowService(configService);
     this.setupMiddleware();
     this.setupRoutes();
   }
@@ -771,6 +773,247 @@ class RestAPI {
       } catch (err) {
         logger.error('Erro em /resources', err);
         res.render('resources', { result: 'Erro ao coletar informações.' });
+      }
+    });
+
+    // ===== FLOW BUILDER ROUTES =====
+    this.app.get('/flow-builder', (req, res) => {
+      res.render('flow-builder');
+    });
+
+    // Rota para o gerenciador de fluxos
+    this.app.get('/flow-manager', (req, res) => {
+      res.render('flow-manager');
+    });
+
+    // ===== FLOW BUILDER APIs COMPLETAS =====
+    
+    // API para salvar fluxo
+    this.app.post('/api/flow/save', async (req, res) => {
+      try {
+        const result = await this.flowService.saveFlow(req.body);
+        
+        if (result.success) {
+          res.json(result);
+        } else {
+          res.status(400).json(result);
+        }
+        
+      } catch (error) {
+        logger.error('❌ Erro ao salvar fluxo:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
+      }
+    });
+
+    // API para listar todos os fluxos
+    this.app.get('/api/flow/list', async (req, res) => {
+      try {
+        const result = await this.flowService.listFlows();
+        res.json(result);
+        
+      } catch (error) {
+        logger.error('❌ Erro ao listar fluxos:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
+      }
+    });
+
+    // API para carregar fluxo específico
+    this.app.get('/api/flow/:id', async (req, res) => {
+      try {
+        const result = await this.flowService.loadFlow(req.params.id);
+        
+        if (result.success) {
+          res.json(result);
+        } else {
+          res.status(404).json(result);
+        }
+        
+      } catch (error) {
+        logger.error('❌ Erro ao carregar fluxo:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
+      }
+    });
+
+    // API para testar fluxo
+    this.app.post('/api/flow/test', async (req, res) => {
+      try {
+        const flowData = req.body;
+        const validation = this.flowService.validateFlow(flowData);
+        
+        if (!validation.valid) {
+          return res.status(400).json({ 
+            success: false, 
+            error: validation.error 
+          });
+        }
+
+        // TODO: Integrar com FlowExecutionService para teste real
+        logger.info(`🧪 Testando fluxo: ${flowData.name}`);
+        
+        res.json({ 
+          success: true, 
+          message: 'Fluxo validado com sucesso. Teste iniciado!',
+          validation: validation
+        });
+        
+      } catch (error) {
+        logger.error('❌ Erro ao testar fluxo:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
+      }
+    });
+
+    // API para excluir fluxo
+    this.app.delete('/api/flow/:id', async (req, res) => {
+      try {
+        const result = await this.flowService.deleteFlow(req.params.id);
+        
+        if (result.success) {
+          res.json(result);
+        } else {
+          res.status(404).json(result);
+        }
+        
+      } catch (error) {
+        logger.error('❌ Erro ao excluir fluxo:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
+      }
+    });
+
+    // API para duplicar fluxo
+    this.app.post('/api/flow/:id/duplicate', async (req, res) => {
+      try {
+        const { newName } = req.body;
+        const result = await this.flowService.duplicateFlow(req.params.id, newName);
+        
+        if (result.success) {
+          res.json(result);
+        } else {
+          res.status(400).json(result);
+        }
+        
+      } catch (error) {
+        logger.error('❌ Erro ao duplicar fluxo:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
+      }
+    });
+
+    // API para exportar fluxo
+    this.app.get('/api/flow/:id/export', async (req, res) => {
+      try {
+        const result = await this.flowService.exportFlow(req.params.id);
+        
+        if (result.success) {
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+          res.json(result.data);
+        } else {
+          res.status(404).json(result);
+        }
+        
+      } catch (error) {
+        logger.error('❌ Erro ao exportar fluxo:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
+      }
+    });
+
+    // API para importar fluxo
+    this.app.post('/api/flow/import', upload.single('flowFile'), async (req, res) => {
+      try {
+        if (!req.file) {
+          return res.status(400).json({
+            success: false,
+            error: 'Arquivo de fluxo não fornecido'
+          });
+        }
+
+        const flowData = JSON.parse(req.file.buffer.toString());
+        const result = await this.flowService.importFlow(flowData);
+        
+        if (result.success) {
+          res.json(result);
+        } else {
+          res.status(400).json(result);
+        }
+        
+      } catch (error) {
+        logger.error('❌ Erro ao importar fluxo:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: 'Erro ao processar arquivo de fluxo' 
+        });
+      }
+    });
+
+    // API para buscar fluxos
+    this.app.get('/api/flow/search', async (req, res) => {
+      try {
+        const { q } = req.query;
+        const result = await this.flowService.searchFlows(q);
+        res.json(result);
+        
+      } catch (error) {
+        logger.error('❌ Erro na busca de fluxos:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
+      }
+    });
+
+    // API para obter estatísticas dos fluxos
+    this.app.get('/api/flow/stats', async (req, res) => {
+      try {
+        const stats = this.flowService.getStats();
+        res.json({ 
+          success: true, 
+          stats: stats 
+        });
+        
+      } catch (error) {
+        logger.error('❌ Erro ao obter estatísticas:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
+      }
+    });
+
+    // API para validar fluxo
+    this.app.post('/api/flow/validate', async (req, res) => {
+      try {
+        const validation = this.flowService.validateFlow(req.body);
+        res.json({
+          success: true,
+          validation: validation
+        });
+        
+      } catch (error) {
+        logger.error('❌ Erro ao validar fluxo:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
       }
     });
 

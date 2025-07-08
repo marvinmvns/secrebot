@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciador de Fluxos WhatsApp</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+        }
+        
+        .manager-container {
+            min-height: 100vh;
+            padding: 2rem 0;
+        }
+        
+        .manager-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        .stats-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border-left: 4px solid #667eea;
+        }
+        
+        .flow-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+            border: 1px solid #e9ecef;
+        }
+        
+        .flow-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        .flow-status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-draft {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .search-box {
+            position: relative;
+            margin-bottom: 2rem;
+        }
+        
+        .search-box input {
+            padding-left: 3rem;
+            border-radius: 25px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .search-box i {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+        
+        .btn-action {
+            margin: 0.25rem;
+            border-radius: 20px;
+        }
+        
+        .flow-meta {
+            color: #6c757d;
+            font-size: 0.875rem;
+        }
+        
+        .node-badge {
+            background: #f8f9fa;
+            color: #495057;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid manager-container">
+        <!-- Header -->
+        <div class="manager-header">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1 class="mb-2">
+                        <i class="fas fa-project-diagram me-3"></i>
+                        Gerenciador de Fluxos WhatsApp
+                    </h1>
+                    <p class="mb-0 opacity-75">
+                        Gerencie, organize e monitore todos os seus fluxos de conversação
+                    </p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <a href="/flow-builder" class="btn btn-light btn-lg">
+                        <i class="fas fa-plus me-2"></i>
+                        Criar Novo Fluxo
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Estatísticas -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-1" id="total-flows">0</h3>
+                            <small class="text-muted">Total de Fluxos</small>
+                        </div>
+                        <i class="fas fa-sitemap fa-2x text-primary"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-1" id="total-nodes">0</h3>
+                            <small class="text-muted">Total de Nós</small>
+                        </div>
+                        <i class="fas fa-circle-nodes fa-2x text-success"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-1" id="total-connections">0</h3>
+                            <small class="text-muted">Total de Conexões</small>
+                        </div>
+                        <i class="fas fa-link fa-2x text-info"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-1" id="avg-nodes">0</h3>
+                            <small class="text-muted">Média Nós/Fluxo</small>
+                        </div>
+                        <i class="fas fa-chart-bar fa-2x text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Lista de Fluxos -->
+            <div class="col-md-8">
+                <!-- Busca -->
+                <div class="search-box">
+                    <input type="text" id="search-input" class="form-control form-control-lg" 
+                           placeholder="Buscar fluxos por nome, descrição ou conteúdo...">
+                    <i class="fas fa-search"></i>
+                </div>
+
+                <!-- Toolbar -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <button class="btn btn-outline-primary btn-action" onclick="refreshFlows()">
+                            <i class="fas fa-sync"></i> Atualizar
+                        </button>
+                        <button class="btn btn-outline-success btn-action" onclick="importFlow()">
+                            <i class="fas fa-upload"></i> Importar
+                        </button>
+                        <button class="btn btn-outline-info btn-action" onclick="viewStats()">
+                            <i class="fas fa-chart-pie"></i> Estatísticas
+                        </button>
+                    </div>
+                    <div>
+                        <select class="form-select" id="sort-select" onchange="sortFlows()">
+                            <option value="name">Ordenar por Nome</option>
+                            <option value="created">Ordenar por Data de Criação</option>
+                            <option value="modified">Ordenar por Última Modificação</option>
+                            <option value="nodes">Ordenar por Número de Nós</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Lista de Fluxos -->
+                <div id="flows-container">
+                    <!-- Os fluxos serão carregados aqui dinamicamente -->
+                </div>
+
+                <!-- Loading -->
+                <div id="loading" class="text-center py-4" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty-state" class="text-center py-5" style="display: none;">
+                    <i class="fas fa-project-diagram fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">Nenhum fluxo encontrado</h4>
+                    <p class="text-muted">Comece criando seu primeiro fluxo de conversação</p>
+                    <a href="/flow-builder" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>
+                        Criar Primeiro Fluxo
+                    </a>
+                </div>
+            </div>
+
+            <!-- Painel Lateral -->
+            <div class="col-md-4">
+                <!-- Ações Rápidas -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-bolt me-2"></i>
+                            Ações Rápidas
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <a href="/flow-builder" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>
+                                Novo Fluxo
+                            </a>
+                            <button class="btn btn-outline-success" onclick="importFlow()">
+                                <i class="fas fa-upload me-2"></i>
+                                Importar Fluxo
+                            </button>
+                            <button class="btn btn-outline-info" onclick="exportAllFlows()">
+                                <i class="fas fa-download me-2"></i>
+                                Exportar Todos
+                            </button>
+                            <button class="btn btn-outline-warning" onclick="validateAllFlows()">
+                                <i class="fas fa-check-circle me-2"></i>
+                                Validar Todos
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tipos de Nós -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cubes me-2"></i>
+                            Tipos de Nós Disponíveis
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <div class="node-badge">
+                                    <i class="fas fa-play me-1"></i>
+                                    Início
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="node-badge">
+                                    <i class="fas fa-comment me-1"></i>
+                                    Mensagem
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="node-badge">
+                                    <i class="fas fa-code-branch me-1"></i>
+                                    Condição
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="node-badge">
+                                    <i class="fas fa-keyboard me-1"></i>
+                                    Entrada
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="node-badge">
+                                    <i class="fas fa-clock me-1"></i>
+                                    Delay
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="node-badge">
+                                    <i class="fas fa-robot me-1"></i>
+                                    IA/LLM
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="node-badge">
+                                    <i class="fas fa-plug me-1"></i>
+                                    Webhook
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="node-badge">
+                                    <i class="fas fa-stop me-1"></i>
+                                    Fim
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modais -->
+    
+    <!-- Modal de Confirmação de Exclusão -->
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar Exclusão</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Tem certeza que deseja excluir o fluxo <strong id="delete-flow-name"></strong>?</p>
+                    <p class="text-danger">Esta ação não pode ser desfeita.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" onclick="confirmDelete()">Excluir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Duplicação -->
+    <div class="modal fade" id="duplicateModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Duplicar Fluxo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="duplicate-name">Nome do Novo Fluxo</label>
+                        <input type="text" id="duplicate-name" class="form-control" 
+                               placeholder="Digite o nome do novo fluxo">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmDuplicate()">Duplicar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Importação -->
+    <div class="modal fade" id="importModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Importar Fluxo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="import-file">Arquivo de Fluxo (.json)</label>
+                        <input type="file" id="import-file" class="form-control" accept=".json">
+                        <small class="form-text text-muted">
+                            Selecione um arquivo JSON de fluxo exportado anteriormente.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="performImport()">Importar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/flow-manager.js"></script>
+</body>
+</html>

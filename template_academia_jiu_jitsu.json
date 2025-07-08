@@ -116,7 +116,7 @@
       "id": "msg_precos",
       "type": "message",
       "x": 1300,
-      y": 300,
+      "y": 300,
       "data": {
         "text": "💰 Nossos planos são super acessíveis!\n\n📦 **PLANO BÁSICO - R$ 120/mês**\n• 2x por semana\n• Jiu-Jitsu Gi OU No-Gi\n• Acesso vestiário\n\n🚀 **PLANO ILIMITADO - R$ 180/mês**\n• Todos os dias da semana\n• TODAS as modalidades\n• Acesso completo\n• Desconto em seminários\n\n👨‍👩‍👧‍👦 **PLANO FAMÍLIA - R$ 280/mês**\n• Para 2 pessoas\n• Todas as modalidades\n• Melhor custo-benefício\n\n🎓 **PLANO ESTUDANTE - R$ 90/mês**\n• Com comprovante de matrícula\n• 2x por semana\n• Horários específicos\n\n🆓 **PRIMEIRA AULA GRÁTIS!**\n\nTambém aceitamos:\n💳 Cartão, PIX, Dinheiro\n📊 Parcelamento em até 12x\n\nQual plano faz mais sentido para você?",
         "delay": 3,

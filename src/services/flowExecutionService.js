@@ -835,6 +835,25 @@ class FlowExecutionService {
     }
 
     /**
+     * Obtém lista de fluxos disponíveis carregados
+     */
+    getAvailableFlows() {
+        const flows = [];
+        
+        for (const [flowId, flowData] of this.loadedFlows) {
+            flows.push({
+                id: flowId,
+                name: flowData.name,
+                description: flowData.description,
+                nodes: Array.from(flowData.nodes.values()),
+                metadata: flowData.metadata
+            });
+        }
+        
+        return flows;
+    }
+
+    /**
      * Obtém estatísticas dos fluxos
      */
     getFlowStats() {

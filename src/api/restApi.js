@@ -1017,6 +1017,50 @@ class RestAPI {
       }
     });
 
+    // API para criar fluxo a partir de template
+    this.app.post('/api/flow/create-from-template', async (req, res) => {
+      try {
+        const { templateName, flowName } = req.body;
+        
+        if (!templateName) {
+          return res.status(400).json({
+            success: false,
+            error: 'Nome do template é obrigatório'
+          });
+        }
+
+        const result = await this.flowService.createFromTemplate(templateName, flowName);
+        
+        if (result.success) {
+          res.json(result);
+        } else {
+          res.status(400).json(result);
+        }
+        
+      } catch (error) {
+        logger.error('❌ Erro ao criar fluxo do template:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
+      }
+    });
+
+    // API para listar templates disponíveis
+    this.app.get('/api/flow/templates', async (req, res) => {
+      try {
+        const result = await this.flowService.listAvailableTemplates();
+        res.json(result);
+        
+      } catch (error) {
+        logger.error('❌ Erro ao listar templates:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
+      }
+    });
+
     this.app.post('/toggle-voice', (req, res) => {
       const enabled = this.bot.toggleVoicePreference('web');
       res.json({ enabled });

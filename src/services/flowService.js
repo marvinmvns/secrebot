@@ -1,4 +1,9 @@
 import logger from '../utils/logger.js';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Serviço para gerenciamento de fluxos no Flow Builder
@@ -23,8 +28,51 @@ class FlowService {
             });
             
             logger.info(`✅ FlowService inicializado com ${this.flows.size} fluxos`);
+            
+            // Verificar se existe fluxo padrão, se não, criar um com o template jiu-jitsu
+            if (this.flows.size === 0) {
+                await this.loadDefaultTemplate();
+            }
         } catch (error) {
             logger.error('❌ Erro ao inicializar FlowService:', error);
+        }
+    }
+
+    /**
+     * Carrega o template padrão do jiu-jitsu quando não há fluxos na base
+     */
+    async loadDefaultTemplate() {
+        try {
+            const templatePath = path.join(__dirname, '../../template_academia_jiu_jitsu.json');
+            const templateExists = await fs.access(templatePath).then(() => true).catch(() => false);
+            
+            if (templateExists) {
+                const templateData = await fs.readFile(templatePath, 'utf8');
+                const template = JSON.parse(templateData);
+                
+                // Remover o ID do template para gerar um novo
+                delete template.id;
+                
+                // Definir como template padrão
+                template.name = "Exemplo Academia Jiu-Jitsu";
+                template.description = "Template padrão carregado automaticamente - Academia de Jiu-Jitsu";
+                template.metadata = {
+                    ...template.metadata,
+                    isDefault: true,
+                    loadedAt: new Date().toISOString()
+                };
+                
+                const result = await this.saveFlow(template);
+                if (result.success) {
+                    logger.info('✅ Template padrão jiu-jitsu carregado automaticamente');
+                } else {
+                    logger.warn('⚠️ Falha ao carregar template padrão:', result.error);
+                }
+            } else {
+                logger.warn('⚠️ Template jiu-jitsu não encontrado em:', templatePath);
+            }
+        } catch (error) {
+            logger.error('❌ Erro ao carregar template padrão:', error);
         }
     }
 
@@ -552,6 +600,118 @@ class FlowService {
 
         } catch (error) {
             logger.error('❌ Erro na busca de fluxos:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Cria um novo fluxo a partir de um template
+     * @param {string} templateName - Nome do template a carregar
+     * @param {string} flowName - Nome para o novo fluxo
+     * @returns {Object} Resultado da operação
+     */
+    async createFromTemplate(templateName = 'jiu_jitsu', flowName) {
+        try {
+            let templatePath;
+            
+            // Determinar caminho do template baseado no nome
+            switch (templateName.toLowerCase()) {
+                case 'jiu_jitsu':
+                case 'jiujitsu':
+                case 'academia':
+                    templatePath = path.join(__dirname, '../../template_academia_jiu_jitsu.json');
+                    break;
+                default:
+                    return {
+                        success: false,
+                        error: `Template '${templateName}' não encontrado`
+                    };
+            }
+
+            // Verificar se template existe
+            const templateExists = await fs.access(templatePath).then(() => true).catch(() => false);
+            if (!templateExists) {
+                return {
+                    success: false,
+                    error: `Arquivo de template não encontrado: ${templatePath}`
+                };
+            }
+
+            // Carregar dados do template
+            const templateData = await fs.readFile(templatePath, 'utf8');
+            const template = JSON.parse(templateData);
+            
+            // Preparar dados do novo fluxo
+            delete template.id; // Remover ID para gerar novo
+            template.name = flowName || `${template.name} - ${new Date().toLocaleDateString()}`;
+            template.description = `Fluxo criado a partir do template: ${template.name}`;
+            template.metadata = {
+                ...template.metadata,
+                createdFromTemplate: templateName,
+                templateVersion: template.version || '1.0',
+                createdAt: new Date().toISOString()
+            };
+
+            // Salvar novo fluxo
+            const result = await this.saveFlow(template);
+            
+            if (result.success) {
+                logger.info(`✅ Fluxo criado a partir do template '${templateName}': ${result.flowId}`);
+            }
+
+            return result;
+
+        } catch (error) {
+            logger.error(`❌ Erro ao criar fluxo do template '${templateName}':`, error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Lista templates disponíveis
+     * @returns {Object} Lista de templates
+     */
+    async listAvailableTemplates() {
+        try {
+            const templates = [];
+            
+            // Template jiu-jitsu
+            const jiujitsuPath = path.join(__dirname, '../../template_academia_jiu_jitsu.json');
+            const jiujitsuExists = await fs.access(jiujitsuPath).then(() => true).catch(() => false);
+            
+            if (jiujitsuExists) {
+                try {
+                    const templateData = await fs.readFile(jiujitsuPath, 'utf8');
+                    const template = JSON.parse(templateData);
+                    
+                    templates.push({
+                        name: 'jiu_jitsu',
+                        displayName: 'Academia Jiu-Jitsu',
+                        description: template.description || 'Template para atendimento de academia de jiu-jitsu',
+                        category: template.metadata?.category || 'fitness',
+                        nodeCount: template.nodes?.length || 0,
+                        connectionCount: template.connections?.length || 0,
+                        tags: template.metadata?.tags || []
+                    });
+                } catch (error) {
+                    logger.warn('⚠️ Erro ao ler template jiu-jitsu:', error.message);
+                }
+            }
+
+            return {
+                success: true,
+                templates: templates,
+                total: templates.length
+            };
+
+        } catch (error) {
+            logger.error('❌ Erro ao listar templates:', error);
             return {
                 success: false,
                 error: error.message

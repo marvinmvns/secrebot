@@ -215,6 +215,71 @@ A partir de agora, responderei apenas com texto.`
  *                     MENSAGENS DE ERRO
  * =================================================================
  */
+/**
+ * =================================================================
+ *                   GUIA DE COMANDOS COMPLETO
+ * =================================================================
+ */
+export const HELP_GUIDE = `📖 *GUIA COMPLETO DE COMANDOS*
+
+🎯 *COMANDOS PRINCIPAIS*
+${COMMANDS.MENU} - Exibir menu principal
+${COMMANDS.AJUDA} - Exibir este guia
+${COMMANDS.VOLTAR} - Voltar/cancelar operação atual
+
+📅 *AGENDA E LEMBRETES*
+${COMMANDS.AGENDA} - Criar agendamento
+${COMMANDS.LISTAR} - Listar compromissos
+${COMMANDS.DELETAR} - Deletar agendamento
+${COMMANDS.IMPORTAR_AGENDA} - Importar arquivo .ics
+
+🧠 *INTELIGÊNCIA ARTIFICIAL*
+${COMMANDS.DEEP} - Conversar com IA
+${COMMANDS.RESUMIR} - Resumir texto/arquivo
+${COMMANDS.RESUMIRVIDEO} - Resumir vídeo (rápido)
+${COMMANDS.RESUMIRVIDEO2} - Resumir vídeo (preciso)
+
+🎬 *ANÁLISE DE MÍDIA*
+${COMMANDS.TRANSCREVER} - Transcrever áudio
+${COMMANDS.TRANSCREVER_RESUMIR} - Transcrever e resumir
+${COMMANDS.FOTO} - Analisar imagem
+${COMMANDS.CALORIAS} - Calcular calorias de foto
+
+💼 *FERRAMENTAS PROFISSIONAIS*
+${COMMANDS.LINKEDIN} - Analisar perfil LinkedIn
+${COMMANDS.LINKEDIN} login - Configurar credenciais
+${COMMANDS.LINKEDIN} test - Testar conexão
+
+⚙️ *CONFIGURAÇÕES*
+${COMMANDS.VOZ} - Alternar modo voz/texto
+${COMMANDS.MODELOS} - Listar modelos IA
+${COMMANDS.TROCAR_MODELO} - Trocar modelo IA
+${COMMANDS.MODELOS_WHISPER} - Listar modelos Whisper
+${COMMANDS.TROCAR_MODELO_WHISPER} - Trocar modelo Whisper
+${COMMANDS.REINICIAR_OLLAMA} - Reiniciar serviço IA
+${COMMANDS.REINICIAR_WHISPER} - Reiniciar Whisper
+${COMMANDS.RECURSO} - Ver recursos do sistema
+
+🎤 *COMANDOS POR VOZ*
+• Fale naturalmente o que precisa
+• Exemplo: "criar lembrete para amanhã"
+• Exemplo: "resumir este documento"
+• Exemplo: "analisar perfil do LinkedIn"
+
+📱 *NAVEGAÇÃO RÁPIDA*
+• Digite números: 1, 2, 3, 4, 5, 6
+• Use códigos: 1.1, 2.3, 5.2, etc.
+• Sempre use 0 para voltar
+
+💡 *DICAS IMPORTANTES*
+• Envie áudios diretamente para transcrever
+• Envie imagens para análise automática
+• Use ${COMMANDS.VOLTAR} para cancelar qualquer operação
+• O bot lembra do contexto da conversa
+
+─────────────────────────────
+🤖 SecreBot - Seu assistente inteligente`;
+
 export const ERROR_MESSAGES = {
   GENERIC: `❌ *Ops, algo deu errado.*
 Por favor, tente novamente. Se o erro persistir, digite ${COMMANDS.MENU} para recomeçar.`,

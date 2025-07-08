@@ -27,6 +27,7 @@ import {
   MODE_MESSAGES,
   SUCCESS_MESSAGES,
   ERROR_MESSAGES,
+  HELP_GUIDE,
   PROMPTS,
   __dirname
 } from '../config/index.js';
@@ -397,15 +398,15 @@ class WhatsAppBot {
         return true;
       case '5.2':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
-        await this.handleMessage({ ...msg, body: COMMANDS.RECURSO });
+        await this.handleMessage({ ...msg, body: COMMANDS.MODELOS });
         return true;
       case '5.3':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
-        await this.handleMessage({ ...msg, body: COMMANDS.MODELOS });
+        await this.handleMessage({ ...msg, body: COMMANDS.TROCAR_MODELO });
         return true;
       case '5.4':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
-        await this.handleMessage({ ...msg, body: COMMANDS.TROCAR_MODELO });
+        await this.handleMessage({ ...msg, body: COMMANDS.REINICIAR_OLLAMA });
         return true;
       case '5.5':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
@@ -417,11 +418,11 @@ class WhatsAppBot {
         return true;
       case '5.7':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
-        await this.handleMessage({ ...msg, body: COMMANDS.REINICIAR_OLLAMA });
+        await this.handleMessage({ ...msg, body: COMMANDS.REINICIAR_WHISPER });
         return true;
       case '5.8':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
-        await this.handleMessage({ ...msg, body: COMMANDS.REINICIAR_WHISPER });
+        await this.handleMessage({ ...msg, body: COMMANDS.RECURSO });
         return true;
       case '0':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
@@ -717,7 +718,7 @@ class WhatsAppBot {
           },
           [COMMANDS.AJUDA]: async () => {
               this.setMode(contactId, null);
-              await this.sendResponse(contactId, MENU_MESSAGE);
+              await this.sendResponse(contactId, HELP_GUIDE);
           },
           [COMMANDS.DEEP]: () => this.handleDeepCommand(contactId, originalText),
           [COMMANDS.AGENDA]: () => this.handleAgendabotCommand(contactId, originalText),

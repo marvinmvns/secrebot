@@ -52,6 +52,7 @@ class WhatsAppBot {
     this.userPreferences = new Map(); // Para armazenar preferências (ex: { voiceResponse: true/false })
     this.linkedinSessions = new Map(); // contato -> li_at
     this.awaitingLinkedinCreds = new Map();
+    this.flowExecutionService = null; // Será definido pelo ApplicationFactory
     this.client = new Client({
       authStrategy: new LocalAuth(),
       puppeteer: {
@@ -89,6 +90,38 @@ class WhatsAppBot {
     return !currentValue; // Retorna o novo valor
   }
   // --- Fim Métodos de Preferência ---
+
+  // --- Métodos de Flow ---
+  setFlowExecutionService(flowExecutionService) {
+    this.flowExecutionService = flowExecutionService;
+    logger.info('🔄 FlowExecutionService configurado no WhatsAppBot');
+  }
+
+  async hasActiveFlow(contactId) {
+    return this.flowExecutionService && this.flowExecutionService.hasActiveFlow(contactId);
+  }
+
+  async processFlowMessage(contactId, text) {
+    if (!this.flowExecutionService) {
+      return false;
+    }
+    return await this.flowExecutionService.processUserInput(contactId, text);
+  }
+
+  async startFlow(contactId, flowId, initialMessage = '') {
+    if (!this.flowExecutionService) {
+      return false;
+    }
+    return await this.flowExecutionService.startFlowExecution(contactId, flowId, initialMessage);
+  }
+
+  async stopFlow(contactId) {
+    if (!this.flowExecutionService) {
+      return false;
+    }
+    return await this.flowExecutionService.stopFlowExecution(contactId);
+  }
+  // --- Fim Métodos de Flow ---
 
 
   setupEvents() {
@@ -617,6 +650,20 @@ class WhatsAppBot {
     const lowerText = text.toLowerCase();
 
     logger.verbose(`💬 Mensagem de ${contactId}: ${text || '[Mídia]'}`);
+
+    // Verificar se o usuário tem fluxo ativo
+    if (await this.hasActiveFlow(contactId)) {
+      const handled = await this.processFlowMessage(contactId, text);
+      if (handled) {
+        return;
+      }
+    }
+
+    // Verificar comando !flow
+    if (lowerText.startsWith('!flow')) {
+      await this.handleFlowCommand(msg, contactId, text);
+      return;
+    }
 
     if (this.awaitingLinkedinCreds.get(contactId)) {
       const [user, pass] = text.split(/[:\s]+/);
@@ -2756,6 +2803,119 @@ usuario@email.com:senha
       await this.sendResponse(contactId, ERROR_MESSAGES.GENERIC);
     }
   }
+
+  // --- Métodos de Flow Command ---
+  async handleFlowCommand(msg, contactId, text) {
+    const parts = text.split(' ');
+    const command = parts[1]?.toLowerCase();
+    
+    if (!this.flowExecutionService) {
+      await this.sendResponse(contactId, '❌ Serviço de flows não está disponível.');
+      return;
+    }
+
+    switch (command) {
+      case 'start':
+        await this.handleFlowStart(contactId, parts);
+        break;
+      case 'stop':
+        await this.handleFlowStop(contactId);
+        break;
+      case 'status':
+        await this.handleFlowStatus(contactId);
+        break;
+      case 'list':
+        await this.handleFlowList(contactId);
+        break;
+      default:
+        await this.sendFlowHelp(contactId);
+        break;
+    }
+  }
+
+  async handleFlowStart(contactId, parts) {
+    const flowId = parts[2];
+    if (!flowId) {
+      await this.sendResponse(contactId, '❌ Especifique o ID do flow.\nUso: !flow start <flowId>');
+      return;
+    }
+
+    try {
+      const started = await this.startFlow(contactId, flowId);
+      if (started) {
+        await this.sendResponse(contactId, `✅ Flow "${flowId}" iniciado com sucesso!`);
+      } else {
+        await this.sendResponse(contactId, `❌ Não foi possível iniciar o flow "${flowId}".`);
+      }
+    } catch (error) {
+      logger.error('Erro ao iniciar flow:', error);
+      await this.sendResponse(contactId, `❌ Erro ao iniciar flow: ${error.message}`);
+    }
+  }
+
+  async handleFlowStop(contactId) {
+    try {
+      const stopped = await this.stopFlow(contactId);
+      if (stopped) {
+        await this.sendResponse(contactId, '✅ Flow interrompido com sucesso!');
+      } else {
+        await this.sendResponse(contactId, '❌ Nenhum flow ativo encontrado.');
+      }
+    } catch (error) {
+      logger.error('Erro ao parar flow:', error);
+      await this.sendResponse(contactId, `❌ Erro ao parar flow: ${error.message}`);
+    }
+  }
+
+  async handleFlowStatus(contactId) {
+    try {
+      const hasActive = await this.hasActiveFlow(contactId);
+      if (hasActive) {
+        const flowInfo = this.flowExecutionService.getActiveFlowInfo(contactId);
+        await this.sendResponse(contactId, `📊 Status do Flow:\n\n✅ Flow ativo: ${flowInfo.flowId}\n🔄 Nó atual: ${flowInfo.currentNode}\n⏰ Iniciado: ${flowInfo.startTime}`);
+      } else {
+        await this.sendResponse(contactId, '📊 Status: Nenhum flow ativo');
+      }
+    } catch (error) {
+      logger.error('Erro ao verificar status do flow:', error);
+      await this.sendResponse(contactId, `❌ Erro ao verificar status: ${error.message}`);
+    }
+  }
+
+  async handleFlowList(contactId) {
+    try {
+      const flows = await this.flowExecutionService.getAvailableFlows();
+      if (flows.length === 0) {
+        await this.sendResponse(contactId, '📋 Nenhum flow disponível.');
+        return;
+      }
+
+      let message = '📋 Flows Disponíveis:\n\n';
+      flows.forEach(flow => {
+        message += `🔄 ${flow.id}\n`;
+        message += `   📝 ${flow.name || 'Sem nome'}\n`;
+        message += `   📊 ${flow.nodes?.length || 0} nós\n\n`;
+      });
+      
+      message += '💡 Para iniciar: !flow start <flowId>';
+      await this.sendResponse(contactId, message);
+    } catch (error) {
+      logger.error('Erro ao listar flows:', error);
+      await this.sendResponse(contactId, `❌ Erro ao listar flows: ${error.message}`);
+    }
+  }
+
+  async sendFlowHelp(contactId) {
+    const help = `🔄 *Comandos de Flow*\n\n` +
+      `• !flow start <flowId> - Iniciar um flow\n` +
+      `• !flow stop - Parar flow ativo\n` +
+      `• !flow status - Ver status do flow\n` +
+      `• !flow list - Listar flows disponíveis\n\n` +
+      `💡 *Exemplo:* !flow start jiu-jitsu`;
+    
+    await this.sendResponse(contactId, help);
+  }
+  // --- Fim Métodos de Flow Command ---
 }
 
 export default WhatsAppBot;

@@ -771,8 +771,8 @@ class WhatsAppBot {
         return;
     }
 
-    logger.log(`❓ Mensagem não reconhecida de ${contactId}, exibindo menu.`);
-    await this.sendResponse(contactId, MENU_MESSAGE);
+    // Tentativa de interpretar comandos em linguagem natural no menu
+    await this.processTextNavigation(msg, contactId, text, navigationState);
   }
 
   async handleCommand(msg, contactId, lowerText, originalText) {
@@ -2244,6 +2244,71 @@ Use emojis e formatação clara para facilitar a leitura.`;
 • "ver compromissos" • "ajuda"
 
 ${currentMenuText}`);
+        }
+    }
+  }
+
+  async processTextNavigation(msg, contactId, text, navigationState) {
+    logger.flow(`⌨️ Processando navegação por texto. Estado: ${navigationState}, Texto: "${text}"`);
+
+    // Primeiro, tentar navegação hierárquica por texto
+    if (await this.handleHierarchicalNavigation(msg, contactId, text, navigationState)) {
+      return;
+    }
+
+    // Depois, tentar mapear para comando direto ou via LLM
+    const commandPrompt = PROMPTS.audioCommandMapping(text);
+    let mappedCommand = 'INVALIDO';
+
+    const directMapping = {
+      'linkedin': COMMANDS.LINKEDIN,
+      'analisar linkedin': COMMANDS.LINKEDIN,
+      'perfil linkedin': COMMANDS.LINKEDIN,
+      'analisar perfil': COMMANDS.LINKEDIN,
+      'linkedin login': `${COMMANDS.LINKEDIN} login`,
+      'linkedin test': `${COMMANDS.LINKEDIN} test`,
+      'testar linkedin': `${COMMANDS.LINKEDIN} test`
+    };
+
+    const lowerText = text.toLowerCase();
+    for (const [keyword, command] of Object.entries(directMapping)) {
+      if (lowerText.includes(keyword)) {
+        mappedCommand = command;
+        logger.api(`🎯 Mapeamento direto de texto para: ${mappedCommand}`);
+        break;
+      }
+    }
+
+    if (mappedCommand === 'INVALIDO') {
+      try {
+        const response = await ollamaClient.chat({
+            model: CONFIG.llm.model,
+            messages: [{ role: 'user', content: commandPrompt }],
+            options: { temperature: 0.2 }
+        });
+        mappedCommand = response.message.content.trim();
+        logger.api(`🤖 LLM mapeou texto para: ${mappedCommand}`);
+      } catch (error) {
+        logger.error('❌ Erro ao mapear comando de texto via LLM:', error);
+        logger.flow('🔄 Tentando fallback para navegação por submenu');
+      }
+    }
+
+    if (mappedCommand !== 'INVALIDO' && Object.values(COMMANDS).includes(mappedCommand)) {
+        await this.sendResponse(contactId, `✅ Comando interpretado: *${this.getCommandDescription(mappedCommand)}*`, true);
+        await this.handleMessage({ ...msg, body: mappedCommand });
+    } else {
+        const submenuCommand = await this.trySubmenuNavigation(text, navigationState);
+
+        if (submenuCommand) {
+            logger.flow(`⌨️ Texto mapeado para navegação de submenu: ${submenuCommand}`);
+            await this.sendResponse(contactId, `✅ Navegando para: *${this.getSubmenuDescription(submenuCommand)}*`, true);
+            await this.showSubmenu(contactId, submenuCommand);
+        } else {
+            const currentMenuText = this.getCurrentMenuText(navigationState);
+            await this.sendResponse(contactId, `😕 Desculpe, não entendi a mensagem "${text}".
+
+💡 *Tente algo como:*\n• "criar lembrete" • "conversar com IA"\n• "transcrever áudio" • "analisar imagem"\n• "ver compromissos" • "ajuda"\n\n${currentMenuText}`);
         }
     }
   }

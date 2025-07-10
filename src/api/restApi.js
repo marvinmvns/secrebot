@@ -23,7 +23,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ============ API REST ============
 class RestAPI {
-  constructor(bot, configService) {
+  constructor(bot, configService, flowExecutionService) {
     if (!bot) {
         throw new Error('Instância do Bot não fornecida para RestAPI.');
     }
@@ -32,8 +32,23 @@ class RestAPI {
     this.app = express();
     this.googleService = new GoogleCalendarService();
     this.flowService = new FlowService(configService);
+    this.flowExecutionService = flowExecutionService;
+    
     this.setupMiddleware();
     this.setupRoutes();
+    this.initializeServices();
+  }
+
+  async initializeServices() {
+    try {
+      await this.flowService.init();
+      
+      if (this.flowExecutionService) {
+        await this.flowExecutionService.init(this.flowService);
+      }
+    } catch (error) {
+      logger.error('Erro ao inicializar serviços da API:', error);
+    }
   }
 
   setupMiddleware() {

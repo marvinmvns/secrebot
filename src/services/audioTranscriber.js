@@ -105,33 +105,63 @@ class AudioTranscriber {
   async transcribe(audioBuffer, inputFormat = 'ogg') {
     return this.queue.add(async () => {
       logger.service('🎤 Iniciando transcrição de áudio...');
-      logger.debug(`📊 Audio buffer size: ${audioBuffer.length} bytes, format: ${inputFormat}`);
+      logger.verbose(`📊 Audio buffer details:`, {
+        size: audioBuffer.length,
+        format: inputFormat,
+        sizeInMB: (audioBuffer.length / 1024 / 1024).toFixed(2),
+        timestamp: new Date().toISOString()
+      });
       
       const timestamp = Date.now();
       const tempOutputPath = path.join(__dirname, `audio_${timestamp}.wav`);
+      logger.verbose(`📁 Arquivo temporário: ${tempOutputPath}`);
 
       try {
         // Verifica se o modelo está disponível
         const modelFile = MODEL_OBJECT[CONFIG.audio.model];
         const modelPath = path.join(WHISPER_CPP_PATH, 'models', modelFile);
+        logger.verbose(`🔍 Verificando modelo Whisper:`, {
+          model: CONFIG.audio.model,
+          modelFile,
+          modelPath,
+          language: CONFIG.audio.language
+        });
         
         try {
           await fs.access(modelPath);
+          logger.verbose(`✅ Modelo Whisper encontrado e acessível: ${modelPath}`);
         } catch (error) {
+          logger.error(`❌ Modelo Whisper não encontrado: ${modelPath}`);
           throw new Error(`Modelo Whisper '${CONFIG.audio.model}' não encontrado em ${modelPath}. Verifique se o modelo foi baixado.`);
         }
 
+        logger.verbose(`🔄 Iniciando conversão de áudio com FFMPEG:`, {
+          inputFormat,
+          outputFormat: 'wav',
+          sampleRate: CONFIG.audio.sampleRate,
+          outputPath: tempOutputPath
+        });
+
         await new Promise((resolve, reject) => {
           const inputStream = Readable.from(audioBuffer);
-          ffmpeg(inputStream)
+          const ffmpegCommand = ffmpeg(inputStream)
             .inputFormat(inputFormat)
             .outputOptions(`-ar ${CONFIG.audio.sampleRate}`)
             .toFormat('wav')
+            .on('start', (commandLine) => {
+              logger.verbose(`🚀 FFMPEG comando: ${commandLine}`);
+            })
+            .on('progress', (progress) => {
+              logger.verbose(`⏳ FFMPEG progresso: ${progress.percent}%`);
+            })
             .on('error', (err) => {
-              logger.error('Erro no FFMPEG:', err);
+              logger.error('❌ Erro no FFMPEG:', err);
               reject(err);
             })
-            .on('end', resolve)
+            .on('end', () => {
+              logger.verbose('✅ Conversão FFMPEG concluída');
+              resolve();
+            })
             .save(tempOutputPath);
         });
         
@@ -147,18 +177,39 @@ class AudioTranscriber {
           }
         };
         
+        logger.verbose(`🎙️ Iniciando transcrição Whisper:`, {
+          model: options.modelName,
+          language: options.whisperOptions.language,
+          inputFile: tempOutputPath,
+          timeout: CONFIG.audio.timeoutMs
+        });
+        
         // Executa o Whisper com controle de timeout
+        const whisperStartTime = Date.now();
         await this.runWhisper(tempOutputPath, options);
+        const whisperEndTime = Date.now();
+        
+        logger.verbose(`⏱️ Transcrição Whisper concluída em ${whisperEndTime - whisperStartTime}ms`);
         
         const transcriptionPath = `${tempOutputPath}.txt`;
+        logger.verbose(`📄 Lendo transcrição de: ${transcriptionPath}`);
+        
         const transcription = await fs.readFile(transcriptionPath, 'utf8');
+        logger.verbose(`📝 Transcrição obtida:`, {
+          length: transcription.length,
+          preview: transcription.substring(0, 100) + (transcription.length > 100 ? '...' : ''),
+          wordCount: transcription.split(' ').length
+        });
         
         // Usa o método estático de Utils para limpar arquivos
+        logger.verbose(`🧹 Limpando arquivos temporários...`);
         await Utils.cleanupFile(tempOutputPath);
         await Utils.cleanupFile(transcriptionPath);
+        logger.verbose(`✅ Arquivos temporários removidos`);
         
-        logger.success('✅ Transcrição concluída.');
-        return transcription.trim();
+        const finalTranscription = transcription.trim();
+        logger.success(`✅ Transcrição concluída. Resultado: ${finalTranscription.length} caracteres, ${finalTranscription.split(' ').length} palavras`);
+        return finalTranscription;
         
       } catch (err) {
         logger.error('❌ Erro na transcrição de áudio:', err);

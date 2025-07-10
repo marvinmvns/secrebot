@@ -87,9 +87,9 @@ class Logger {
   }
 
   // Method for process flow tracking (verbose)
-  flow(step, message, context = null) {
-    if (this.verboseEnabled) {
-      this.verbose(`STEP[${step}]: ${message}`, context);
+  flow(message, context = null) {
+    if (this.verboseEnabled && this._shouldLog('DEBUG')) {
+      console.log(`🔄 ${this._formatMessage('FLOW', message, context)}`);
     }
   }
 
@@ -101,16 +101,16 @@ class Logger {
   }
 
   // Method for service operations (verbose)  
-  service(serviceName, operation, details = null) {
-    if (this.verboseEnabled) {
-      this.verbose(`SERVICE[${serviceName}]: ${operation}`, details);
+  service(message, details = null) {
+    if (this.verboseEnabled && this._shouldLog('DEBUG')) {
+      console.log(`🔧 ${this._formatMessage('SERVICE', message, details)}`);
     }
   }
 
   // Method for API calls (verbose)
-  api(method, endpoint, details = null) {
-    if (this.verboseEnabled) {
-      this.verbose(`API[${method}]: ${endpoint}`, details);
+  api(message, details = null) {
+    if (this.verboseEnabled && this._shouldLog('DEBUG')) {
+      console.log(`🌐 ${this._formatMessage('API', message, details)}`);
     }
   }
 

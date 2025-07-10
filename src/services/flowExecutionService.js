@@ -15,6 +15,38 @@ class FlowExecutionService {
     }
 
     /**
+     * Inicializa o serviço carregando fluxos salvos
+     * @param {Object} flowService - Instância do FlowService
+     */
+    async init(flowService) {
+        try {
+            if (!flowService) {
+                logger.warn('FlowService não fornecido para FlowExecutionService');
+                return;
+            }
+
+            const result = await flowService.listFlows();
+            
+            if (result.success && result.flows) {
+                for (const flowSummary of result.flows) {
+                    try {
+                        const flowData = await flowService.loadFlow(flowSummary.id);
+                        if (flowData.success) {
+                            this.loadFlow(flowData.flow);
+                        }
+                    } catch (error) {
+                        logger.error(`Erro ao carregar fluxo ${flowSummary.id}:`, error);
+                    }
+                }
+            }
+
+            logger.info(`✅ FlowExecutionService inicializado com ${this.loadedFlows.size} fluxos`);
+        } catch (error) {
+            logger.error('❌ Erro ao inicializar FlowExecutionService:', error);
+        }
+    }
+
+    /**
      * Carrega um fluxo na memória para execução
      * @param {Object} flowData - Dados do fluxo exportados do Flow Builder
      */

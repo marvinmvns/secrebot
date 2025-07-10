@@ -196,7 +196,8 @@ export class ApplicationFactory {
       return this.services.get('restAPI');
     }
 
-    const api = new RestAPI(bot, configService);
+    const flowExecutionService = this.services.get('flowExecutionService');
+    const api = new RestAPI(bot, configService, flowExecutionService);
     this.services.set('restAPI', api);
     logger.info('REST API initialized');
     return api;

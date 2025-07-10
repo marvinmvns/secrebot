@@ -170,13 +170,43 @@ async function fetchTranscript(url) {
 async function fetchTranscriptWhisperOnly(url) {
   try {
     logger.verbose(`🎙️ Iniciando transcrição via Whisper para: ${url}`);
+    logger.verbose(`📋 Configurações:`, {
+      whisperModel: CONFIG.audio.model,
+      whisperLanguage: CONFIG.audio.language,
+      sampleRate: CONFIG.audio.sampleRate,
+      timeout: CONFIG.audio.timeoutMs
+    });
+    
+    const downloadStartTime = Date.now();
     const wavBuffer = await downloadWavBuffer(url);
-    logger.verbose(`🎵 Áudio convertido para WAV, iniciando transcrição`);
+    const downloadEndTime = Date.now();
+    
+    logger.verbose(`🎵 Áudio baixado e convertido para WAV:`, {
+      bufferSize: wavBuffer.length,
+      sizeInMB: (wavBuffer.length / 1024 / 1024).toFixed(2),
+      downloadTime: `${downloadEndTime - downloadStartTime}ms`
+    });
+    
+    const transcriptionStartTime = Date.now();
     const transcript = await transcriber.transcribe(wavBuffer, 'wav');
-    logger.success(`✅ Transcrição via Whisper concluída (${transcript.length} caracteres)`);
+    const transcriptionEndTime = Date.now();
+    
+    logger.verbose(`📝 Detalhes da transcrição:`, {
+      charactersCount: transcript.length,
+      wordsCount: transcript.split(' ').length,
+      transcriptionTime: `${transcriptionEndTime - transcriptionStartTime}ms`,
+      totalTime: `${transcriptionEndTime - downloadStartTime}ms`,
+      preview: transcript.substring(0, 200) + (transcript.length > 200 ? '...' : '')
+    });
+    
+    logger.success(`✅ Transcrição via Whisper concluída (${transcript.length} caracteres, ${transcript.split(' ').length} palavras)`);
     return transcript;
   } catch (err) {
-    logger.error(`❌ Erro na transcrição via Whisper: ${err.message}`);
+    logger.error(`❌ Erro na transcrição via Whisper:`, {
+      url,
+      error: err.message,
+      stack: err.stack
+    });
     throw new Error(`Falha na transcrição via Whisper: ${err.message}`);
   }
 }

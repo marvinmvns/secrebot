@@ -1354,8 +1354,21 @@ async handleRecursoCommand(contactId) {
       let lastError = null;
       
       logger.flow(`▶️ Iniciando resumo de vídeo resiliente para ${contactId}. Método: ${method}, Link: ${link}`);
+      logger.verbose(`📋 Configurações do processamento:`, {
+        contactId,
+        method,
+        link,
+        maxRetries,
+        retryDelays,
+        whisperConfig: method === 'whisper' ? {
+          model: CONFIG.audio?.model,
+          language: CONFIG.audio?.language,
+          timeout: CONFIG.audio?.timeoutMs
+        } : null
+      });
       
       if (!this.checkCircuitBreaker(contactId)) {
+          logger.verbose(`🚫 Circuit breaker ativo para ${contactId}`);
           await this.sendErrorMessage(contactId, '⚠️ Sistema temporariamente indisponível para processamento de vídeo devido a falhas recentes. Tente novamente em 5 minutos.');
           return;
       }
@@ -1371,15 +1384,27 @@ async handleRecursoCommand(contactId) {
               await this.sendResponse(contactId, progressMsg, true);
               
               let transcript;
+              const transcriptionStartTime = Date.now();
+              
               if (method === 'whisper') {
                   logger.service('🎙️ Chamando serviço YouTubeService.fetchTranscriptWhisperOnly');
+                  logger.verbose(`🔗 Processando link com Whisper: ${link}`);
                   transcript = await YouTubeService.fetchTranscriptWhisperOnly(link);
               } else {
                   logger.service('🎙️ Chamando serviço YouTubeService.fetchTranscript');
+                  logger.verbose(`🔗 Processando link com método rápido: ${link}`);
                   transcript = await YouTubeService.fetchTranscript(link);
               }
               
-              logger.verbose(`📝 Transcrição concluída (${transcript?.length || 0} caracteres)`);
+              const transcriptionEndTime = Date.now();
+              logger.verbose(`📝 Transcrição concluída:`, {
+                characters: transcript?.length || 0,
+                words: transcript ? transcript.split(' ').length : 0,
+                transcriptionTime: `${transcriptionEndTime - transcriptionStartTime}ms`,
+                method,
+                attempt,
+                preview: transcript ? transcript.substring(0, 150) + '...' : 'vazio'
+              });
               
               if (!transcript || transcript.trim().length === 0) {
                   const errorMsg = `❌ Transcrição vazia na tentativa ${attempt}/${maxRetries}`;
@@ -1399,6 +1424,13 @@ async handleRecursoCommand(contactId) {
               const truncatedTranscript = transcript.slice(0, 15000);
               const truncated = transcriptLength > 15000;
               
+              logger.verbose(`📏 Processamento da transcrição:`, {
+                originalLength: transcriptLength,
+                truncatedLength: truncatedTranscript.length,
+                wasTruncated: truncated,
+                charactersRemoved: truncated ? transcriptLength - 15000 : 0
+              });
+              
               if (truncated) {
                   logger.verbose('⚠️ Transcrição grande, aplicando truncamento para 15k caracteres');
               }
@@ -1410,12 +1442,24 @@ async handleRecursoCommand(contactId) {
               
               const summaryPrompt = `Resuma em português o texto a seguir em tópicos claros e objetivos, em até 30 linhas:\n\n${truncatedTranscript}`;
               
-              logger.flow(`📨 Prompt preparado com ${summaryPrompt.length} caracteres. Enviando ao LLM`);
+              logger.verbose(`📨 Preparando prompt para LLM:`, {
+                promptLength: summaryPrompt.length,
+                transcriptPreview: truncatedTranscript.substring(0, 100) + '...',
+                llmModel: this.llmService?.constructor?.name || 'desconhecido'
+              });
               
               let summary;
+              const llmStartTime = Date.now();
               try {
                   logger.api('💬 Chamando LLM para gerar resumo');
                   summary = await this.llmService.getAssistantResponse(contactId, summaryPrompt);
+                  const llmEndTime = Date.now();
+                  
+                  logger.verbose(`🧠 LLM processamento concluído:`, {
+                    responseLength: summary?.length || 0,
+                    processingTime: `${llmEndTime - llmStartTime}ms`,
+                    responsePreview: summary ? summary.substring(0, 100) + '...' : 'vazio'
+                  });
               } catch (llmError) {
                   logger.error(`❌ Erro no LLM ao processar vídeo para ${contactId}`, llmError);
                   
@@ -1568,10 +1612,23 @@ async handleRecursoCommand(contactId) {
 
   async handleResumirVideo2Command(msg, contactId) {
       const link = msg.body.substring(COMMANDS.RESUMIRVIDEO2.length).trim();
+      logger.verbose(`🎬 Comando !resumirvideo2 recebido de ${contactId}:`, {
+        link,
+        messageId: msg.id,
+        timestamp: new Date().toISOString()
+      });
+      
       if (!link) {
+          logger.verbose(`❌ Link não fornecido para !resumirvideo2 de ${contactId}`);
           await this.sendResponse(contactId, '📺 Por favor, envie o link do vídeo do YouTube que deseja transcrever.');
           return;
       }
+      
+      logger.verbose(`🚀 Iniciando processamento de vídeo com Whisper para ${contactId}:`, {
+        link,
+        method: 'whisper',
+        service: 'processVideoSummaryResilient'
+      });
       
       return this.processVideoSummaryResilient(link, contactId, 'whisper');
   }

@@ -97,6 +97,11 @@ class WhatsAppBot {
     logger.info('🔄 FlowExecutionService configurado no WhatsAppBot');
   }
 
+  setFlowService(flowService) {
+    this.flowService = flowService;
+    logger.info('🔄 FlowService configurado no WhatsAppBot');
+  }
+
   async hasActiveFlow(contactId) {
     return this.flowExecutionService && this.flowExecutionService.hasActiveFlow(contactId);
   }
@@ -112,7 +117,20 @@ class WhatsAppBot {
     if (!this.flowExecutionService) {
       return false;
     }
-    return await this.flowExecutionService.startFlowExecution(contactId, flowId, initialMessage);
+    
+    try {
+      return await this.flowExecutionService.startFlowExecution(contactId, flowId, 'manual', { initialMessage });
+    } catch (error) {
+      // Se o flow não foi encontrado, tentar recarregar da base de dados
+      if (error.message.includes('não encontrado')) {
+        logger.info(`🔄 Tentando recarregar flow '${flowId}' da base de dados...`);
+        const reloaded = await this.flowExecutionService.reloadFlow(flowId);
+        if (reloaded) {
+          return await this.flowExecutionService.startFlowExecution(contactId, flowId, 'manual', { initialMessage });
+        }
+      }
+      throw error;
+    }
   }
 
   async stopFlow(contactId) {
@@ -2891,18 +2909,27 @@ usuario@email.com:senha
   }
 
   async handleFlowStart(contactId, parts) {
-    const flowId = parts[2];
-    if (!flowId) {
-      await this.sendResponse(contactId, '❌ Especifique o ID do flow.\nUso: !flow start <flowId>');
+    const identifier = parts[2];
+    if (!identifier) {
+      await this.sendResponse(contactId, '❌ Especifique o alias ou ID do flow.\nUso: !flow start <alias> ou !flow start <flowId>');
       return;
     }
 
     try {
-      const started = await this.startFlow(contactId, flowId);
+      // Primeiro verificar se o flow existe por ID ou alias
+      if (this.flowService) {
+        const flowResult = await this.flowService.findFlow(identifier);
+        if (!flowResult.success) {
+          await this.sendResponse(contactId, `❌ Flow "${identifier}" não encontrado. Use !flow list para ver flows disponíveis.`);
+          return;
+        }
+      }
+      
+      const started = await this.startFlow(contactId, identifier);
       if (started) {
-        await this.sendResponse(contactId, `✅ Flow "${flowId}" iniciado com sucesso!`);
+        await this.sendResponse(contactId, `✅ Flow "${identifier}" iniciado com sucesso!`);
       } else {
-        await this.sendResponse(contactId, `❌ Não foi possível iniciar o flow "${flowId}".`);
+        await this.sendResponse(contactId, `❌ Não foi possível iniciar o flow "${identifier}".`);
       }
     } catch (error) {
       logger.error('Erro ao iniciar flow:', error);
@@ -2941,20 +2968,30 @@ usuario@email.com:senha
 
   async handleFlowList(contactId) {
     try {
-      const flows = await this.flowExecutionService.getAvailableFlows();
-      if (flows.length === 0) {
-        await this.sendResponse(contactId, '📋 Nenhum flow disponível.');
+      // Usar FlowService para consultar diretamente a base de dados
+      if (!this.flowService) {
+        await this.sendResponse(contactId, '❌ Serviço de flows não está disponível.');
+        return;
+      }
+
+      const result = await this.flowService.listFlows();
+      if (!result.success || !result.flows || result.flows.length === 0) {
+        await this.sendResponse(contactId, '📋 Nenhum flow disponível na base de dados.');
         return;
       }
 
       let message = '📋 Flows Disponíveis:\n\n';
-      flows.forEach(flow => {
-        message += `🔄 ${flow.id}\n`;
+      result.flows.forEach(flow => {
+        message += `🔄 ${flow.alias || flow.id}\n`;
         message += `   📝 ${flow.name || 'Sem nome'}\n`;
-        message += `   📊 ${flow.nodes?.length || 0} nós\n\n`;
+        message += `   📄 ${flow.description || 'Sem descrição'}\n`;
+        if (flow.alias && flow.alias !== flow.id) {
+          message += `   🆔 ID: ${flow.id}\n`;
+        }
+        message += `   📊 ${flow.nodeCount || 0} nós\n\n`;
       });
       
-      message += '💡 Para iniciar: !flow start <flowId>';
+      message += '💡 Para iniciar: !flow start <alias> ou !flow start <flowId>';
       await this.sendResponse(contactId, message);
     } catch (error) {
       logger.error('Erro ao listar flows:', error);
@@ -2964,11 +3001,13 @@ usuario@email.com:senha
 
   async sendFlowHelp(contactId) {
     const help = `🔄 *Comandos de Flow*\n\n` +
-      `• !flow start <flowId> - Iniciar um flow\n` +
+      `• !flow start <alias|flowId> - Iniciar um flow\n` +
       `• !flow stop - Parar flow ativo\n` +
       `• !flow status - Ver status do flow\n` +
       `• !flow list - Listar flows disponíveis\n\n` +
-      `💡 *Exemplo:* !flow start jiu-jitsu`;
+      `💡 *Exemplos:*\n` +
+      `   !flow start jiu-jitsu\n` +
+      `   !flow start atendimento-academia-jiu-jitsu`;
     
     await this.sendResponse(contactId, help);
   }

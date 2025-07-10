@@ -31,7 +31,7 @@ class RestAPI {
     this.configService = configService;
     this.app = express();
     this.googleService = new GoogleCalendarService();
-    this.flowService = new FlowService(configService);
+    this.flowService = new FlowService(this.bot.getScheduler().db);
     this.flowExecutionService = flowExecutionService;
     
     this.setupMiddleware();
@@ -809,6 +809,10 @@ class RestAPI {
         const result = await this.flowService.saveFlow(req.body);
         
         if (result.success) {
+          // Sincronizar com FlowExecutionService
+          if (this.flowExecutionService) {
+            await this.flowExecutionService.reloadFlow(result.flowId);
+          }
           res.json(result);
         } else {
           res.status(400).json(result);
@@ -895,6 +899,10 @@ class RestAPI {
         const result = await this.flowService.deleteFlow(req.params.id);
         
         if (result.success) {
+          // Remover do FlowExecutionService
+          if (this.flowExecutionService) {
+            this.flowExecutionService.unloadFlow(req.params.id);
+          }
           res.json(result);
         } else {
           res.status(404).json(result);
@@ -916,6 +924,10 @@ class RestAPI {
         const result = await this.flowService.duplicateFlow(req.params.id, newName);
         
         if (result.success) {
+          // Carregar o novo flow no FlowExecutionService
+          if (this.flowExecutionService) {
+            await this.flowExecutionService.reloadFlow(result.flowId);
+          }
           res.json(result);
         } else {
           res.status(400).json(result);
@@ -966,6 +978,10 @@ class RestAPI {
         const result = await this.flowService.importFlow(flowData);
         
         if (result.success) {
+          // Carregar o flow importado no FlowExecutionService
+          if (this.flowExecutionService) {
+            await this.flowExecutionService.reloadFlow(result.flowId);
+          }
           res.json(result);
         } else {
           res.status(400).json(result);

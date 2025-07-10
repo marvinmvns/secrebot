@@ -131,6 +131,116 @@ npm start
 
 ---
 
+## 📚 Documentação Completa
+
+### 📄 Arquivos de Documentação Disponíveis
+
+<table>
+<tr>
+<th width="30%">📄 Arquivo</th>
+<th width="50%">📋 Descrição</th>
+<th width="20%">🎯 Público-Alvo</th>
+</tr>
+
+<tr>
+<td><strong><a href="README.md">README.md</a></strong></td>
+<td>📖 Documentação principal completa do SecreBot</td>
+<td>👥 Todos os usuários</td>
+</tr>
+
+<tr>
+<td><strong><a href="FLOW-BUILDER-DOCS.md">FLOW-BUILDER-DOCS.md</a></strong></td>
+<td>🔄 Guia completo do Flow Builder (No-Code)</td>
+<td>👨‍💻 Desenvolvedores</td>
+</tr>
+
+<tr>
+<td><strong><a href="PIPER-SETUP.md">PIPER-SETUP.md</a></strong></td>
+<td>🎤 Configuração detalhada do Piper TTS</td>
+<td>⚙️ Administradores</td>
+</tr>
+
+<tr>
+<td><strong><a href="scripts/README-PIPER.md">scripts/README-PIPER.md</a></strong></td>
+<td>🔧 Scripts de instalação automática do Piper</td>
+<td>⚙️ Administradores</td>
+</tr>
+
+<tr>
+<td><strong><a href="TELEGRAM.md">TELEGRAM.md</a></strong></td>
+<td>📱 Integração com Telegram (Em desenvolvimento)</td>
+<td>👨‍💻 Desenvolvedores</td>
+</tr>
+
+<tr>
+<td><strong><a href="README_TEMPLATE_JIUJITSU.md">README_TEMPLATE_JIUJITSU.md</a></strong></td>
+<td>🥋 Template de exemplo para academia de Jiu-Jitsu</td>
+<td>💼 Usuários finais</td>
+</tr>
+
+<tr>
+<td><strong><a href="WHISPER-DIAGNOSTIC-REPORT.md">WHISPER-DIAGNOSTIC-REPORT.md</a></strong></td>
+<td>🎤 Relatório de diagnóstico do Whisper</td>
+<td>🔧 Técnicos</td>
+</tr>
+
+<tr>
+<td><strong><a href="CHANGELOG-PIPER.md">CHANGELOG-PIPER.md</a></strong></td>
+<td>📝 Histórico de mudanças do Piper TTS</td>
+<td>👨‍💻 Desenvolvedores</td>
+</tr>
+
+</table>
+
+### 🎯 Guia de Navegação por Funcionalidade
+
+<table>
+<tr>
+<th width="25%">🚀 Quero...</th>
+<th width="35%">📖 Documentação</th>
+<th width="40%">🔗 Links Rápidos</th>
+</tr>
+
+<tr>
+<td><strong>Instalar rapidamente</strong></td>
+<td><a href="#-instalação-automática">Instalação Automática</a></td>
+<td><a href="#-instalação-rápida">Scripts Linux/Windows</a></td>
+</tr>
+
+<tr>
+<td><strong>Criar fluxos no-code</strong></td>
+<td><a href="FLOW-BUILDER-DOCS.md">Flow Builder Docs</a></td>
+<td><a href="#🔄-flow-builder-no-code">Sistema de Alias</a></td>
+</tr>
+
+<tr>
+<td><strong>Configurar TTS local</strong></td>
+<td><a href="PIPER-SETUP.md">Piper Setup</a></td>
+<td><a href="scripts/README-PIPER.md">Scripts Piper</a></td>
+</tr>
+
+<tr>
+<td><strong>Solucionar problemas</strong></td>
+<td><a href="#-suporte-e-solução-de-problemas">Troubleshooting</a></td>
+<td><a href="WHISPER-DIAGNOSTIC-REPORT.md">Diagnósticos</a></td>
+</tr>
+
+<tr>
+<td><strong>Ver exemplo prático</strong></td>
+<td><a href="README_TEMPLATE_JIUJITSU.md">Template Jiu-Jitsu</a></td>
+<td><a href="#-exemplos-de-uso">Exemplos de Uso</a></td>
+</tr>
+
+<tr>
+<td><strong>Desenvolver/integrar</strong></td>
+<td><a href="#-api-rest">API REST</a></td>
+<td><a href="TELEGRAM.md">Integração Telegram</a></td>
+</tr>
+
+</table>
+
+---
+
 ## 📋 Índice
 
 <details>
@@ -144,6 +254,7 @@ npm start
   - [📅 Sistema de Agendamentos](#-sistema-de-agendamentos)
   - [💼 Ferramentas Profissionais](#-ferramentas-profissionais)
   - [🌐 Interface Web](#-interface-web)
+  - [🔄 Flow Builder (No-Code)](#-flow-builder-no-code)
 - [📋 Requisitos](#-requisitos)
 - [🚀 Instalação Rápida](#-instalação-rápida)
 - [⚙️ Configuração Detalhada](#️-configuração-detalhada)
@@ -292,6 +403,14 @@ npm start
 - **⚙️ Configurações**: Editor visual de variáveis de ambiente
 - **🗨️ Chat Web**: Interface de conversa no navegador
 - **📁 Upload de arquivos**: Análise de documentos, imagens e áudios
+
+### 🔄 Flow Builder (No-Code)
+
+- **🎯 Interface Visual**: Criação de fluxos conversacionais drag-and-drop
+- **📱 Sistema de Alias**: Nomes amigáveis para chamar flows (ex: `!flow start jiu-jitsu`)
+- **🔗 Nós Inteligentes**: Start, mensagem, condição, webhook, LLM, delay, variáveis
+- **💾 Persistência**: Fluxos salvos automaticamente no MongoDB
+- **🚀 Execução em Tempo Real**: Processamento instantâneo via WhatsApp
 
 ---
 
@@ -570,6 +689,7 @@ O SecreBot usa um **sistema de menu hierárquico** com até 3 níveis de navega�
 4️⃣ 💼 ANÁLISE PROFISSIONAL
 5️⃣ ⚙️ CONFIGURAÇÕES
 6️⃣ 📞 SUPORTE & SISTEMA
+7️⃣ 🔄 FLOW BUILDER (NO-CODE)
 ```
 
 #### 📋 Menu Completo
@@ -613,6 +733,13 @@ O SecreBot usa um **sistema de menu hierárquico** com até 3 níveis de navega�
 6️⃣ 📞 SUPORTE & SISTEMA
 ├── 6.1 📖 Ajuda Detalhada
 └── 6.2 ⚡ Recursos do Sistema
+
+7️⃣ 🔄 FLOW BUILDER (NO-CODE)
+├── !flow list - 📋 Listar flows disponíveis
+├── !flow start <alias> - 🚀 Iniciar flow por alias amigável
+├── !flow start <flowId> - 🔗 Iniciar flow por ID completo
+├── !flow stop - 🛑 Parar flow ativo
+└── !flow status - 📊 Ver status do flow atual
 ```
 
 </details>
@@ -681,6 +808,18 @@ O bot reconhece comandos falados! Envie um áudio dizendo:
 <td><strong>🎥 Resumir YouTube</strong></td>
 <td>Digite <code>2.3.1</code> ou <code>!resumirvideo</code></td>
 <td><em>"youtube.com/watch?v=abc123"</em></td>
+</tr>
+
+<tr>
+<td><strong>🔄 Iniciar Flow (Alias)</strong></td>
+<td>Digite <code>!flow start <alias></code></td>
+<td><em>"!flow start jiu-jitsu"</em></td>
+</tr>
+
+<tr>
+<td><strong>📋 Listar Flows</strong></td>
+<td>Digite <code>!flow list</code></td>
+<td>Mostra todos flows com alias amigáveis</td>
 </tr>
 
 </table>
@@ -872,6 +1011,36 @@ ELEVENLABS_VOICE_ID=seu_voice_id
 <td>Informações do sistema</td>
 </tr>
 
+<tr>
+<td><code>GET</code></td>
+<td><code>/flow-builder</code></td>
+<td>Interface visual do Flow Builder</td>
+</tr>
+
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/flow/save</code></td>
+<td>Salvar flow criado no builder</td>
+</tr>
+
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/flow/list</code></td>
+<td>Listar todos os flows salvos</td>
+</tr>
+
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/flow/:id</code></td>
+<td>Carregar flow específico</td>
+</tr>
+
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/api/flow/:id</code></td>
+<td>Excluir flow</td>
+</tr>
+
 </table>
 
 ### 💻 Exemplos de uso da API
@@ -934,6 +1103,13 @@ Acesse **`http://localhost:3000`** para usar a interface web completa:
 - **💻 Sistema**: CPU, memória, disco
 - **🔌 Serviços**: Status Ollama, MongoDB, Whisper
 - **📈 Performance**: Métricas em tempo real
+
+### 🔄 Flow Builder (`/flow-builder`)
+- **🎯 Interface Visual**: Drag-and-drop para criar fluxos
+- **📱 Sistema de Alias**: Configuração de nomes amigáveis
+- **🔗 Nós Disponíveis**: Start, mensagem, condição, webhook, LLM, delay
+- **💾 Gerenciamento**: Salvar, carregar, duplicar e excluir flows
+- **🧪 Teste em Tempo Real**: Validação e execução instantânea
 
 ---
 
@@ -1063,7 +1239,10 @@ secrebot/
 │   │   ├── 📄 scheduler.js          # 📅 Sistema de agendamentos
 │   │   ├── 📄 youtubeService.js     # 🎥 Processamento YouTube
 │   │   ├── 📄 linkedinScraper.js   # 🔗 Análise LinkedIn
-│   │   └── 📄 calorieService.js     # 🍎 Contagem de calorias
+│   │   ├── 📄 calorieService.js     # 🍎 Contagem de calorias
+│   │   ├── 📄 flowService.js        # 🔄 Gerenciamento de flows
+│   │   ├── 📄 flowDataService.js    # 💾 Persistência de flows
+│   │   └── 📄 flowExecutionService.js # ⚡ Execução de flows
 │   ├── 📂 api/
 │   │   └── 📄 restApi.js            # 🌐 API Express
 │   ├── 📂 config/                   # ⚙️ Configurações
@@ -1087,13 +1266,16 @@ secrebot/
 │   ├── 📄 layout.ejs                # 🏗️ Layout principal
 │   ├── 📄 dashboard.ejs             # 📊 Dashboard
 │   ├── 📄 chat.ejs                  # 💬 Interface chat
-│   └── 📄 config.ejs                # ⚙️ Configurações
+│   ├── 📄 config.ejs                # ⚙️ Configurações
+│   └── 📄 flow-builder.ejs          # 🔄 Interface Flow Builder
 ├── 📂 scripts/                      # 🔧 Scripts de instalação
 │   ├── 📄 install-piper-simple.sh   # 🎤 Instalador Piper (recomendado)
 │   ├── 📄 install-piper.sh          # 🎤 Instalador completo
 │   └── 📄 README-PIPER.md           # 📖 Documentação Piper
 ├── 📂 test/                         # 🧪 Testes automatizados
 ├── 📂 piper/                        # 🔊 TTS local (auto-criado)
+├── 📂 templates/                    # 🎯 Templates de exemplo
+│   └── 📄 template_academia_jiu_jitsu.json # 🥋 Template academia
 ├── 📄 package.json                  # 📦 Dependências
 ├── 📄 .env.example                  # ⚙️ Exemplo configuração
 ├── 📄 Dockerfile                    # 🐳 Container Docker

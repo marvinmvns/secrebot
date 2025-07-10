@@ -6,6 +6,7 @@ import WhatsAppBot from './whatsAppBot.js';
 import { TelegramBotService } from './telegramBot.js';
 import RestAPI from '../api/restApi.js';
 import ConfigService from '../services/configService.js';
+import FlowService from '../services/flowService.js';
 import FlowExecutionService from '../services/flowExecutionService.js';
 import { config, applyConfig } from '../config/config.js';
 import logger from '../utils/logger.js';
@@ -95,13 +96,20 @@ export class ApplicationFactory {
       const bot = new WhatsAppBot(scheduler, llmService, transcriber, ttsService);
       await bot.initialize();
       
+      // Criar e configurar FlowService  
+      const flowService = new FlowService(scheduler.db);
+      await flowService.init();
+      bot.setFlowService(flowService);
+      
       // Criar e configurar FlowExecutionService
       const flowExecutionService = new FlowExecutionService(bot, llmService);
+      await flowExecutionService.init(flowService);
       bot.setFlowExecutionService(flowExecutionService);
       
       this.services.set('whatsAppBot', bot);
+      this.services.set('flowService', flowService);
       this.services.set('flowExecutionService', flowExecutionService);
-      logger.info('WhatsApp bot initialized with FlowExecutionService');
+      logger.info('WhatsApp bot initialized with FlowService and FlowExecutionService');
       return bot;
     } catch (error) {
       logger.warn('WhatsApp bot não pôde ser inicializado, mas outros serviços continuam funcionando', {

@@ -25,12 +25,34 @@ class FlowExecutionService {
                 return;
             }
 
-            const result = await flowService.listFlows();
+            this.flowService = flowService; // Guardar referência para recarregar quando necessário
+            await this.reloadAllFlows();
+
+            logger.info(`✅ FlowExecutionService inicializado com ${this.loadedFlows.size} fluxos`);
+        } catch (error) {
+            logger.error('❌ Erro ao inicializar FlowExecutionService:', error);
+        }
+    }
+
+    /**
+     * Recarrega todos os flows da base de dados
+     */
+    async reloadAllFlows() {
+        try {
+            if (!this.flowService) {
+                logger.warn('FlowService não disponível para recarregar flows');
+                return;
+            }
+
+            // Limpar flows carregados
+            this.loadedFlows.clear();
+
+            const result = await this.flowService.listFlows();
             
             if (result.success && result.flows) {
                 for (const flowSummary of result.flows) {
                     try {
-                        const flowData = await flowService.loadFlow(flowSummary.id);
+                        const flowData = await this.flowService.loadFlow(flowSummary.id);
                         if (flowData.success) {
                             this.loadFlow(flowData.flow);
                         }
@@ -40,10 +62,47 @@ class FlowExecutionService {
                 }
             }
 
-            logger.info(`✅ FlowExecutionService inicializado com ${this.loadedFlows.size} fluxos`);
+            logger.info(`🔄 Flows recarregados: ${this.loadedFlows.size} fluxos`);
         } catch (error) {
-            logger.error('❌ Erro ao inicializar FlowExecutionService:', error);
+            logger.error('❌ Erro ao recarregar flows:', error);
         }
+    }
+
+    /**
+     * Recarrega um flow específico da base de dados
+     */
+    async reloadFlow(flowId) {
+        try {
+            if (!this.flowService) {
+                logger.warn('FlowService não disponível para recarregar flow');
+                return false;
+            }
+
+            const flowData = await this.flowService.loadFlow(flowId);
+            if (flowData.success) {
+                this.loadFlow(flowData.flow);
+                logger.info(`🔄 Flow '${flowId}' recarregado com sucesso`);
+                return true;
+            }
+            
+            logger.warn(`⚠️ Flow '${flowId}' não encontrado para recarregar`);
+            return false;
+        } catch (error) {
+            logger.error(`❌ Erro ao recarregar flow ${flowId}:`, error);
+            return false;
+        }
+    }
+
+    /**
+     * Remove um flow da memória
+     */
+    unloadFlow(flowId) {
+        if (this.loadedFlows.has(flowId)) {
+            this.loadedFlows.delete(flowId);
+            logger.info(`🗑️ Flow '${flowId}' removido da memória`);
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -154,11 +213,25 @@ class FlowExecutionService {
      * @param {string} trigger - Gatilho que iniciou o fluxo
      * @param {Object} initialData - Dados iniciais
      */
-    async startFlowExecution(userId, flowId, trigger, initialData = {}) {
+    async startFlowExecution(userId, identifier, trigger, initialData = {}) {
         try {
-            const flow = this.loadedFlows.get(flowId);
+            // Primeiro tentar encontrar o flow por ID
+            let flow = this.loadedFlows.get(identifier);
+            let flowId = identifier; // Assumir que identifier é o flowId se encontrado diretamente
+            
+            // Se não encontrou por ID, tentar por alias
             if (!flow) {
-                throw new Error(`Fluxo '${flowId}' não encontrado`);
+                for (const [id, flowData] of this.loadedFlows.entries()) {
+                    if (flowData.alias === identifier) {
+                        flow = flowData;
+                        flowId = id; // Usar o ID real do flow encontrado por alias
+                        break;
+                    }
+                }
+            }
+            
+            if (!flow) {
+                throw new Error(`Fluxo '${identifier}' não encontrado`);
             }
 
             // Encontrar nó de início apropriado
@@ -809,12 +882,12 @@ class FlowExecutionService {
                 case 'once':
                     scheduler.scheduleOnce(new Date(node.data.datetime), () => {
                         // Executar fluxo de destino
-                        this.startFlowExecution(executionState.userId, targetFlow, 'scheduled');
+                        this.startFlowExecution(executionState.userId, targetFlow, 'scheduled', {});
                     });
                     break;
                 case 'cron':
                     scheduler.scheduleCron(node.data.cron, () => {
-                        this.startFlowExecution(executionState.userId, targetFlow, 'scheduled');
+                        this.startFlowExecution(executionState.userId, targetFlow, 'scheduled', {});
                     });
                     break;
             }

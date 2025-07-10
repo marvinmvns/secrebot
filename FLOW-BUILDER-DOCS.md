@@ -48,6 +48,14 @@ O Flow Builder é uma interface visual no-code/low-code para criação de fluxos
   - `POST /api/flow/test` - Testar fluxo
   - `DELETE /api/flow/:id` - Excluir fluxo
 
+#### 5. Sistema de Alias para Flows
+- **Função**: Permite usar nomes amigáveis para chamar flows
+- **Recursos**:
+  - Geração automática de alias baseado no nome do flow
+  - Compatibilidade com IDs longos existentes
+  - Suporte no comando `!flow start` para alias e IDs
+  - Exibição de alias no comando `!flow list`
+
 ## Tipos de Nós Disponíveis
 
 ### 1. Nó de Início (`start`)
@@ -122,6 +130,31 @@ O Flow Builder é uma interface visual no-code/low-code para criação de fluxos
 - Variáveis são mantidas durante toda a execução do fluxo
 - Limpas automaticamente ao finalizar
 
+## Comandos do WhatsApp
+
+### Sistema de Alias para Flows
+O sistema agora suporta alias amigáveis para facilitar a chamada de flows:
+
+#### Comandos Disponíveis:
+- `!flow list` - Lista todos os flows com seus aliases
+- `!flow start <alias>` - Inicia um flow usando seu alias
+- `!flow start <flowId>` - Inicia um flow usando seu ID completo
+- `!flow stop` - Para o flow ativo
+- `!flow status` - Mostra status do flow atual
+
+#### Exemplos de Uso:
+```
+!flow start jiu-jitsu          # Usando alias amigável
+!flow start atendimento-academia-jiu-jitsu  # Usando ID completo
+```
+
+#### Como os Alias São Gerados:
+- Automaticamente baseados no nome do flow
+- Convertidos para minúsculas
+- Espaços substituídos por hífens
+- Acentos e caracteres especiais removidos
+- Limitados a 20 caracteres para facilitar digitação
+
 ## Integração com WhatsApp Bot
 
 ### Arquivo de Integração
@@ -142,11 +175,13 @@ if (this.flowService.hasActiveFlow(fromNumber)) {
 
 ### Carregamento de Fluxos
 ```javascript
-// Carregar fluxo salvo
-const savedFlows = await configService.getConfig('flows');
-Object.values(savedFlows).forEach(flow => {
-    this.flowService.loadFlow(flow);
-});
+// Carregar fluxos salvos (agora usando FlowDataService dedicado)
+const result = await flowService.listFlows();
+if (result.success) {
+    result.flows.forEach(flow => {
+        this.flowService.loadFlow(flow);
+    });
+}
 ```
 
 ### Iniciação de Fluxos

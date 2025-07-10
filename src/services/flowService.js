@@ -2,6 +2,7 @@ import logger from '../utils/logger.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import FlowDataService from './flowDataService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -10,8 +11,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * Responsável por CRUD de fluxos, validação e integração
  */
 class FlowService {
-    constructor(configService) {
-        this.configService = configService;
+    constructor(db) {
+        this.flowDataService = new FlowDataService(db);
         this.flows = new Map();
         this.init();
     }
@@ -21,10 +22,14 @@ class FlowService {
      */
     async init() {
         try {
-            const savedFlows = await this.configService.getConfig('flows') || {};
+            // Inicializar o serviço de dados (inclui migração automática)
+            await this.flowDataService.init();
             
-            Object.entries(savedFlows).forEach(([id, flowData]) => {
-                this.flows.set(id, flowData);
+            // Carregar todos os flows na memória para cache
+            const result = await this.flowDataService.listFlows();
+            
+            result.flows.forEach(flowData => {
+                this.flows.set(flowData._id, flowData);
             });
             
             logger.info(`✅ FlowService inicializado com ${this.flows.size} fluxos`);
@@ -77,6 +82,97 @@ class FlowService {
     }
 
     /**
+     * Gera um ID simples baseado no nome do flow
+     * @param {string} flowName - Nome do flow
+     * @returns {string} ID simples para usar em comandos
+     */
+    generateSimpleId(flowName) {
+        if (!flowName) {
+            return `flow-${Date.now()}`;
+        }
+        
+        // Converter para minúsculo, remover acentos e caracteres especiais
+        let id = flowName
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+            .replace(/[^a-z0-9\s-]/g, '') // Remove caracteres especiais
+            .replace(/\s+/g, '-') // Substitui espaços por hífens
+            .replace(/-+/g, '-') // Remove hífens múltiplos
+            .replace(/^-|-$/g, ''); // Remove hífens no início/fim
+        
+        // Limitar tamanho máximo
+        if (id.length > 30) {
+            id = id.substring(0, 30).replace(/-$/, '');
+        }
+        
+        // Garantir que não está vazio
+        if (!id) {
+            id = `flow-${Date.now()}`;
+        }
+        
+        return id;
+    }
+
+    /**
+     * Gera um alias amigável baseado no nome do flow
+     * @param {string} flowName - Nome do flow
+     * @returns {string} Alias amigável para usar em comandos
+     */
+    generateAlias(flowName) {
+        if (!flowName) {
+            return null;
+        }
+        
+        // Converter para minúsculo, remover acentos e caracteres especiais
+        let alias = flowName
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+            .replace(/[^a-z0-9\s-]/g, '') // Remove caracteres especiais
+            .replace(/\s+/g, '-') // Substitui espaços por hífens
+            .replace(/-+/g, '-') // Remove hífens múltiplos
+            .replace(/^-|-$/g, ''); // Remove hífens no início/fim
+        
+        // Limitar tamanho máximo para alias
+        if (alias.length > 20) {
+            alias = alias.substring(0, 20).replace(/-$/, '');
+        }
+        
+        // Garantir que não está vazio
+        if (!alias) {
+            return null;
+        }
+        
+        return alias;
+    }
+
+    /**
+     * Gera um ID único verificando se já existe na base
+     * @param {string} flowName - Nome do flow
+     * @returns {string} ID único para o flow
+     */
+    async generateUniqueId(flowName) {
+        let baseId = this.generateSimpleId(flowName);
+        let finalId = baseId;
+        let counter = 1;
+        
+        // Verificar se ID já existe
+        while (await this.flowDataService.flowExists(finalId)) {
+            finalId = `${baseId}-${counter}`;
+            counter++;
+            
+            // Evitar loop infinito
+            if (counter > 999) {
+                finalId = `${baseId}-${Date.now()}`;
+                break;
+            }
+        }
+        
+        return finalId;
+    }
+
+    /**
      * Salva um fluxo
      * @param {Object} flowData - Dados do fluxo
      * @returns {Object} Resultado da operação
@@ -92,24 +188,33 @@ class FlowService {
                 };
             }
 
-            // Gerar ID se não existir
-            const flowId = flowData.id || `flow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            // Gerar ID se não existir - usar nome simples e verificar duplicatas
+            let flowId = flowData.id;
+            if (!flowId) {
+                flowId = await this.generateUniqueId(flowData.name);
+            }
+            
+            // Gerar alias se não existir
+            let alias = flowData.alias;
+            if (!alias && flowData.name) {
+                alias = this.generateAlias(flowData.name);
+            }
             
             // Preparar dados do fluxo
             const flow = {
                 ...flowData,
                 id: flowId,
+                alias: alias,
                 createdAt: flowData.createdAt || new Date().toISOString(),
                 lastModified: new Date().toISOString(),
                 version: flowData.version || '1.0'
             };
 
-            // Salvar na memória
-            this.flows.set(flowId, flow);
+            // Persistir no banco usando o novo serviço
+            await this.flowDataService.saveFlow(flow);
 
-            // Persistir no banco
-            const allFlows = Object.fromEntries(this.flows);
-            await this.configService.setConfig({ flows: allFlows });
+            // Salvar na memória para cache
+            this.flows.set(flowId, flow);
 
             logger.info(`✅ Fluxo '${flow.name}' salvo com ID: ${flowId}`);
             
@@ -159,6 +264,43 @@ class FlowService {
     }
 
     /**
+     * Busca um fluxo por ID ou alias
+     * @param {string} identifier - ID ou alias do fluxo
+     * @returns {Object} Dados do fluxo ou erro
+     */
+    async findFlow(identifier) {
+        try {
+            // Primeiro tenta por ID
+            let flow = this.flows.get(identifier);
+            
+            // Se não encontrou por ID, tenta por alias
+            if (!flow) {
+                const flowsArray = Array.from(this.flows.values());
+                flow = flowsArray.find(f => f.alias === identifier);
+            }
+            
+            if (!flow) {
+                return {
+                    success: false,
+                    error: 'Fluxo não encontrado'
+                };
+            }
+
+            return {
+                success: true,
+                flow: flow
+            };
+
+        } catch (error) {
+            logger.error(`❌ Erro ao buscar fluxo ${identifier}:`, error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
      * Lista todos os fluxos
      * @returns {Object} Lista de fluxos
      */
@@ -166,6 +308,7 @@ class FlowService {
         try {
             const flowList = Array.from(this.flows.values()).map(flow => ({
                 id: flow.id,
+                alias: flow.alias,
                 name: flow.name,
                 description: flow.description,
                 createdAt: flow.createdAt,
@@ -206,12 +349,11 @@ class FlowService {
 
             const flowName = this.flows.get(flowId).name;
             
+            // Remover do banco
+            await this.flowDataService.deleteFlow(flowId);
+
             // Remover da memória
             this.flows.delete(flowId);
-
-            // Persistir no banco
-            const allFlows = Object.fromEntries(this.flows);
-            await this.configService.setConfig({ flows: allFlows });
 
             logger.info(`🗑️ Fluxo '${flowName}' (${flowId}) excluído`);
             

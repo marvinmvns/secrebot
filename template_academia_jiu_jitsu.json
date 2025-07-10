@@ -1,7 +1,8 @@
 {
   "name": "Atendimento Academia Jiu-Jitsu",
   "description": "Template completo e interativo para atendimento de academia de jiu-jitsu com explicações detalhadas e múltiplos caminhos",
-  "id": "template_jiujitsu_academy",
+  "id": "jiu-jitsu",
+  "alias": "jiu-jitsu",
   "version": "1.0",
   "createdAt": "2024-01-01T00:00:00.000Z",
   "lastModified": "2024-01-01T00:00:00.000Z",

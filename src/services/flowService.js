@@ -22,24 +22,49 @@ class FlowService {
      */
     async init() {
         try {
-            // Inicializar o serviço de dados (inclui migração automática)
+            logger.info('🚀 Inicializando FlowService...');
+            
+            // Inicializar o serviço de dados flows (inclui migração automática)
             await this.flowDataService.init();
             
-            // Carregar todos os flows na memória para cache
+            // Carregar todos os flows na memória para cache (SEMPRE da base flows)
             const result = await this.flowDataService.listFlows();
             
-            result.flows.forEach(flowData => {
-                this.flows.set(flowData._id, flowData);
-            });
+            if (result && result.success && result.flows) {
+                result.flows.forEach(flowData => {
+                    // Usar _id do MongoDB como chave principal
+                    const flowId = flowData._id || flowData.id;
+                    this.flows.set(flowId, flowData);
+                    logger.verbose(`📄 Flow carregado: '${flowData.name}' (ID: ${flowId})`);
+                });
+            } else {
+                logger.warn('⚠️ Nenhum flow encontrado na base ou erro na listagem');
+            }
             
-            logger.info(`✅ FlowService inicializado com ${this.flows.size} fluxos`);
+            logger.info(`✅ FlowService inicializado com ${this.flows.size} fluxos da base flows`);
             
             // Verificar se existe fluxo padrão, se não, criar um com o template jiu-jitsu
             if (this.flows.size === 0) {
+                logger.info('🌱 Nenhum flow encontrado, carregando template padrão...');
                 await this.loadDefaultTemplate();
+            } else {
+                // Verificar se existe o flow exemplo-academia-jiu-jitsu
+                const hasExampleFlow = Array.from(this.flows.values())
+                    .some(flow => flow.name && flow.name.includes('academia') && flow.name.includes('jiu'));
+                
+                if (!hasExampleFlow) {
+                    logger.info('🌱 Flow exemplo academia não encontrado, carregando template...');
+                    await this.loadDefaultTemplate();
+                }
             }
+            
+            // Executar verificação de integridade
+            await this.validateFlowsIntegrity();
+            
         } catch (error) {
             logger.error('❌ Erro ao inicializar FlowService:', error);
+            logger.error('Stack trace:', error.stack);
+            throw error; // Re-throw para que o erro seja tratado em nível superior
         }
     }
 
@@ -148,7 +173,7 @@ class FlowService {
     }
 
     /**
-     * Gera um ID único verificando se já existe na base
+     * Gera um ID único verificando se já existe na base flows
      * @param {string} flowName - Nome do flow
      * @returns {string} ID único para o flow
      */
@@ -157,7 +182,7 @@ class FlowService {
         let finalId = baseId;
         let counter = 1;
         
-        // Verificar se ID já existe
+        // SEMPRE verificar existência direto no MongoDB flows collection
         while (await this.flowDataService.flowExists(finalId)) {
             finalId = `${baseId}-${counter}`;
             counter++;
@@ -169,6 +194,7 @@ class FlowService {
             }
         }
         
+        logger.verbose(`🆔 ID único gerado para flow '${flowName}': ${finalId}`);
         return finalId;
     }
 
@@ -234,13 +260,14 @@ class FlowService {
     }
 
     /**
-     * Carrega um fluxo específico
+     * Carrega um fluxo específico - SEMPRE busca direto da base flows
      * @param {string} flowId - ID do fluxo
      * @returns {Object} Dados do fluxo ou erro
      */
     async loadFlow(flowId) {
         try {
-            const flow = this.flows.get(flowId);
+            // SEMPRE buscar direto do MongoDB flows collection
+            const flow = await this.flowDataService.loadFlow(flowId);
             
             if (!flow) {
                 return {
@@ -248,6 +275,9 @@ class FlowService {
                     error: 'Fluxo não encontrado'
                 };
             }
+
+            // Atualizar cache na memória
+            this.flows.set(flowId, flow);
 
             return {
                 success: true,
@@ -264,19 +294,25 @@ class FlowService {
     }
 
     /**
-     * Busca um fluxo por ID ou alias
+     * Busca um fluxo por ID ou alias - SEMPRE busca direto da base flows
      * @param {string} identifier - ID ou alias do fluxo
      * @returns {Object} Dados do fluxo ou erro
      */
     async findFlow(identifier) {
         try {
-            // Primeiro tenta por ID
-            let flow = this.flows.get(identifier);
+            // SEMPRE buscar direto do MongoDB flows collection
+            let flow = await this.flowDataService.loadFlow(identifier);
             
-            // Se não encontrou por ID, tenta por alias
+            // Se não encontrou por ID, tenta buscar por alias
             if (!flow) {
-                const flowsArray = Array.from(this.flows.values());
-                flow = flowsArray.find(f => f.alias === identifier);
+                const searchResult = await this.flowDataService.listFlows({
+                    filter: { alias: identifier },
+                    limit: 1
+                });
+                
+                if (searchResult.flows && searchResult.flows.length > 0) {
+                    flow = searchResult.flows[0];
+                }
             }
             
             if (!flow) {
@@ -285,6 +321,9 @@ class FlowService {
                     error: 'Fluxo não encontrado'
                 };
             }
+
+            // Atualizar cache na memória
+            this.flows.set(flow._id, flow);
 
             return {
                 success: true,
@@ -306,7 +345,14 @@ class FlowService {
      */
     async listFlows() {
         try {
-            const flowList = Array.from(this.flows.values()).map(flow => ({
+            // Sempre buscar direto do MongoDB, nunca do cache
+            const result = await this.flowDataService.listFlows();
+            
+            if (!result.success) {
+                return result;
+            }
+            
+            const flowList = result.flows.map(flow => ({
                 id: flow.id,
                 alias: flow.alias,
                 name: flow.name,
@@ -334,32 +380,42 @@ class FlowService {
     }
 
     /**
-     * Exclui um fluxo
+     * Exclui um fluxo - SEMPRE opera na base flows
      * @param {string} flowId - ID do fluxo
      * @returns {Object} Resultado da operação
      */
     async deleteFlow(flowId) {
         try {
-            if (!this.flows.has(flowId)) {
+            // SEMPRE verificar existência direto no MongoDB flows collection
+            const flow = await this.flowDataService.loadFlow(flowId);
+            
+            if (!flow) {
                 return {
                     success: false,
                     error: 'Fluxo não encontrado'
                 };
             }
 
-            const flowName = this.flows.get(flowId).name;
+            const flowName = flow.name;
             
-            // Remover do banco
-            await this.flowDataService.deleteFlow(flowId);
+            // Remover do banco flows
+            const deleteResult = await this.flowDataService.deleteFlow(flowId);
+            
+            if (!deleteResult.success) {
+                return {
+                    success: false,
+                    error: 'Erro ao excluir fluxo da base de dados'
+                };
+            }
 
-            // Remover da memória
+            // Remover da memória (cache)
             this.flows.delete(flowId);
 
-            logger.info(`🗑️ Fluxo '${flowName}' (${flowId}) excluído`);
+            logger.info(`🗑️ Fluxo '${flowName}' (${flowId}) excluído da base flows`);
             
             return {
                 success: true,
-                message: 'Fluxo excluído com sucesso'
+                message: 'Fluxo excluído com sucesso da base flows'
             };
 
         } catch (error) {
@@ -372,14 +428,15 @@ class FlowService {
     }
 
     /**
-     * Duplica um fluxo
+     * Duplica um fluxo - SEMPRE busca e salva na base flows
      * @param {string} flowId - ID do fluxo a ser duplicado
      * @param {string} newName - Nome do novo fluxo
      * @returns {Object} Resultado da operação
      */
     async duplicateFlow(flowId, newName) {
         try {
-            const originalFlow = this.flows.get(flowId);
+            // SEMPRE buscar direto do MongoDB flows collection
+            const originalFlow = await this.flowDataService.loadFlow(flowId);
             
             if (!originalFlow) {
                 return {
@@ -393,10 +450,11 @@ class FlowService {
                 ...originalFlow,
                 name: newName || `${originalFlow.name} (Cópia)`,
                 description: `Cópia de: ${originalFlow.description}`,
-                id: undefined // Será gerado automaticamente
+                id: undefined, // Será gerado automaticamente
+                _id: undefined // Remove o ID do MongoDB também
             };
 
-            // Salvar a cópia
+            // Salvar a cópia na base flows
             return await this.saveFlow(duplicatedFlow);
 
         } catch (error) {
@@ -576,18 +634,19 @@ class FlowService {
     }
 
     /**
-     * Exporta um fluxo para arquivo
+     * Exporta um fluxo para arquivo - SEMPRE busca direto da base flows
      * @param {string} flowId - ID do fluxo
      * @returns {Object} Dados do fluxo formatados
      */
     async exportFlow(flowId) {
         try {
-            const flow = this.flows.get(flowId);
+            // SEMPRE buscar direto do MongoDB flows collection
+            const flow = await this.flowDataService.loadFlow(flowId);
             
             if (!flow) {
                 return {
                     success: false,
-                    error: 'Fluxo não encontrado'
+                    error: 'Fluxo não encontrado na base flows'
                 };
             }
 
@@ -652,54 +711,45 @@ class FlowService {
     }
 
     /**
-     * Obtém estatísticas dos fluxos
+     * Obtém estatísticas dos fluxos - SEMPRE busca direto da base flows
      * @returns {Object} Estatísticas
      */
-    getStats() {
+    async getStats() {
         try {
-            const flows = Array.from(this.flows.values());
+            // SEMPRE buscar estatísticas direto do MongoDB flows collection
+            const stats = await this.flowDataService.getStats();
             
-            const stats = {
-                totalFlows: flows.length,
-                totalNodes: flows.reduce((sum, flow) => sum + (flow.nodes ? flow.nodes.length : 0), 0),
-                totalConnections: flows.reduce((sum, flow) => sum + (flow.connections ? flow.connections.length : 0), 0),
+            if (!stats) {
+                return {
+                    totalFlows: 0,
+                    totalNodes: 0,
+                    totalConnections: 0,
+                    nodeTypes: {},
+                    averageNodesPerFlow: 0,
+                    lastModified: null
+                };
+            }
+
+            return {
+                ...stats,
+                lastModified: stats.lastModified ? stats.lastModified.toISOString() : null
+            };
+
+        } catch (error) {
+            logger.error('❌ Erro ao obter estatísticas:', error);
+            return {
+                totalFlows: 0,
+                totalNodes: 0,
+                totalConnections: 0,
                 nodeTypes: {},
                 averageNodesPerFlow: 0,
                 lastModified: null
             };
-
-            // Contar tipos de nós
-            flows.forEach(flow => {
-                if (flow.nodes) {
-                    flow.nodes.forEach(node => {
-                        stats.nodeTypes[node.type] = (stats.nodeTypes[node.type] || 0) + 1;
-                    });
-                }
-            });
-
-            // Calcular média de nós por fluxo
-            if (flows.length > 0) {
-                stats.averageNodesPerFlow = Math.round(stats.totalNodes / flows.length * 10) / 10;
-            }
-
-            // Encontrar última modificação
-            if (flows.length > 0) {
-                stats.lastModified = flows
-                    .map(flow => new Date(flow.lastModified || flow.createdAt))
-                    .sort((a, b) => b - a)[0]
-                    .toISOString();
-            }
-
-            return stats;
-
-        } catch (error) {
-            logger.error('❌ Erro ao obter estatísticas:', error);
-            return null;
         }
     }
 
     /**
-     * Busca fluxos por critério
+     * Busca fluxos por critério - SEMPRE busca direto da base flows
      * @param {string} query - Termo de busca
      * @returns {Object} Resultados da busca
      */
@@ -709,21 +759,19 @@ class FlowService {
                 return await this.listFlows();
             }
 
-            const searchTerm = query.toLowerCase().trim();
-            const flows = Array.from(this.flows.values());
+            // SEMPRE buscar direto do MongoDB flows collection
+            const searchResult = await this.flowDataService.searchFlows(query.toLowerCase().trim());
             
-            const results = flows.filter(flow => {
-                return (
-                    flow.name.toLowerCase().includes(searchTerm) ||
-                    (flow.description && flow.description.toLowerCase().includes(searchTerm)) ||
-                    (flow.nodes && flow.nodes.some(node => 
-                        node.data && JSON.stringify(node.data).toLowerCase().includes(searchTerm)
-                    ))
-                );
-            });
+            if (!searchResult.flows) {
+                return {
+                    success: false,
+                    error: 'Erro na busca de fluxos'
+                };
+            }
 
-            const flowList = results.map(flow => ({
-                id: flow.id,
+            const flowList = searchResult.flows.map(flow => ({
+                id: flow._id || flow.id,
+                alias: flow.alias,
                 name: flow.name,
                 description: flow.description,
                 createdAt: flow.createdAt,
@@ -733,10 +781,15 @@ class FlowService {
                 connectionCount: flow.connections ? flow.connections.length : 0
             }));
 
+            // Atualizar cache com resultados da busca
+            searchResult.flows.forEach(flow => {
+                this.flows.set(flow._id || flow.id, flow);
+            });
+
             return {
                 success: true,
                 flows: flowList,
-                total: flowList.length,
+                total: searchResult.total || flowList.length,
                 query: query
             };
 
@@ -854,6 +907,191 @@ class FlowService {
 
         } catch (error) {
             logger.error('❌ Erro ao listar templates:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Registra execução de flow na base flows
+     * @param {string} flowId - ID do flow
+     * @param {Object} executionData - Dados da execução
+     * @returns {Object} Resultado da operação
+     */
+    async recordExecution(flowId, executionData) {
+        try {
+            const result = await this.flowDataService.recordFlowExecution(flowId, executionData);
+            
+            if (result.success) {
+                logger.info(`✅ Execução do flow '${flowId}' registrada na base flows`);
+            }
+            
+            return result;
+        } catch (error) {
+            logger.error(`❌ Erro ao registrar execução do flow ${flowId}:`, error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Registra resultado de busca na base flows
+     * @param {string} flowId - ID do flow
+     * @param {Object} searchData - Dados da busca
+     * @returns {Object} Resultado da operação
+     */
+    async recordSearch(flowId, searchData) {
+        try {
+            const result = await this.flowDataService.recordFlowSearch(flowId, searchData);
+            
+            if (result.success) {
+                logger.info(`✅ Busca do flow '${flowId}' registrada na base flows`);
+            }
+            
+            return result;
+        } catch (error) {
+            logger.error(`❌ Erro ao registrar busca do flow ${flowId}:`, error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Obtém histórico de execuções de um flow da base flows
+     * @param {string} flowId - ID do flow
+     * @param {Object} options - Opções de filtragem
+     * @returns {Object} Histórico de execuções
+     */
+    async getExecutionHistory(flowId, options = {}) {
+        try {
+            const result = await this.flowDataService.getFlowExecutionHistory(flowId, options);
+            
+            if (result.success) {
+                logger.verbose(`📊 Histórico de execuções obtido para flow '${flowId}' da base flows`);
+            }
+            
+            return result;
+        } catch (error) {
+            logger.error(`❌ Erro ao obter histórico do flow ${flowId}:`, error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Obtém métricas completas de um flow da base flows
+     * @param {string} flowId - ID do flow
+     * @returns {Object} Métricas completas
+     */
+    async getFlowMetrics(flowId) {
+        try {
+            // Buscar flow com dados completos da base flows
+            const flow = await this.flowDataService.loadFlow(flowId);
+            
+            if (!flow) {
+                return {
+                    success: false,
+                    error: 'Flow não encontrado na base flows'
+                };
+            }
+
+            const metrics = {
+                flowId: flowId,
+                name: flow.name,
+                totalExecutions: flow.totalExecutions || 0,
+                totalSearches: flow.searches ? flow.searches.length : 0,
+                lastExecution: flow.lastExecution,
+                lastSearch: flow.lastSearch,
+                createdAt: flow.createdAt,
+                lastModified: flow.lastModified,
+                nodeCount: flow.nodes ? flow.nodes.length : 0,
+                connectionCount: flow.connections ? flow.connections.length : 0,
+                executionHistory: flow.executions || [],
+                searchHistory: flow.searches || []
+            };
+
+            logger.info(`📊 Métricas completas obtidas para flow '${flowId}' da base flows`);
+
+            return {
+                success: true,
+                metrics: metrics
+            };
+        } catch (error) {
+            logger.error(`❌ Erro ao obter métricas do flow ${flowId}:`, error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Método para garantir que todos os dados estão na base flows
+     * Verifica integridade e consistência dos dados
+     * @returns {Object} Resultado da verificação
+     */
+    async validateFlowsIntegrity() {
+        try {
+            const dbFlows = await this.flowDataService.listFlows();
+            const cacheFlows = Array.from(this.flows.values());
+            
+            const report = {
+                totalFlowsInDB: dbFlows.total || 0,
+                totalFlowsInCache: cacheFlows.length,
+                missingInCache: [],
+                missingInDB: [],
+                inconsistencies: []
+            };
+
+            // Verificar flows que estão no DB mas não no cache
+            if (dbFlows.flows) {
+                dbFlows.flows.forEach(dbFlow => {
+                    const flowId = dbFlow._id || dbFlow.id;
+                    if (!this.flows.has(flowId)) {
+                        report.missingInCache.push(flowId);
+                    }
+                });
+            }
+
+            // Verificar flows que estão no cache mas não no DB
+            for (const [flowId] of this.flows.entries()) {
+                const dbFlow = await this.flowDataService.loadFlow(flowId);
+                if (!dbFlow) {
+                    report.missingInDB.push(flowId);
+                }
+            }
+
+            // Sincronizar cache com DB se necessário
+            if (report.missingInCache.length > 0) {
+                logger.info(`🔄 Sincronizando ${report.missingInCache.length} flows do DB para o cache`);
+                for (const flowId of report.missingInCache) {
+                    const dbFlow = await this.flowDataService.loadFlow(flowId);
+                    if (dbFlow) {
+                        this.flows.set(flowId, dbFlow);
+                    }
+                }
+            }
+
+            logger.info(`✅ Verificação de integridade da base flows concluída`);
+            logger.info(`   - Flows no DB: ${report.totalFlowsInDB}`);
+            logger.info(`   - Flows no Cache: ${report.totalFlowsInCache}`);
+            logger.info(`   - Faltando no Cache: ${report.missingInCache.length}`);
+            logger.info(`   - Faltando no DB: ${report.missingInDB.length}`);
+
+            return {
+                success: true,
+                report: report
+            };
+        } catch (error) {
+            logger.error('❌ Erro na verificação de integridade:', error);
             return {
                 success: false,
                 error: error.message

@@ -74,7 +74,8 @@
         "name": "userName",
         "value": "{{nameAndChoice}}",
         "label": "Processar Nome",
-        "description": "Extrai e armazena o nome do usuário da entrada"
+        "description": "Extrai e armazena o nome do usuário da entrada",
+        "extract": "name"
       }
     },
     {
@@ -84,6 +85,7 @@
       "y": 200,
       "data": {
         "condition": "contains",
+        "variable": "nameAndChoice",
         "value": "1",
         "label": "Verificar Escolha - Modalidades",
         "description": "Verifica se usuário escolheu opção 1 (modalidades)"
@@ -108,6 +110,7 @@
       "y": 300,
       "data": {
         "condition": "contains",
+        "variable": "nameAndChoice",
         "value": "2",
         "label": "Verificar Escolha - Preços",
         "description": "Verifica se usuário escolheu opção 2 (preços)"
@@ -132,6 +135,7 @@
       "y": 400,
       "data": {
         "condition": "contains",
+        "variable": "nameAndChoice",
         "value": "3",
         "label": "Verificar Escolha - Aula Experimental",
         "description": "Verifica se usuário escolheu opção 3 (aula experimental)"
@@ -180,6 +184,7 @@
       "y": 500,
       "data": {
         "condition": "contains",
+        "variable": "nameAndChoice",
         "value": "4",
         "label": "Verificar Escolha - Localização",
         "description": "Verifica se usuário escolheu opção 4 (localização)"
@@ -204,6 +209,7 @@
       "y": 600,
       "data": {
         "condition": "contains",
+        "variable": "nameAndChoice",
         "value": "5",
         "label": "Verificar Escolha - Benefícios",
         "description": "Verifica se usuário escolheu opção 5 (benefícios)"
@@ -228,6 +234,7 @@
       "y": 700,
       "data": {
         "condition": "contains",
+        "variable": "nameAndChoice",
         "value": "6",
         "label": "Verificar Escolha - Instrutor",
         "description": "Verifica se usuário escolheu opção 6 (falar com instrutor)"
@@ -276,6 +283,7 @@
       "y": 550,
       "data": {
         "condition": "contains",
+        "variable": "opcaoAdicional",
         "value": "7",
         "label": "Verificar - Depoimentos",
         "description": "Verifica se usuário quer ver depoimentos"
@@ -300,6 +308,7 @@
       "y": 750,
       "data": {
         "condition": "contains",
+        "variable": "opcaoAdicional",
         "value": "MENU",
         "label": "Verificar - Volta ao Menu",
         "description": "Verifica se usuário quer voltar ao menu principal"

@@ -1136,8 +1136,8 @@ Acesse **`http://localhost:3000`** para usar a interface web completa:
 
 ```javascript
 // Criados automaticamente na inicialização
-db.schedv2.createIndex({ recipient: 1, status: 1 })
-db.schedv2.createIndex({ scheduledTime: 1, status: 1, sentAt: 1 })
+db.sched.createIndex({ recipient: 1, status: 1 })
+db.sched.createIndex({ scheduledTime: 1, status: 1, sentAt: 1 })
 ```
 
 ---

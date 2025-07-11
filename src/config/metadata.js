@@ -146,7 +146,7 @@ export const CONFIG_EXAMPLES = {
   'debug.logLevel': 'debug',
   'mongo.uri': 'mongodb://bot:sua_senha@localhost:27017/sched?authSource=sched',
   'mongo.dbName': 'sched',
-  'mongo.collectionName': 'schedv2',
+  'mongo.collectionName': 'sched',
   'server.port': '3000',
   'scheduler.interval': '30000',
   'scheduler.maxAttempts': '3',

@@ -22,7 +22,7 @@ class FlowService {
      */
     async init() {
         try {
-            logger.info('🚀 Inicializando FlowService...');
+            logger.debug('🚀 Inicializando FlowService...');
             
             // Inicializar o serviço de dados flows (inclui migração automática)
             await this.flowDataService.init();
@@ -35,28 +35,16 @@ class FlowService {
                     // Usar _id do MongoDB como chave principal
                     const flowId = flowData._id || flowData.id;
                     this.flows.set(flowId, flowData);
-                    logger.verbose(`📄 Flow carregado: '${flowData.name}' (ID: ${flowId})`);
+                    logger.debug(`📄 Flow carregado: '${flowData.name}' (ID: ${flowId})`);
                 });
             } else {
                 logger.warn('⚠️ Nenhum flow encontrado na base ou erro na listagem');
             }
             
-            logger.info(`✅ FlowService inicializado com ${this.flows.size} fluxos da base flows`);
+            logger.info(`✅ FlowService inicializado com ${this.flows.size} fluxos`);
             
-            // Verificar se existe fluxo padrão, se não, criar um com o template jiu-jitsu
-            if (this.flows.size === 0) {
-                logger.info('🌱 Nenhum flow encontrado, carregando template padrão...');
-                await this.loadDefaultTemplate();
-            } else {
-                // Verificar se existe o flow exemplo-academia-jiu-jitsu
-                const hasExampleFlow = Array.from(this.flows.values())
-                    .some(flow => flow.name && flow.name.includes('academia') && flow.name.includes('jiu'));
-                
-                if (!hasExampleFlow) {
-                    logger.info('🌱 Flow exemplo academia não encontrado, carregando template...');
-                    await this.loadDefaultTemplate();
-                }
-            }
+            // Verificar se existe o template padrão jiu-jitsu apenas uma vez
+            await this.ensureDefaultTemplate();
             
             // Executar verificação de integridade
             await this.validateFlowsIntegrity();
@@ -69,6 +57,41 @@ class FlowService {
     }
 
     /**
+     * Garante que o template padrão jiu-jitsu existe na base, carregando apenas se necessário
+     */
+    async ensureDefaultTemplate() {
+        try {
+            // Primeiro, verificar se já existe um flow com marcador de template padrão
+            const existingDefaultFlow = Array.from(this.flows.values())
+                .find(flow => flow.metadata?.isDefault === true);
+            
+            if (existingDefaultFlow) {
+                logger.debug('Template padrão já existe:', existingDefaultFlow.name);
+                return;
+            }
+            
+            // Se não há flows na base, verificar se existe o template específico
+            const hasJiuJitsuFlow = Array.from(this.flows.values())
+                .some(flow => flow.name && (
+                    flow.name.toLowerCase().includes('academia') || 
+                    flow.name.toLowerCase().includes('jiu') ||
+                    flow.alias === 'jiu-jitsu'
+                ));
+            
+            if (hasJiuJitsuFlow) {
+                logger.debug('Flow jiu-jitsu já existe na base');
+                return;
+            }
+            
+            // Carregar template apenas se necessário
+            await this.loadDefaultTemplate();
+            
+        } catch (error) {
+            logger.error('❌ Erro ao verificar template padrão:', error);
+        }
+    }
+
+    /**
      * Carrega o template padrão do jiu-jitsu quando não há fluxos na base
      */
     async loadDefaultTemplate() {
@@ -76,31 +99,33 @@ class FlowService {
             const templatePath = path.join(__dirname, '../../template_academia_jiu_jitsu.json');
             const templateExists = await fs.access(templatePath).then(() => true).catch(() => false);
             
-            if (templateExists) {
-                const templateData = await fs.readFile(templatePath, 'utf8');
-                const template = JSON.parse(templateData);
-                
-                // Remover o ID do template para gerar um novo
-                delete template.id;
-                
-                // Definir como template padrão
-                template.name = "Exemplo Academia Jiu-Jitsu";
-                template.description = "Template padrão carregado automaticamente - Academia de Jiu-Jitsu";
-                template.metadata = {
-                    ...template.metadata,
-                    isDefault: true,
-                    loadedAt: new Date().toISOString()
-                };
-                
-                const result = await this.saveFlow(template);
-                if (result.success) {
-                    logger.info('✅ Template padrão jiu-jitsu carregado automaticamente');
-                } else {
-                    logger.warn('⚠️ Falha ao carregar template padrão:', result.error);
-                }
-            } else {
-                logger.warn('⚠️ Template jiu-jitsu não encontrado em:', templatePath);
+            if (!templateExists) {
+                logger.debug('Template jiu-jitsu não encontrado, pulando carregamento');
+                return;
             }
+            
+            const templateData = await fs.readFile(templatePath, 'utf8');
+            const template = JSON.parse(templateData);
+            
+            // Remover o ID do template para gerar um novo
+            delete template.id;
+            
+            // Definir como template padrão
+            template.name = "Exemplo Academia Jiu-Jitsu";
+            template.description = "Template padrão carregado automaticamente - Academia de Jiu-Jitsu";
+            template.metadata = {
+                ...template.metadata,
+                isDefault: true,
+                loadedAt: new Date().toISOString()
+            };
+            
+            const result = await this.saveFlow(template);
+            if (result.success) {
+                logger.info('✅ Template padrão jiu-jitsu carregado');
+            } else {
+                logger.warn('⚠️ Falha ao carregar template padrão:', result.error);
+            }
+            
         } catch (error) {
             logger.error('❌ Erro ao carregar template padrão:', error);
         }
@@ -194,7 +219,7 @@ class FlowService {
             }
         }
         
-        logger.verbose(`🆔 ID único gerado para flow '${flowName}': ${finalId}`);
+        logger.debug(`🆔 ID único gerado para flow '${flowName}': ${finalId}`);
         return finalId;
     }
 
@@ -973,7 +998,7 @@ class FlowService {
             const result = await this.flowDataService.getFlowExecutionHistory(flowId, options);
             
             if (result.success) {
-                logger.verbose(`📊 Histórico de execuções obtido para flow '${flowId}' da base flows`);
+                logger.debug(`📊 Histórico de execuções obtido para flow '${flowId}' da base flows`);
             }
             
             return result;
@@ -1071,7 +1096,7 @@ class FlowService {
 
             // Sincronizar cache com DB se necessário
             if (report.missingInCache.length > 0) {
-                logger.info(`🔄 Sincronizando ${report.missingInCache.length} flows do DB para o cache`);
+                logger.debug(`🔄 Sincronizando ${report.missingInCache.length} flows do DB para o cache`);
                 for (const flowId of report.missingInCache) {
                     const dbFlow = await this.flowDataService.loadFlow(flowId);
                     if (dbFlow) {
@@ -1080,11 +1105,20 @@ class FlowService {
                 }
             }
 
-            logger.info(`✅ Verificação de integridade da base flows concluída`);
-            logger.info(`   - Flows no DB: ${report.totalFlowsInDB}`);
-            logger.info(`   - Flows no Cache: ${report.totalFlowsInCache}`);
-            logger.info(`   - Faltando no Cache: ${report.missingInCache.length}`);
-            logger.info(`   - Faltando no DB: ${report.missingInDB.length}`);
+            // Só mostrar detalhes se houver inconsistências
+            if (report.missingInCache.length > 0 || report.missingInDB.length > 0) {
+                logger.info(`✅ Verificação de integridade da base flows concluída`);
+                logger.info(`   - Flows no DB: ${report.totalFlowsInDB}`);
+                logger.info(`   - Flows no Cache: ${report.totalFlowsInCache}`);
+                if (report.missingInCache.length > 0) {
+                    logger.info(`   - Faltando no Cache: ${report.missingInCache.length}`);
+                }
+                if (report.missingInDB.length > 0) {
+                    logger.info(`   - Faltando no DB: ${report.missingInDB.length}`);
+                }
+            } else {
+                logger.debug(`✅ Verificação de integridade da base flows concluída - tudo consistente`);
+            }
 
             return {
                 success: true,

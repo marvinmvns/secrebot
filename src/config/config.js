@@ -17,7 +17,7 @@ export const config = {
   mongo: {
     uri: process.env.MONGO_URI || 'mongodb://bot:senha@127.0.0.1:27017/bot?authSource=sched',
     dbName: 'sched',
-    collectionName: 'schedv2'
+    collectionName: 'sched'
   },
   server: {
     port: process.env.PORT || 3000

@@ -11,6 +11,7 @@ import FlowExecutionService from '../services/flowExecutionService.js';
 import { config, applyConfig } from '../config/config.js';
 import logger from '../utils/logger.js';
 import { handleError, setupGlobalErrorHandlers, gracefulShutdown } from '../utils/errorHandler.js';
+import analyticsHook from '../hooks/analyticsHook.js';
 
 export class ApplicationFactory {
   constructor(appConfig = config) {
@@ -106,10 +107,13 @@ export class ApplicationFactory {
       await flowExecutionService.init(flowService);
       bot.setFlowExecutionService(flowExecutionService);
       
+      // Aplicar hook de analytics ao WhatsApp bot
+      analyticsHook.createWhatsAppWrapper(bot);
+      
       this.services.set('whatsAppBot', bot);
       this.services.set('flowService', flowService);
       this.services.set('flowExecutionService', flowExecutionService);
-      logger.info('WhatsApp bot initialized with FlowService and FlowExecutionService');
+      logger.info('WhatsApp bot initialized with FlowService, FlowExecutionService and Analytics Hook');
       return bot;
     } catch (error) {
       logger.warn('WhatsApp bot não pôde ser inicializado, mas outros serviços continuam funcionando', {
@@ -163,8 +167,11 @@ export class ApplicationFactory {
         throw initError;
       }
 
+      // Aplicar hook de analytics ao Telegram bot
+      analyticsHook.createTelegramWrapper(telegramBot);
+
       this.services.set('telegramBot', telegramBot);
-      logger.info('Telegram bot initialized');
+      logger.info('Telegram bot initialized with Analytics Hook');
       return telegramBot;
     } catch (error) {
       logger.error('Erro ao inicializar bot do Telegram:', {

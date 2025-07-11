@@ -1,0 +1,794 @@
+// ================================
+// ADMIN DASHBOARD - MAIN STYLES
+// ================================
+
+// Import Google Fonts
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap');
+
+// Import Variables
+@import './variables';
+
+// Import Component Styles
+@import './components';
+
+// Import Bootstrap with Custom Variables
+@import '~bootstrap/scss/functions';
+@import '~bootstrap/scss/variables';
+
+// Define custom theme colors
+$theme-colors: (
+  "primary": $primary,
+  "secondary": $secondary,
+  "success": $secondary,
+  "info": $primary-light,
+  "warning": $accent,
+  "danger": #EA4335,
+  "light": $gray-100,
+  "dark": $gray-800
+);
+
+@import '~bootstrap/scss/maps';
+@import '~bootstrap/scss/mixins';
+@import '~bootstrap/scss/root';
+@import '~bootstrap/scss/reboot';
+@import '~bootstrap/scss/type';
+@import '~bootstrap/scss/images';
+@import '~bootstrap/scss/containers';
+@import '~bootstrap/scss/grid';
+@import '~bootstrap/scss/tables';
+@import '~bootstrap/scss/forms';
+@import '~bootstrap/scss/buttons';
+@import '~bootstrap/scss/transitions';
+@import '~bootstrap/scss/dropdown';
+@import '~bootstrap/scss/button-group';
+@import '~bootstrap/scss/nav';
+@import '~bootstrap/scss/navbar';
+@import '~bootstrap/scss/card';
+@import '~bootstrap/scss/accordion';
+@import '~bootstrap/scss/breadcrumb';
+@import '~bootstrap/scss/pagination';
+@import '~bootstrap/scss/badge';
+@import '~bootstrap/scss/alert';
+@import '~bootstrap/scss/progress';
+@import '~bootstrap/scss/list-group';
+@import '~bootstrap/scss/close';
+@import '~bootstrap/scss/toasts';
+@import '~bootstrap/scss/modal';
+@import '~bootstrap/scss/tooltip';
+@import '~bootstrap/scss/popover';
+@import '~bootstrap/scss/carousel';
+@import '~bootstrap/scss/spinners';
+@import '~bootstrap/scss/offcanvas';
+@import '~bootstrap/scss/placeholders';
+@import '~bootstrap/scss/helpers';
+@import '~bootstrap/scss/utilities';
+
+// ==================
+// BASE STYLES
+// ==================
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  height: 100%;
+}
+
+body {
+  font-family: $font-family-sans-serif;
+  font-size: $font-size-base;
+  font-weight: $font-weight-normal;
+  line-height: $line-height-normal;
+  color: var(--text-primary);
+  background-color: var(--body-bg);
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color $duration-300 $ease-in-out, color $duration-300 $ease-in-out;
+}
+
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+// ==================
+// LAYOUT COMPONENTS
+// ==================
+
+.dashboard-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  
+  &__sidebar {
+    width: $sidebar-width;
+    background-color: var(--sidebar-bg);
+    border-right: 1px solid var(--border-color);
+    transition: width $duration-300 $ease-in-out, transform $duration-300 $ease-in-out;
+    z-index: $z-index-fixed;
+    box-shadow: var(--shadow-lg);
+    
+    &--collapsed {
+      width: $sidebar-collapsed-width;
+    }
+    
+    @include media-down(lg) {
+      position: fixed;
+      height: 100vh;
+      transform: translateX(-100%);
+      
+      &--open {
+        transform: translateX(0);
+      }
+    }
+  }
+  
+  &__main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    transition: margin-left $duration-300 $ease-in-out;
+    
+    @include media-down(lg) {
+      margin-left: 0 !important;
+    }
+  }
+  
+  &__navbar {
+    height: $navbar-height;
+    background-color: var(--navbar-bg);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    padding: 0 1.5rem;
+    box-shadow: var(--shadow-sm);
+    z-index: $z-index-sticky;
+  }
+  
+  &__content {
+    flex: 1;
+    padding: 1.5rem;
+    overflow-y: auto;
+    background-color: var(--body-bg);
+    
+    @include media-down(md) {
+      padding: 1rem;
+    }
+  }
+}
+
+// Mobile Overlay
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: $z-index-modal-backdrop;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity $duration-300 $ease-in-out, visibility $duration-300 $ease-in-out;
+  
+  &--active {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+// ==================
+// SIDEBAR STYLES
+// ==================
+
+.sidebar {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  
+  &__header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-light);
+    
+    .brand {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+      color: var(--text-primary);
+      font-weight: $font-weight-bold;
+      font-size: $font-size-xl;
+      
+      &__icon {
+        width: 32px;
+        height: 32px;
+        margin-right: 0.75rem;
+        border-radius: $border-radius-sm;
+        background: linear-gradient(135deg, $primary, $primary-light);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+      }
+      
+      &__text {
+        transition: opacity $duration-300 $ease-in-out;
+        
+        .sidebar--collapsed & {
+          opacity: 0;
+        }
+      }
+    }
+  }
+  
+  &__nav {
+    flex: 1;
+    padding: 1rem 0;
+    overflow-y: auto;
+    
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+    
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    &::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 2px;
+    }
+  }
+  
+  &__footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border-light);
+  }
+}
+
+.nav-item {
+  margin: 0.25rem 1rem;
+  
+  &__link {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: $border-radius-sm;
+    transition: all $duration-200 $ease-out;
+    font-weight: $font-weight-medium;
+    
+    &:hover {
+      background-color: var(--glass-bg);
+      color: var(--text-primary);
+      transform: translateX(4px);
+    }
+    
+    &--active {
+      background-color: var(--primary);
+      color: white;
+      box-shadow: var(--shadow-md);
+      
+      &:hover {
+        background-color: var(--button-hover);
+        transform: translateX(0);
+      }
+    }
+    
+    .sidebar--collapsed & {
+      justify-content: center;
+      padding: 0.75rem;
+    }
+  }
+  
+  &__icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    .sidebar--collapsed & {
+      margin-right: 0;
+    }
+  }
+  
+  &__text {
+    transition: opacity $duration-300 $ease-in-out;
+    
+    .sidebar--collapsed & {
+      opacity: 0;
+      width: 0;
+      overflow: hidden;
+    }
+  }
+  
+  &__badge {
+    margin-left: auto;
+    background-color: var(--accent);
+    color: var(--text-inverse);
+    font-size: $font-size-xs;
+    font-weight: $font-weight-bold;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    
+    .sidebar--collapsed & {
+      display: none;
+    }
+  }
+}
+
+// ==================
+// NAVBAR STYLES
+// ==================
+
+.navbar {
+  &__left {
+    display: flex;
+    align-items: center;
+  }
+  
+  &__right {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    gap: 1rem;
+  }
+  
+  &__toggle {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: $border-radius-sm;
+    transition: background-color $duration-200 $ease-out;
+    
+    &:hover {
+      background-color: var(--glass-bg);
+    }
+  }
+  
+  &__search {
+    position: relative;
+    max-width: 400px;
+    
+    @include media-down(md) {
+      display: none;
+    }
+    
+    input {
+      background-color: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 24px;
+      padding: 0.5rem 1rem 0.5rem 2.5rem;
+      color: var(--text-primary);
+      width: 100%;
+      min-width: 250px;
+      transition: all $duration-200 $ease-out;
+      
+      &:focus {
+        outline: none;
+        border-color: var(--input-focus);
+        box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+      }
+      
+      &::placeholder {
+        color: var(--text-muted);
+      }
+    }
+    
+    &__icon {
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+    }
+  }
+  
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  &__notification {
+    position: relative;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: $border-radius-sm;
+    transition: background-color $duration-200 $ease-out;
+    
+    &:hover {
+      background-color: var(--glass-bg);
+    }
+    
+    &__badge {
+      position: absolute;
+      top: 0.25rem;
+      right: 0.25rem;
+      width: 8px;
+      height: 8px;
+      background-color: var(--danger);
+      border-radius: 50%;
+      border: 2px solid var(--navbar-bg);
+    }
+  }
+  
+  &__profile {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: $border-radius-sm;
+    transition: background-color $duration-200 $ease-out;
+    
+    &:hover {
+      background-color: var(--glass-bg);
+    }
+    
+    &__avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--border-color);
+    }
+    
+    &__info {
+      @include media-down(sm) {
+        display: none;
+      }
+      
+      &__name {
+        font-weight: $font-weight-medium;
+        color: var(--text-primary);
+        font-size: $font-size-sm;
+        line-height: 1.2;
+      }
+      
+      &__role {
+        color: var(--text-muted);
+        font-size: $font-size-xs;
+        line-height: 1.2;
+      }
+    }
+  }
+}
+
+// ==================
+// CARD COMPONENTS
+// ==================
+
+.dashboard-card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: $card-border-radius;
+  padding: $card-padding;
+  box-shadow: var(--shadow-sm);
+  transition: all $duration-300 $ease-out;
+  
+  &:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+  
+  &--glass {
+    @include glass-effect();
+    border: 1px solid var(--glass-border);
+  }
+  
+  &--neuma {
+    @include neumorphism();
+    border: none;
+  }
+  
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    
+    &__title {
+      font-size: $font-size-lg;
+      font-weight: $font-weight-semibold;
+      color: var(--text-primary);
+      margin: 0;
+    }
+    
+    &__action {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0.25rem;
+      border-radius: $border-radius-sm;
+      transition: all $duration-200 $ease-out;
+      
+      &:hover {
+        color: var(--text-primary);
+        background-color: var(--glass-bg);
+      }
+    }
+  }
+  
+  &__content {
+    color: var(--text-secondary);
+    line-height: $line-height-relaxed;
+  }
+  
+  &__footer {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+// ==================
+// BUTTON COMPONENTS
+// ==================
+
+.btn-neuma {
+  @include neumorphism();
+  border: none;
+  background-color: var(--surface-bg);
+  color: var(--text-primary);
+  padding: $btn-padding-y $btn-padding-x;
+  font-weight: $btn-font-weight;
+  transition: all $duration-200 $ease-out;
+  
+  &:hover {
+    @include neumorphism-inset();
+    color: var(--text-primary);
+  }
+  
+  &:active {
+    @include neumorphism-inset();
+  }
+}
+
+.btn-glass {
+  @include glass-effect();
+  border: 1px solid var(--glass-border);
+  background-color: var(--glass-bg);
+  color: var(--text-primary);
+  padding: $btn-padding-y $btn-padding-x;
+  font-weight: $btn-font-weight;
+  transition: all $duration-200 $ease-out;
+  
+  &:hover {
+    @include glass-effect(0.2);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+  }
+}
+
+// ==================
+// FORM COMPONENTS
+// ==================
+
+.form-neuma {
+  .form-control {
+    @include neumorphism-inset();
+    border: none;
+    background-color: var(--surface-bg);
+    color: var(--text-primary);
+    padding: $input-padding-y $input-padding-x;
+    
+    &:focus {
+      @include neumorphism-inset();
+      box-shadow: 
+        inset 20px 20px 40px rgba(174, 174, 192, 0.15),
+        inset -20px -20px 40px rgba(255, 255, 255, 0.8),
+        0 0 0 3px rgba(var(--primary-rgb), 0.1);
+    }
+    
+    &::placeholder {
+      color: var(--text-muted);
+    }
+  }
+}
+
+.form-glass {
+  .form-control {
+    @include glass-effect();
+    border: 1px solid var(--glass-border);
+    background-color: var(--glass-bg);
+    color: var(--text-primary);
+    padding: $input-padding-y $input-padding-x;
+    
+    &:focus {
+      @include glass-effect(0.2);
+      border-color: var(--input-focus);
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+    }
+    
+    &::placeholder {
+      color: var(--text-muted);
+    }
+  }
+}
+
+// ==================
+// UTILITY CLASSES
+// ==================
+
+.text-gradient {
+  background: linear-gradient(135deg, $primary, $primary-light);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.bg-gradient {
+  background: linear-gradient(135deg, $primary, $primary-light);
+}
+
+.shadow-neuma {
+  @include neumorphism();
+}
+
+.shadow-glass {
+  @include glass-effect();
+}
+
+// ==================
+// ANIMATIONS
+// ==================
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Animation Classes
+.animate-fade-in-up {
+  animation: fadeInUp $duration-500 $ease-out;
+}
+
+.animate-fade-in-left {
+  animation: fadeInLeft $duration-500 $ease-out;
+}
+
+.animate-fade-in-right {
+  animation: fadeInRight $duration-500 $ease-out;
+}
+
+.animate-pulse {
+  animation: pulse $duration-1000 $ease-in-out infinite;
+}
+
+.animate-spin {
+  animation: spin $duration-1000 linear infinite;
+}
+
+// ==================
+// SCROLLBAR STYLES
+// ==================
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--border-light);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+  
+  &:hover {
+    background: var(--border-dark);
+  }
+}
+
+// ==================
+// RESPONSIVE UTILITIES
+// ==================
+
+@include media-down(sm) {
+  .dashboard-card {
+    padding: 1rem;
+  }
+  
+  .navbar__search {
+    display: none;
+  }
+  
+  .sidebar__nav {
+    padding: 0.5rem 0;
+  }
+  
+  .nav-item {
+    margin: 0.125rem 0.5rem;
+  }
+}
+
+// ==================
+// PRINT STYLES
+// ==================
+
+@media print {
+  .sidebar,
+  .navbar,
+  .btn,
+  .dropdown {
+    display: none !important;
+  }
+  
+  .dashboard-layout__content {
+    padding: 0 !important;
+  }
+  
+  .dashboard-card {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+  }
+}

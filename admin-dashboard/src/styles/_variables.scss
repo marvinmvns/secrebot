@@ -1,0 +1,413 @@
+// ================================
+// ADMIN DASHBOARD - SCSS VARIABLES
+// ================================
+
+// ==================
+// COLOR PALETTE
+// ==================
+
+// Primary Colors
+$primary: #4285F4;
+$primary-dark: #3367D6;
+$primary-light: #669DF6;
+$primary-lighter: #A8C7FA;
+
+// Secondary Colors
+$secondary: #34A853;
+$secondary-dark: #137333;
+$secondary-light: #5BB974;
+
+// Accent Colors
+$accent: #FBBC05;
+$accent-dark: #F9AB00;
+$accent-light: #FCE047;
+
+// Neutral Colors
+$white: #FFFFFF;
+$black: #000000;
+$gray-50: #F8F9FA;
+$gray-100: #F1F3F4;
+$gray-200: #E8EAED;
+$gray-300: #DADCE0;
+$gray-400: #BDC1C6;
+$gray-500: #9AA0A6;
+$gray-600: #80868B;
+$gray-700: #5F6368;
+$gray-800: #3C4043;
+$gray-900: #202124;
+
+// ==================
+// LIGHT THEME
+// ==================
+$light-theme: (
+  // Background Colors
+  body-bg: $gray-50,
+  surface-bg: $white,
+  card-bg: $white,
+  sidebar-bg: $white,
+  navbar-bg: $white,
+  
+  // Text Colors
+  text-primary: $gray-900,
+  text-secondary: $gray-700,
+  text-muted: $gray-500,
+  text-inverse: $white,
+  
+  // Border Colors
+  border-color: $gray-200,
+  border-light: $gray-100,
+  border-dark: $gray-300,
+  
+  // Shadow Colors
+  shadow-sm: rgba(60, 64, 67, 0.1),
+  shadow-md: rgba(60, 64, 67, 0.15),
+  shadow-lg: rgba(60, 64, 67, 0.2),
+  shadow-xl: rgba(60, 64, 67, 0.25),
+  
+  // Component Colors
+  button-bg: $primary,
+  button-hover: $primary-dark,
+  input-bg: $white,
+  input-border: $gray-300,
+  input-focus: $primary,
+  
+  // Status Colors
+  success: $secondary,
+  warning: $accent,
+  danger: #EA4335,
+  info: $primary,
+  
+  // Glass Effect
+  glass-bg: rgba(255, 255, 255, 0.1),
+  glass-border: rgba(255, 255, 255, 0.2),
+  glass-shadow: rgba(0, 0, 0, 0.1),
+  
+  // Neumorphism Colors
+  neuma-light: #FFFFFF,
+  neuma-dark: rgba(174, 174, 192, 0.2),
+  neuma-inset-light: rgba(174, 174, 192, 0.2),
+  neuma-inset-dark: #FFFFFF
+);
+
+// ==================
+// DARK THEME
+// ==================
+$dark-theme: (
+  // Background Colors
+  body-bg: $gray-900,
+  surface-bg: $gray-800,
+  card-bg: $gray-800,
+  sidebar-bg: $gray-900,
+  navbar-bg: $gray-800,
+  
+  // Text Colors
+  text-primary: $white,
+  text-secondary: $gray-300,
+  text-muted: $gray-400,
+  text-inverse: $gray-900,
+  
+  // Border Colors
+  border-color: $gray-600,
+  border-light: $gray-700,
+  border-dark: $gray-500,
+  
+  // Shadow Colors
+  shadow-sm: rgba(0, 0, 0, 0.2),
+  shadow-md: rgba(0, 0, 0, 0.3),
+  shadow-lg: rgba(0, 0, 0, 0.4),
+  shadow-xl: rgba(0, 0, 0, 0.5),
+  
+  // Component Colors
+  button-bg: $primary,
+  button-hover: $primary-light,
+  input-bg: $gray-700,
+  input-border: $gray-600,
+  input-focus: $primary-light,
+  
+  // Status Colors
+  success: $secondary-light,
+  warning: $accent,
+  danger: #F28B82,
+  info: $primary-light,
+  
+  // Glass Effect
+  glass-bg: rgba(0, 0, 0, 0.2),
+  glass-border: rgba(255, 255, 255, 0.1),
+  glass-shadow: rgba(0, 0, 0, 0.3),
+  
+  // Neumorphism Colors
+  neuma-light: rgba(255, 255, 255, 0.1),
+  neuma-dark: rgba(0, 0, 0, 0.3),
+  neuma-inset-light: rgba(0, 0, 0, 0.3),
+  neuma-inset-dark: rgba(255, 255, 255, 0.1)
+);
+
+// ==================
+// TYPOGRAPHY
+// ==================
+$font-family-sans-serif: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+$font-family-monospace: 'Fira Code', 'Monaco', 'Consolas', 'Courier New', monospace;
+
+$font-weight-light: 300;
+$font-weight-normal: 400;
+$font-weight-medium: 500;
+$font-weight-semibold: 600;
+$font-weight-bold: 700;
+
+$font-size-xs: 0.75rem;   // 12px
+$font-size-sm: 0.875rem;  // 14px
+$font-size-base: 1rem;    // 16px
+$font-size-lg: 1.125rem;  // 18px
+$font-size-xl: 1.25rem;   // 20px
+$font-size-2xl: 1.5rem;   // 24px
+$font-size-3xl: 1.875rem; // 30px
+$font-size-4xl: 2.25rem;  // 36px
+
+$line-height-none: 1;
+$line-height-tight: 1.25;
+$line-height-normal: 1.5;
+$line-height-relaxed: 1.625;
+
+// ==================
+// SPACING
+// ==================
+$spacer: 1rem;
+$spacers: (
+  0: 0,
+  1: $spacer * 0.25,  // 4px
+  2: $spacer * 0.5,   // 8px
+  3: $spacer * 0.75,  // 12px
+  4: $spacer,         // 16px
+  5: $spacer * 1.25,  // 20px
+  6: $spacer * 1.5,   // 24px
+  8: $spacer * 2,     // 32px
+  10: $spacer * 2.5,  // 40px
+  12: $spacer * 3,    // 48px
+  16: $spacer * 4,    // 64px
+  20: $spacer * 5,    // 80px
+  24: $spacer * 6,    // 96px
+);
+
+// ==================
+// LAYOUT
+// ==================
+$sidebar-width: 280px;
+$sidebar-collapsed-width: 72px;
+$navbar-height: 72px;
+$border-radius: 12px;
+$border-radius-sm: 8px;
+$border-radius-lg: 16px;
+$border-radius-xl: 24px;
+
+// ==================
+// BREAKPOINTS
+// ==================
+$grid-breakpoints: (
+  xs: 0,
+  sm: 576px,
+  md: 768px,
+  lg: 992px,
+  xl: 1200px,
+  xxl: 1400px
+);
+
+// ==================
+// ANIMATIONS
+// ==================
+$transition-base: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+$transition-fast: all 0.15s ease-out;
+$transition-slow: all 0.5s ease-in-out;
+
+// Animation Durations
+$duration-75: 75ms;
+$duration-100: 100ms;
+$duration-150: 150ms;
+$duration-200: 200ms;
+$duration-300: 300ms;
+$duration-500: 500ms;
+$duration-700: 700ms;
+$duration-1000: 1000ms;
+
+// Cubic Bezier Curves
+$ease-in: cubic-bezier(0.4, 0, 1, 1);
+$ease-out: cubic-bezier(0, 0, 0.2, 1);
+$ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+// ==================
+// Z-INDEX LAYERS
+// ==================
+$z-index-dropdown: 1000;
+$z-index-sticky: 1020;
+$z-index-fixed: 1030;
+$z-index-modal-backdrop: 1040;
+$z-index-modal: 1050;
+$z-index-popover: 1060;
+$z-index-tooltip: 1070;
+
+// ==================
+// COMPONENT SPECIFIC
+// ==================
+
+// Cards
+$card-padding: 1.5rem;
+$card-border-radius: $border-radius;
+$card-elevation: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+
+// Buttons
+$btn-padding-y: 0.75rem;
+$btn-padding-x: 1.5rem;
+$btn-border-radius: $border-radius-sm;
+$btn-font-weight: $font-weight-medium;
+
+// Forms
+$input-padding-y: 0.875rem;
+$input-padding-x: 1rem;
+$input-border-radius: $border-radius-sm;
+$input-font-size: $font-size-base;
+
+// Tables
+$table-cell-padding-y: 1rem;
+$table-cell-padding-x: 1rem;
+$table-border-radius: $border-radius;
+
+// ==================
+// EFFECTS & FILTERS
+// ==================
+
+// Glassmorphism
+$glass-blur: blur(16px);
+$glass-saturation: saturate(180%);
+
+// Neumorphism
+$neuma-distance: 20px;
+$neuma-intensity: 0.15;
+$neuma-blur: 40px;
+
+// ==================
+// MIXINS
+// ==================
+
+// Theme Mixin
+@mixin theme-colors($theme) {
+  @each $property, $value in $theme {
+    --#{$property}: #{$value};
+  }
+}
+
+// Glassmorphism Mixin
+@mixin glass-effect($opacity: 0.1) {
+  background: rgba(255, 255, 255, $opacity);
+  backdrop-filter: $glass-blur $glass-saturation;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+// Neumorphism Mixin
+@mixin neumorphism($size: $neuma-distance, $intensity: $neuma-intensity) {
+  border-radius: $border-radius;
+  background: var(--surface-bg);
+  box-shadow: 
+    #{$size} #{$size} #{$neuma-blur} rgba(174, 174, 192, $intensity),
+    #{-$size} #{-$size} #{$neuma-blur} rgba(255, 255, 255, 0.8);
+}
+
+// Neumorphism Inset Mixin
+@mixin neumorphism-inset($size: $neuma-distance, $intensity: $neuma-intensity) {
+  border-radius: $border-radius;
+  background: var(--surface-bg);
+  box-shadow: 
+    inset #{$size} #{$size} #{$neuma-blur} rgba(174, 174, 192, $intensity),
+    inset #{-$size} #{-$size} #{$neuma-blur} rgba(255, 255, 255, 0.8);
+}
+
+// Responsive Breakpoint Mixins
+@mixin media-up($breakpoint) {
+  @media (min-width: map-get($grid-breakpoints, $breakpoint)) {
+    @content;
+  }
+}
+
+@mixin media-down($breakpoint) {
+  @media (max-width: map-get($grid-breakpoints, $breakpoint) - 1px) {
+    @content;
+  }
+}
+
+@mixin media-between($lower, $upper) {
+  @media (min-width: map-get($grid-breakpoints, $lower)) and (max-width: map-get($grid-breakpoints, $upper) - 1px) {
+    @content;
+  }
+}
+
+// ==================
+// UTILITY CLASSES
+// ==================
+
+// Theme Variables Root
+:root {
+  @include theme-colors($light-theme);
+  
+  // Custom Properties for Dynamic Theming
+  --primary-rgb: 66, 133, 244;
+  --secondary-rgb: 52, 168, 83;
+  --accent-rgb: 251, 188, 5;
+  --success-rgb: 52, 168, 83;
+  --warning-rgb: 251, 188, 5;
+  --danger-rgb: 234, 67, 53;
+  --info-rgb: 66, 133, 244;
+}
+
+[data-theme="dark"] {
+  @include theme-colors($dark-theme);
+}
+
+// Component State Classes
+.glass {
+  @include glass-effect();
+}
+
+.neuma {
+  @include neumorphism();
+}
+
+.neuma-inset {
+  @include neumorphism-inset();
+}
+
+// Animation Classes
+.transition-all {
+  transition: $transition-base;
+}
+
+.transition-fast {
+  transition: $transition-fast;
+}
+
+.transition-slow {
+  transition: $transition-slow;
+}
+
+// Hover Effects
+.hover-lift {
+  transition: transform $duration-200 $ease-out;
+  
+  &:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.hover-scale {
+  transition: transform $duration-200 $ease-out;
+  
+  &:hover {
+    transform: scale(1.05);
+  }
+}
+
+.hover-glass {
+  transition: all $duration-300 $ease-out;
+  
+  &:hover {
+    @include glass-effect(0.2);
+  }
+}

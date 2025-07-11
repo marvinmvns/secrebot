@@ -60,7 +60,10 @@ class RestAPI {
     this.app.use(expressLayouts);
     this.app.set('view engine', 'ejs');
     this.app.set('views', path.join(__dirname, '../views'));
+    // Serve static files from public folder
     this.app.use(express.static(path.join(__dirname, '../public')));
+    // Serve React build files
+    this.app.use(express.static(path.join(__dirname, '../../admin-dashboard/build')));
     this.app.use((req, res, next) => {
       if (req.method === 'POST' && req.path === '/config') {
         logger.info('📝 Recebendo solicitação POST /config');
@@ -348,6 +351,30 @@ class RestAPI {
       } catch (err) {
         logger.error('Erro em /chat', err);
         res.render('chat', { result: 'Erro ao processar mensagem.', message });
+      }
+    });
+
+    // API endpoint for chat (returns JSON)
+    this.app.post('/api/chat', async (req, res) => {
+      const message = req.body.message || '';
+      if (!message.trim()) {
+        return res.status(400).json({ 
+          success: false,
+          error: 'Mensagem vazia.' 
+        });
+      }
+      try {
+        const answer = await this.bot.llmService.getAssistantResponse('web', message);
+        res.json({ 
+          success: true,
+          result: answer 
+        });
+      } catch (err) {
+        logger.error('Erro em /api/chat', err);
+        res.status(500).json({ 
+          success: false,
+          error: 'Erro ao processar mensagem.' 
+        });
       }
     });
 
@@ -1048,6 +1075,304 @@ class RestAPI {
       }
     });
 
+    // ===== DASHBOARD APIs =====
+    
+    // API para estatísticas do dashboard
+    this.app.get('/api/dashboard/stats', async (req, res) => {
+      try {
+        const schedCollection = this.bot.getScheduler().schedCollection;
+        const stats = await this.bot.getScheduler().getStats();
+        
+        // Buscar mensagens para estatísticas
+        const messages = await schedCollection.find({}).toArray();
+        const now = new Date();
+        
+        // Calcular estatísticas
+        const total = messages.length;
+        const pending = messages.filter(m => new Date(m.scheduledTime) > now && m.status !== 'sent').length;
+        const sent = messages.filter(m => m.status === 'sent').length;
+        const failed = messages.filter(m => m.status === 'failed').length;
+        
+        // Próximos agendamentos (próximas 24h)
+        const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        const upcoming = messages
+          .filter(m => {
+            const schedTime = new Date(m.scheduledTime);
+            return schedTime > now && schedTime <= tomorrow && m.status !== 'sent';
+          })
+          .sort((a, b) => new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime())
+          .slice(0, 10)
+          .map(m => ({
+            id: m._id,
+            message: m.message.substring(0, 50) + (m.message.length > 50 ? '...' : ''),
+            scheduledTime: m.scheduledTime,
+            recipient: m.recipient,
+            status: m.status
+          }));
+        
+        res.json({
+          success: true,
+          total,
+          pending,
+          sent,
+          failed,
+          upcoming,
+          systemStats: stats
+        });
+        
+      } catch (error) {
+        logger.error('Erro em /api/dashboard/stats', error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao obter estatísticas do dashboard'
+        });
+      }
+    });
+
+    // API para recursos do sistema
+    this.app.get('/api/system/resources', async (req, res) => {
+      try {
+        const si = await import('systeminformation');
+        
+        const [cpu, mem, load, disk] = await Promise.all([
+          si.currentLoad(),
+          si.mem(),
+          si.currentLoad(),
+          si.fsSize()
+        ]);
+        
+        const systemInfo = {
+          cpu: {
+            usage: Math.round(cpu.currentLoad),
+            cores: cpu.cpus?.length || 1
+          },
+          memory: {
+            total: mem.total,
+            used: mem.used,
+            free: mem.free,
+            usage: Math.round((mem.used / mem.total) * 100)
+          },
+          disk: disk.map(d => ({
+            filesystem: d.fs,
+            size: d.size,
+            used: d.used,
+            available: d.available,
+            usage: Math.round((d.used / d.size) * 100),
+            mount: d.mount
+          })).filter(d => d.size > 0)
+        };
+        
+        res.json({
+          success: true,
+          data: systemInfo
+        });
+        
+      } catch (error) {
+        logger.error('Erro em /api/system/resources', error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao obter recursos do sistema'
+        });
+      }
+    });
+
+    // ===== SCHEDULER APIs =====
+    
+    // API para listar mensagens agendadas
+    this.app.get('/api/scheduled-messages', async (req, res) => {
+      try {
+        const schedCollection = this.bot.getScheduler().schedCollection;
+        const messages = await schedCollection.find({}).sort({ scheduledTime: 1 }).toArray();
+        
+        res.json({
+          success: true,
+          data: messages
+        });
+        
+      } catch (error) {
+        logger.error('Erro em /api/scheduled-messages', error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao listar mensagens agendadas'
+        });
+      }
+    });
+
+    // API para criar/atualizar mensagem agendada
+    this.app.post('/api/scheduled-messages', async (req, res) => {
+      try {
+        const schedCollection = this.bot.getScheduler().schedCollection;
+        const { message, recipient, scheduledTime } = req.body;
+        
+        if (!message || !recipient || !scheduledTime) {
+          return res.status(400).json({
+            success: false,
+            error: 'Campos obrigatórios: message, recipient, scheduledTime'
+          });
+        }
+        
+        const messageData = {
+          message,
+          recipient,
+          scheduledTime: new Date(scheduledTime),
+          status: 'pending',
+          createdAt: new Date()
+        };
+        
+        const result = await schedCollection.insertOne(messageData);
+        
+        res.json({
+          success: true,
+          data: { ...messageData, _id: result.insertedId }
+        });
+        
+      } catch (error) {
+        logger.error('Erro em /api/scheduled-messages POST', error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao criar mensagem agendada'
+        });
+      }
+    });
+
+    // API para atualizar mensagem agendada
+    this.app.put('/api/scheduled-messages', async (req, res) => {
+      try {
+        const schedCollection = this.bot.getScheduler().schedCollection;
+        const { _id, message, recipient, scheduledTime } = req.body;
+        
+        if (!_id) {
+          return res.status(400).json({
+            success: false,
+            error: 'ID da mensagem é obrigatório'
+          });
+        }
+        
+        const updateData = {
+          message,
+          recipient,
+          scheduledTime: new Date(scheduledTime),
+          updatedAt: new Date()
+        };
+        
+        const result = await schedCollection.updateOne(
+          { _id: new ObjectId(_id) },
+          { $set: updateData }
+        );
+        
+        if (result.matchedCount === 0) {
+          return res.status(404).json({
+            success: false,
+            error: 'Mensagem não encontrada'
+          });
+        }
+        
+        res.json({
+          success: true,
+          data: { _id, ...updateData }
+        });
+        
+      } catch (error) {
+        logger.error('Erro em /api/scheduled-messages PUT', error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao atualizar mensagem agendada'
+        });
+      }
+    });
+
+    // API para excluir mensagem agendada
+    this.app.delete('/api/scheduled-messages/:id', async (req, res) => {
+      try {
+        const schedCollection = this.bot.getScheduler().schedCollection;
+        const { id } = req.params;
+        
+        const result = await schedCollection.deleteOne({ _id: new ObjectId(id) });
+        
+        if (result.deletedCount === 0) {
+          return res.status(404).json({
+            success: false,
+            error: 'Mensagem não encontrada'
+          });
+        }
+        
+        res.json({
+          success: true,
+          message: 'Mensagem excluída com sucesso'
+        });
+        
+      } catch (error) {
+        logger.error('Erro em /api/scheduled-messages DELETE', error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao excluir mensagem agendada'
+        });
+      }
+    });
+
+    // ===== CONFIG APIs =====
+    
+    // API para obter configurações
+    this.app.get('/api/configs', async (req, res) => {
+      try {
+        const config = await this.configService.getConfig();
+        
+        res.json({
+          success: true,
+          data: config
+        });
+        
+      } catch (error) {
+        logger.error('Erro em /api/configs GET', error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao obter configurações'
+        });
+      }
+    });
+
+    // API para atualizar configurações
+    this.app.put('/api/configs', async (req, res) => {
+      try {
+        const configData = req.body;
+        
+        await this.configService.setConfig(configData);
+        
+        res.json({
+          success: true,
+          data: configData,
+          message: 'Configurações atualizadas com sucesso'
+        });
+        
+      } catch (error) {
+        logger.error('Erro em /api/configs PUT', error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao atualizar configurações'
+        });
+      }
+    });
+
+    // API para resetar configurações
+    this.app.post('/api/configs/reset', async (req, res) => {
+      try {
+        const defaultConfig = await this.configService.init();
+        
+        res.json({
+          success: true,
+          data: defaultConfig,
+          message: 'Configurações resetadas para padrão'
+        });
+        
+      } catch (error) {
+        logger.error('Erro em /api/configs/reset', error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao resetar configurações'
+        });
+      }
+    });
+
     // API para criar fluxo a partir de template
     this.app.post('/api/flow/create-from-template', async (req, res) => {
       try {
@@ -1273,9 +1598,130 @@ class RestAPI {
       res.render('config-test');
     });
 
-    // Rota catch-all para 404
-    this.app.use((req, res) => {
-        res.status(404).json({ error: '❌ Rota não encontrada' });
+    // Catch-all route for React Router (must be last)
+    this.app.get('*', (req, res) => {
+      res.sendFile(path.join(__dirname, '../../admin-dashboard/build', 'index.html'));
+    });
+
+    // ===== ANALYTICS ROUTES =====
+    
+    // Endpoint para obter resumo de analytics
+    this.app.get('/api/analytics/summary', async (req, res) => {
+      try {
+        const analyticsService = await import('../services/analyticsService.js');
+        const summary = await analyticsService.default.getAnalyticsSummary();
+        
+        res.json({
+          success: true,
+          data: summary
+        });
+      } catch (error) {
+        logger.error('Erro em /api/analytics/summary', error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao obter resumo de analytics'
+        });
+      }
+    });
+
+    // Endpoint para registrar interação
+    this.app.post('/api/analytics/interaction', async (req, res) => {
+      try {
+        const analyticsService = await import('../services/analyticsService.js');
+        await analyticsService.default.recordInteraction(req.body);
+        
+        res.json({
+          success: true,
+          message: 'Interação registrada com sucesso'
+        });
+      } catch (error) {
+        logger.error('Erro em /api/analytics/interaction', error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao registrar interação'
+        });
+      }
+    });
+
+    // Endpoint para obter estatísticas por plataforma
+    this.app.get('/api/analytics/platform-stats', async (req, res) => {
+      try {
+        const analyticsService = await import('../services/analyticsService.js');
+        const stats = await analyticsService.default.getPlatformStats();
+        
+        res.json({
+          success: true,
+          data: stats
+        });
+      } catch (error) {
+        logger.error('Erro em /api/analytics/platform-stats', error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao obter estatísticas por plataforma'
+        });
+      }
+    });
+
+    // Endpoint para obter estatísticas de tipos de mensagem
+    this.app.get('/api/analytics/message-types', async (req, res) => {
+      try {
+        const analyticsService = await import('../services/analyticsService.js');
+        const stats = await analyticsService.default.getMessageTypeStats();
+        
+        res.json({
+          success: true,
+          data: stats
+        });
+      } catch (error) {
+        logger.error('Erro em /api/analytics/message-types', error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao obter estatísticas de tipos de mensagem'
+        });
+      }
+    });
+
+    // Endpoint para obter estatísticas diárias
+    this.app.get('/api/analytics/daily-stats', async (req, res) => {
+      try {
+        const analyticsService = await import('../services/analyticsService.js');
+        const days = parseInt(req.query.days) || 30;
+        const stats = await analyticsService.default.getDailyStats(days);
+        
+        res.json({
+          success: true,
+          data: stats
+        });
+      } catch (error) {
+        logger.error('Erro em /api/analytics/daily-stats', error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao obter estatísticas diárias'
+        });
+      }
+    });
+
+    // Endpoint para obter interações de um usuário específico
+    this.app.get('/api/analytics/user/:phoneNumber', async (req, res) => {
+      try {
+        const analyticsService = await import('../services/analyticsService.js');
+        const { phoneNumber } = req.params;
+        const limit = parseInt(req.query.limit) || 100;
+        const offset = parseInt(req.query.offset) || 0;
+        
+        const interactions = await analyticsService.default.getUserInteractions(phoneNumber, limit, offset);
+        
+        res.json({
+          success: true,
+          data: interactions
+        });
+      } catch (error) {
+        logger.error('Erro em /api/analytics/user', error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao obter interações do usuário'
+        });
+      }
     });
 
     // Middleware de tratamento de erros

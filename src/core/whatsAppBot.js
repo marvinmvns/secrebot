@@ -2604,6 +2604,18 @@ usuario@email.com:senha
         CONFIG.audio.model = selectedModel;
         logger.service(`🎤 Modelo Whisper alterado de ${oldModel} para: ${selectedModel}`);
         
+        // Verificar se modelo está disponível e tentar baixar automaticamente
+        await this.sendResponse(contactId, `🔄 *Verificando disponibilidade do modelo ${selectedModel}...*`, true);
+        
+        try {
+          // Tentar baixar modelo automaticamente usando nodejs-whisper
+          await this.ensureWhisperModelAvailable(selectedModel);
+          await this.sendResponse(contactId, `✅ *Modelo ${selectedModel} pronto para uso!*`, true);
+        } catch (downloadError) {
+          logger.warn(`⚠️ Erro ao verificar/baixar modelo ${selectedModel}:`, downloadError);
+          await this.sendResponse(contactId, `⚠️ *Aviso:* Modelo ${selectedModel} pode não estar disponível localmente.\n\nEle será baixado automaticamente na primeira transcrição.`, true);
+        }
+        
         // Notificar transcriber se disponível sobre mudança de modelo
         if (this.transcriber && typeof this.transcriber.onModelChange === 'function') {
           try {
@@ -3075,6 +3087,55 @@ usuario@email.com:senha
       `   !flow start atendimento-academia-jiu-jitsu`;
     
     await this.sendResponse(contactId, help);
+  }
+
+  async ensureWhisperModelAvailable(modelName) {
+    try {
+      logger.debug(`🔍 Verificando disponibilidade do modelo Whisper: ${modelName}`);
+      
+      // Usar o transcriber para verificar se o modelo está disponível
+      if (this.transcriber && typeof this.transcriber.transcribeWithAutoDownload === 'function') {
+        // Criar um arquivo de áudio temporário mínimo para testar o modelo
+        const fs = await import('fs/promises');
+        const path = await import('path');
+        const { __dirname } = await import('../config/index.js');
+        
+        const testAudioPath = path.join(__dirname, 'test-whisper-model.wav');
+        
+        // Criar um arquivo WAV mínimo (silêncio de 1 segundo)
+        const minimalWav = Buffer.from([
+          0x52, 0x49, 0x46, 0x46, 0x24, 0x08, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20,
+          0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x22, 0x56, 0x00, 0x00, 0x44, 0xAC, 0x00, 0x00,
+          0x02, 0x00, 0x10, 0x00, 0x64, 0x61, 0x74, 0x61, 0x00, 0x08, 0x00, 0x00
+        ]);
+        
+        try {
+          await fs.writeFile(testAudioPath, minimalWav);
+          
+          // Tentar transcrever com auto-download
+          logger.debug(`🧪 Testando modelo ${modelName} com arquivo temporário`);
+          await this.transcriber.transcribeWithAutoDownload(testAudioPath, modelName);
+          
+          logger.success(`✅ Modelo ${modelName} verificado e disponível`);
+          
+          // Limpar arquivo temporário
+          await fs.unlink(testAudioPath).catch(() => {});
+          
+        } catch (testError) {
+          // Limpar arquivo temporário em caso de erro
+          await fs.unlink(testAudioPath).catch(() => {});
+          throw testError;
+        }
+        
+      } else {
+        logger.warn(`⚠️ Método transcribeWithAutoDownload não disponível no transcriber`);
+        throw new Error('Método de auto-download não disponível no transcriber');
+      }
+      
+    } catch (error) {
+      logger.error(`❌ Erro ao verificar/baixar modelo ${modelName}:`, error);
+      throw new Error(`Falha ao verificar modelo ${modelName}: ${error.message}`);
+    }
   }
   // --- Fim Métodos de Flow Command ---
 }

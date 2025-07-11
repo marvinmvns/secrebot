@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST;
-const OLLAMA_TIMEOUT_MS = process.env.OLLAMA_TIMEOUT_MS || '600000';
+const OLLAMA_TIMEOUT_MS = process.env.OLLAMA_TIMEOUT_MS || '999000';
 
 process.env.UNDICI_HEADERS_TIMEOUT = OLLAMA_TIMEOUT_MS;
 process.env.UNDICI_BODY_TIMEOUT = OLLAMA_TIMEOUT_MS;
@@ -12,7 +12,7 @@ export const config = {
   debug: {
     enabled: process.env.DEBUG_ENABLED === 'true' || process.env.NODE_ENV === 'development',
     verbose: process.env.DEBUG_VERBOSE === 'true',
-    logLevel: process.env.LOG_LEVEL || 'info'
+    logLevel: process.env.LOG_LEVEL || 'debug'
   },
   mongo: {
     uri: process.env.MONGO_URI || 'mongodb://bot:senha@127.0.0.1:27017/bot?authSource=sched',
@@ -30,29 +30,29 @@ export const config = {
     dynamic: {
       enabled: process.env.DYNAMIC_CONCURRENCY === 'true',
       min: parseInt(process.env.SCHED_DYNAMIC_MIN || '1', 10),
-      max: parseInt(process.env.SCHED_DYNAMIC_MAX || process.env.SCHED_MAX_CONCURRENCY || '10', 10),
-      cpuThreshold: parseFloat(process.env.SCHED_CPU_THRESHOLD || '0.7'),
-      memThreshold: parseFloat(process.env.SCHED_MEM_THRESHOLD || '0.8')
+      max: parseInt(process.env.SCHED_DYNAMIC_MAX || process.env.SCHED_MAX_CONCURRENCY || '100', 10),
+      cpuThreshold: parseFloat(process.env.SCHED_CPU_THRESHOLD || '1.7'),
+      memThreshold: parseFloat(process.env.SCHED_MEM_THRESHOLD || '1.8')
     }
   },
   queues: {
-    llmConcurrency: parseInt(process.env.LLM_CONCURRENCY || '2', 10),
-    whisperConcurrency: parseInt(process.env.WHISPER_CONCURRENCY || '1', 10),
-    memoryThresholdGB: parseInt(process.env.QUEUE_MEM_THRESHOLD_GB || '4', 10),
+    llmConcurrency: parseInt(process.env.LLM_CONCURRENCY || '20', 10),
+    whisperConcurrency: parseInt(process.env.WHISPER_CONCURRENCY || '10', 10),
+    memoryThresholdGB: parseInt(process.env.QUEUE_MEM_THRESHOLD_GB || '32', 10),
     memoryCheckInterval: parseInt(process.env.MEM_CHECK_INTERVAL || '1000', 10)
   },
   llm: {
     model: process.env.LLM_MODEL || 'granite3.2:latest',
     imageModel: process.env.LLM_IMAGE_MODEL || 'llava:7b',
-    maxTokens: parseInt(process.env.LLM_MAX_TOKENS || '3000', 10),
+    maxTokens: parseInt(process.env.LLM_MAX_TOKENS || '32000', 10),
     host: OLLAMA_HOST || 'http://127.0.0.1:11434',
-    timeoutMs: parseInt(OLLAMA_TIMEOUT_MS, 10)
+    timeoutMs: parseInt(OLLAMA_TIMEOUT_MS, 999999)
   },
   audio: {
     sampleRate: parseInt(process.env.AUDIO_SAMPLE_RATE || '16000', 10),
     model: process.env.WHISPER_MODEL || 'large-v3-turbo',
     language: process.env.AUDIO_LANGUAGE || 'pt',
-    timeoutMs: parseInt(process.env.WHISPER_TIMEOUT_MS || '120000', 10)
+    timeoutMs: parseInt(process.env.WHISPER_TIMEOUT_MS || '9990000', 10)
   },
   elevenlabs: {
     apiKey: process.env.ELEVENLABS_API_KEY || '',
@@ -88,26 +88,26 @@ export const config = {
     enableTTS: process.env.TELEGRAM_ENABLE_TTS === 'true',
     maxFileSize: parseInt(process.env.TELEGRAM_MAX_FILE_SIZE || '20971520', 10), // 20MB
     features: {
-      aiChat: process.env.TELEGRAM_FEATURE_AI_CHAT !== 'false',
-      scheduler: process.env.TELEGRAM_FEATURE_SCHEDULER !== 'false',
-      audioTranscription: process.env.TELEGRAM_FEATURE_AUDIO_TRANSCRIPTION !== 'false',
-      imageAnalysis: process.env.TELEGRAM_FEATURE_IMAGE_ANALYSIS !== 'false',
-      videoSummary: process.env.TELEGRAM_FEATURE_VIDEO_SUMMARY !== 'false',
-      textSummary: process.env.TELEGRAM_FEATURE_TEXT_SUMMARY !== 'false',
-      tts: process.env.TELEGRAM_FEATURE_TTS !== 'false',
+      aiChat: process.env.TELEGRAM_FEATURE_AI_CHAT !== 'true',
+      scheduler: process.env.TELEGRAM_FEATURE_SCHEDULER !== 'true',
+      audioTranscription: process.env.TELEGRAM_FEATURE_AUDIO_TRANSCRIPTION !== 'true',
+      imageAnalysis: process.env.TELEGRAM_FEATURE_IMAGE_ANALYSIS !== 'true',
+      videoSummary: process.env.TELEGRAM_FEATURE_VIDEO_SUMMARY !== 'true',
+      textSummary: process.env.TELEGRAM_FEATURE_TEXT_SUMMARY !== 'true',
+      tts: process.env.TELEGRAM_FEATURE_TTS !== 'true',
       calorieCounter: process.env.TELEGRAM_FEATURE_CALORIE_COUNTER === 'true',
       linkedinAnalysis: process.env.TELEGRAM_FEATURE_LINKEDIN_ANALYSIS === 'true',
-      mediaProcessing: process.env.TELEGRAM_FEATURE_MEDIA_PROCESSING !== 'false',
+      mediaProcessing: process.env.TELEGRAM_FEATURE_MEDIA_PROCESSING !== 'true',
       professionalAnalysis: process.env.TELEGRAM_FEATURE_PROFESSIONAL_ANALYSIS === 'true',
-      systemResources: process.env.TELEGRAM_FEATURE_SYSTEM_RESOURCES !== 'false',
+      systemResources: process.env.TELEGRAM_FEATURE_SYSTEM_RESOURCES !== 'true',
       // Novas features do WhatsApp
-      modelManagement: process.env.TELEGRAM_FEATURE_MODEL_MANAGEMENT !== 'false',
-      whisperModelManagement: process.env.TELEGRAM_FEATURE_WHISPER_MODEL_MANAGEMENT !== 'false',
+      modelManagement: process.env.TELEGRAM_FEATURE_MODEL_MANAGEMENT !== 'true',
+      whisperModelManagement: process.env.TELEGRAM_FEATURE_WHISPER_MODEL_MANAGEMENT !== 'true',
       serviceManagement: process.env.TELEGRAM_FEATURE_SERVICE_MANAGEMENT === 'true',
-      calendarImport: process.env.TELEGRAM_FEATURE_CALENDAR_IMPORT !== 'false',
-      dualVideoSummary: process.env.TELEGRAM_FEATURE_DUAL_VIDEO_SUMMARY !== 'false',
-      voiceResponseToggle: process.env.TELEGRAM_FEATURE_VOICE_RESPONSE_TOGGLE !== 'false',
-      advancedFileProcessing: process.env.TELEGRAM_FEATURE_ADVANCED_FILE_PROCESSING !== 'false'
+      calendarImport: process.env.TELEGRAM_FEATURE_CALENDAR_IMPORT !== 'true',
+      dualVideoSummary: process.env.TELEGRAM_FEATURE_DUAL_VIDEO_SUMMARY !== 'true',
+      voiceResponseToggle: process.env.TELEGRAM_FEATURE_VOICE_RESPONSE_TOGGLE !== 'true',
+      advancedFileProcessing: process.env.TELEGRAM_FEATURE_ADVANCED_FILE_PROCESSING !== 'true'
     }
   }
 };

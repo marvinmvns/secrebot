@@ -3,6 +3,7 @@ import path from 'path';
 import { Readable } from 'stream';
 import { spawn } from 'child_process';
 import { WHISPER_CPP_PATH, WHISPER_CPP_MAIN_PATH, MODEL_OBJECT } from 'nodejs-whisper/dist/constants.js';
+import { nodewhisper } from 'nodejs-whisper';
 import ffmpeg from 'fluent-ffmpeg';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, __dirname } from '../config/index.js'; // Ajustar caminho se necessário
@@ -18,6 +19,35 @@ class AudioTranscriber {
       CONFIG.queues.memoryThresholdGB
     );
     this.ollamaClient = new Ollama({ host: CONFIG.llm.host });
+  }
+
+  async transcribeWithAutoDownload(filePath, modelName = CONFIG.audio.model) {
+    try {
+      logger.debug(`🔄 Iniciando transcrição com auto-download do modelo: ${modelName}`);
+      
+      const options = {
+        modelName: modelName,
+        autoDownloadModelName: modelName,
+        verbose: true,
+        removeWavFileAfterTranscription: false,
+        withCuda: false,
+        whisperOptions: { 
+          outputInText: true, 
+          language: CONFIG.audio.language 
+        },
+        logger: logger
+      };
+
+      logger.debug('🚀 Executando nodejs-whisper com auto-download...');
+      const transcription = await nodewhisper(filePath, options);
+      
+      logger.success(`✅ Transcrição concluída com auto-download. Modelo: ${modelName}`);
+      return transcription.trim();
+      
+    } catch (error) {
+      logger.error(`❌ Erro na transcrição com auto-download:`, error);
+      throw new Error(`Falha na transcrição com auto-download: ${error.message}`);
+    }
   }
 
   async runWhisper(filePath, options) {
@@ -131,8 +161,21 @@ class AudioTranscriber {
           await fs.access(modelPath);
           logger.verbose(`✅ Modelo Whisper encontrado e acessível: ${modelPath}`);
         } catch (error) {
-          logger.error(`❌ Modelo Whisper não encontrado: ${modelPath}`);
-          throw new Error(`Modelo Whisper '${CONFIG.audio.model}' não encontrado em ${modelPath}. Verifique se o modelo foi baixado.`);
+          logger.warn(`⚠️ Modelo Whisper não encontrado: ${modelPath}`);
+          logger.info(`🔄 Tentando baixar automaticamente o modelo '${CONFIG.audio.model}'...`);
+          
+          try {
+            const transcription = await this.transcribeWithAutoDownload(tempOutputPath, CONFIG.audio.model);
+            logger.success(`✅ Transcrição concluída com download automático do modelo`);
+            
+            // Limpa arquivos temporários
+            await Utils.cleanupFile(tempOutputPath);
+            
+            return transcription;
+          } catch (autoDownloadError) {
+            logger.error(`❌ Falha no download automático do modelo:`, autoDownloadError);
+            throw new Error(`Modelo Whisper '${CONFIG.audio.model}' não encontrado em ${modelPath} e falha no download automático: ${autoDownloadError.message}`);
+          }
         }
 
         logger.verbose(`🔄 Iniciando conversão de áudio com FFMPEG:`, {

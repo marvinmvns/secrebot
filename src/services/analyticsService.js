@@ -1,5 +1,5 @@
-const { MongoClient } = require('mongodb');
-const config = require('../config/config');
+import { MongoClient } from 'mongodb';
+import { CONFIG } from '../config/index.js';
 
 class AnalyticsService {
     constructor() {
@@ -13,9 +13,9 @@ class AnalyticsService {
 
     async connect() {
         if (!this.client) {
-            this.client = new MongoClient(config.MONGODB_URI);
+            this.client = new MongoClient(CONFIG.mongo.uri);
             await this.client.connect();
-            this.db = this.client.db(config.DB_NAME);
+            this.db = this.client.db(CONFIG.mongo.dbName);
             await this.ensureCollections();
         }
         return this.db;
@@ -269,4 +269,4 @@ class AnalyticsService {
     }
 }
 
-module.exports = new AnalyticsService();
+export default new AnalyticsService();

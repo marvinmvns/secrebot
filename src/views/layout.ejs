@@ -3,60 +3,207 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WhatsApp Scheduler</title>
+  <title>SecreBot - Sistema de Automação WhatsApp</title>
   <link rel="preconnect" href="https://fonts.gstatic.com">
-  <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/styles.css">
-  <!-- Bootstrap CSS -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    
+    .navbar {
+      background: rgba(255, 255, 255, 0.95) !important;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .navbar-brand {
+      font-weight: 700;
+      color: #2d3748 !important;
+      font-size: 1.5rem;
+    }
+    
+    .navbar-brand i {
+      color: #25d366;
+      margin-right: 8px;
+    }
+    
+    .nav-link {
+      color: #4a5568 !important;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      border-radius: 8px;
+      margin: 0 2px;
+      padding: 8px 12px !important;
+    }
+    
+    .nav-link:hover {
+      background: rgba(102, 126, 234, 0.1);
+      color: #667eea !important;
+    }
+    
+    .nav-link.active {
+      background: #667eea;
+      color: white !important;
+    }
+    
+    .dropdown-menu {
+      border: none;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+      border-radius: 12px;
+      padding: 8px;
+    }
+    
+    .dropdown-item {
+      border-radius: 8px;
+      margin: 2px 0;
+      transition: all 0.2s ease;
+    }
+    
+    .dropdown-item:hover {
+      background: rgba(102, 126, 234, 0.1);
+      color: #667eea;
+    }
+    
+    .main-content {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+      margin: 20px 0;
+      min-height: calc(100vh - 120px);
+    }
+    
+    .btn-voice-toggle {
+      background: linear-gradient(45deg, #25d366, #128c7e);
+      border: none;
+      border-radius: 25px;
+      color: white;
+      padding: 8px 16px;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-voice-toggle:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(37, 211, 102, 0.3);
+      color: white;
+    }
+  </style>
 </head>
 <body>
-  <nav class="navbar navbar-expand-lg">
-    <a class="navbar-brand" href="/">WhatsApp Scheduler</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
-            aria-controls="navbarNav" aria-expanded="false" aria-label="Alternar navegação">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav ms-auto">
-        <li class="nav-item">
-          <a class="nav-link" href="/">Home</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="/dashboard">Dashboard</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="/config">Configurações</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="/configs">Todas as Configs</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="/messages/new">Adicionar Mensagem</a>
-        </li>
-        <li class="nav-item"><a class="nav-link" href="/chat">Chat</a></li>
-        <li class="nav-item"><a class="nav-link" href="/transcribe">Transcrever</a></li>
-        <li class="nav-item"><a class="nav-link" href="/describe">Descrever</a></li>
-        <li class="nav-item"><a class="nav-link" href="/calories">Calorias</a></li>
-        <li class="nav-item"><a class="nav-link" href="/linkedin">LinkedIn</a></li>
-        <li class="nav-item"><a class="nav-link" href="/summarize">Resumir</a></li>
-        <li class="nav-item"><a class="nav-link" href="/video">YouTube</a></li>
-        <li class="nav-item"><a class="nav-link" href="/resources">Recursos</a></li>
-        <li class="nav-item"><a class="nav-link" href="/flow-builder">Geração de Tela</a></li>
-        <li class="nav-item">
-          <form action="/toggle-voice" method="POST" class="d-inline">
-            <button type="submit" class="btn btn-link nav-link">Alternar Voz</button>
-          </form>
-        </li>
-      </ul>
+  <nav class="navbar navbar-expand-lg navbar-light sticky-top">
+    <div class="container">
+      <a class="navbar-brand" href="/">
+        <i class="fab fa-whatsapp"></i>SecreBot
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+              aria-controls="navbarNav" aria-expanded="false" aria-label="Alternar navegação">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/"><i class="fas fa-home"></i> Home</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/dashboard"><i class="fas fa-chart-line"></i> Dashboard</a>
+          </li>
+          
+          <!-- Dropdown IA & Processamento -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+              <i class="fas fa-robot"></i> IA & Processamento
+            </a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="/chat"><i class="fas fa-comments"></i> Chat IA</a></li>
+              <li><a class="dropdown-item" href="/transcribe"><i class="fas fa-microphone"></i> Transcrever Áudio</a></li>
+              <li><a class="dropdown-item" href="/describe"><i class="fas fa-image"></i> Descrever Imagem</a></li>
+              <li><a class="dropdown-item" href="/summarize"><i class="fas fa-file-alt"></i> Resumir Texto</a></li>
+              <li><a class="dropdown-item" href="/video"><i class="fab fa-youtube"></i> Analisar YouTube</a></li>
+            </ul>
+          </li>
+          
+          <!-- Dropdown Utilitários -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+              <i class="fas fa-tools"></i> Utilitários
+            </a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="/calories"><i class="fas fa-apple-alt"></i> Contador Calorias</a></li>
+              <li><a class="dropdown-item" href="/linkedin"><i class="fab fa-linkedin"></i> Análise LinkedIn</a></li>
+              <li><a class="dropdown-item" href="/resources"><i class="fas fa-server"></i> Recursos Sistema</a></li>
+              <li><a class="dropdown-item" href="/messages/new"><i class="fas fa-plus"></i> Agendar Mensagem</a></li>
+            </ul>
+          </li>
+          
+          <!-- Dropdown Configurações -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+              <i class="fas fa-cog"></i> Configurações
+            </a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="/config"><i class="fas fa-sliders-h"></i> Configurações Básicas</a></li>
+              <li><a class="dropdown-item" href="/configs"><i class="fas fa-database"></i> Todas as Configs</a></li>
+              <li><a class="dropdown-item" href="/whisper-api-config"><i class="fas fa-microphone"></i> Whisper API</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/flow-builder"><i class="fas fa-project-diagram"></i> Flow Builder</a></li>
+            </ul>
+          </li>
+        </ul>
+        
+        <ul class="navbar-nav">
+          <li class="nav-item">
+            <form action="/toggle-voice" method="POST" class="d-inline">
+              <button type="submit" class="btn btn-voice-toggle btn-sm">
+                <i class="fas fa-volume-up"></i> Voz
+              </button>
+            </form>
+          </li>
+        </ul>
+      </div>
     </div>
   </nav>
 
-  <div class="container mt-4">
-    <%- body %>
+  <div class="container">
+    <div class="main-content p-4">
+      <%- body %>
+    </div>
   </div>
 
   <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <script>
+    // Highlight active page in navigation
+    document.addEventListener('DOMContentLoaded', function() {
+      const currentPath = window.location.pathname;
+      const navLinks = document.querySelectorAll('.nav-link');
+      
+      navLinks.forEach(link => {
+        if (link.getAttribute('href') === currentPath) {
+          link.classList.add('active');
+        }
+      });
+      
+      // Also check dropdown items
+      const dropdownItems = document.querySelectorAll('.dropdown-item');
+      dropdownItems.forEach(item => {
+        if (item.getAttribute('href') === currentPath) {
+          item.classList.add('active');
+          // Also highlight the parent dropdown
+          const dropdown = item.closest('.dropdown');
+          if (dropdown) {
+            dropdown.querySelector('.dropdown-toggle').classList.add('active');
+          }
+        }
+      });
+    });
+  </script>
 </body>
 </html>

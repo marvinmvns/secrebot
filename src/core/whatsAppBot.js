@@ -671,13 +671,34 @@ class WhatsAppBot {
 
     // Verificar se o usuário tem fluxo ativo
     if (await this.hasActiveFlow(contactId)) {
+      // Se há flow ativo, só permite comandos específicos de flow para sair
+      if (lowerText.startsWith('!flow')) {
+        const parts = text.split(' ');
+        const command = parts[1]?.toLowerCase();
+        
+        // Apenas comandos de saída são permitidos durante flow ativo
+        if (command === 'sair' || command === 'stop' || command === 'status') {
+          await this.handleFlowCommand(msg, contactId, text);
+          return;
+        } else {
+          // Informar que está em um flow e como sair
+          await this.sendResponse(contactId, '⚠️ Você está em um flow ativo.\n\n🚪 Para sair, use: !flow sair\n📊 Para ver status: !flow status');
+          return;
+        }
+      }
+      
+      // Tentar processar como entrada do flow
       const handled = await this.processFlowMessage(contactId, text);
       if (handled) {
         return;
       }
+      
+      // Se não foi processado pelo flow, informar como sair
+      await this.sendResponse(contactId, '⚠️ Você está em um flow ativo.\n\n🚪 Para sair, use: !flow sair\n📊 Para ver status: !flow status');
+      return;
     }
 
-    // Verificar comando !flow
+    // Verificar comando !flow (apenas quando não há flow ativo)
     if (lowerText.startsWith('!flow')) {
       await this.handleFlowCommand(msg, contactId, text);
       return;
@@ -2973,6 +2994,9 @@ usuario@email.com:senha
       case 'stop':
         await this.handleFlowStop(contactId);
         break;
+      case 'sair':
+        await this.handleFlowSair(contactId);
+        break;
       case 'status':
         await this.handleFlowStatus(contactId);
         break;
@@ -3028,6 +3052,28 @@ usuario@email.com:senha
     }
   }
 
+  async handleFlowSair(contactId) {
+    try {
+      // Verificar se há flow ativo
+      const hasActive = await this.hasActiveFlow(contactId);
+      if (!hasActive) {
+        await this.sendResponse(contactId, '❌ Nenhum flow ativo para sair.');
+        return;
+      }
+
+      // Parar o flow usando o mesmo método que o stop
+      const stopped = await this.stopFlow(contactId);
+      if (stopped) {
+        await this.sendResponse(contactId, '🚪 Você saiu do flow com sucesso!\n\n📋 Digite !menu para ver as opções disponíveis.');
+      } else {
+        await this.sendResponse(contactId, '❌ Não foi possível sair do flow.');
+      }
+    } catch (error) {
+      logger.error('Erro ao sair do flow:', error);
+      await this.sendResponse(contactId, `❌ Erro ao sair do flow: ${error.message}`);
+    }
+  }
+
   async handleFlowStatus(contactId) {
     try {
       const hasActive = await this.hasActiveFlow(contactId);
@@ -3080,6 +3126,7 @@ usuario@email.com:senha
     const help = `🔄 *Comandos de Flow*\n\n` +
       `• !flow start <alias|flowId> - Iniciar um flow\n` +
       `• !flow stop - Parar flow ativo\n` +
+      `• !flow sair - Sair do flow ativo\n` +
       `• !flow status - Ver status do flow\n` +
       `• !flow list - Listar flows disponíveis\n\n` +
       `💡 *Exemplos:*\n` +

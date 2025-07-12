@@ -6,19 +6,22 @@ import { WHISPER_CPP_PATH, WHISPER_CPP_MAIN_PATH, MODEL_OBJECT } from 'nodejs-wh
 import { nodewhisper } from 'nodejs-whisper';
 import ffmpeg from 'fluent-ffmpeg';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
-import { CONFIG, __dirname } from '../config/index.js'; // Ajustar caminho se necessário
+import { CONFIG, __dirname, getDynamicConfig } from '../config/index.js'; // Ajustar caminho se necessário
 import JobQueue from './jobQueue.js';
 import logger from '../utils/logger.js';
 import { Ollama } from 'ollama';
+import WhisperAPIPool from './whisperApiPool.js';
 
 // ============ Transcritor de Áudio ============
 class AudioTranscriber {
-  constructor() {
+  constructor(configService = null) {
+    this.configService = configService;
     this.queue = new JobQueue(
       CONFIG.queues.whisperConcurrency,
       CONFIG.queues.memoryThresholdGB
     );
     this.ollamaClient = new Ollama({ host: CONFIG.llm.host });
+    this.whisperApiPool = new WhisperAPIPool(configService);
   }
 
   async transcribeWithAutoDownload(filePath, modelName = CONFIG.audio.model) {
@@ -132,135 +135,195 @@ class AudioTranscriber {
     });
   }
 
+  async getEffectiveConfig() {
+    let mongoConfig = null;
+    if (this.configService) {
+      try {
+        mongoConfig = await this.configService.getConfig();
+      } catch (error) {
+        logger.warn('⚠️ Erro ao obter configuração do MongoDB, usando configuração padrão:', error.message);
+      }
+    }
+    return getDynamicConfig(mongoConfig);
+  }
+
   async transcribe(audioBuffer, inputFormat = 'ogg') {
     return this.queue.add(async () => {
       logger.service('🎤 Iniciando transcrição de áudio...');
+      
+      // Obter configuração efetiva (MongoDB tem prioridade)
+      const effectiveConfig = await this.getEffectiveConfig();
+      
       logger.verbose(`📊 Audio buffer details:`, {
         size: audioBuffer.length,
         format: inputFormat,
         sizeInMB: (audioBuffer.length / 1024 / 1024).toFixed(2),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        mode: effectiveConfig.whisperApi.mode,
+        enabled: effectiveConfig.whisperApi.enabled
+      });
+
+      // Verifica se deve usar API ou modo local usando configuração efetiva
+      if (effectiveConfig.whisperApi.mode === 'api' && effectiveConfig.whisperApi.enabled && await this.whisperApiPool.isEnabled() && this.whisperApiPool.hasHealthyEndpoints()) {
+        logger.info('🌐 Usando modo API para transcrição (configuração do MongoDB)');
+        return await this.transcribeViaAPI(audioBuffer, inputFormat);
+      }
+      
+      logger.info('🏠 Usando modo local para transcrição');
+      return await this.transcribeLocally(audioBuffer, inputFormat);
+    });
+  }
+
+  async transcribeViaAPI(audioBuffer, inputFormat = 'ogg') {
+    try {
+      const timestamp = Date.now();
+      const filename = `audio_${timestamp}.${inputFormat}`;
+      
+      logger.debug(`🌐 Iniciando transcrição via API para arquivo: ${filename}`);
+      
+      const options = {
+        language: CONFIG.audio.language,
+        translate: false,
+        wordTimestamps: false,
+        cleanup: true
+      };
+
+      const transcription = await this.whisperApiPool.transcribe(audioBuffer, filename, options);
+      
+      logger.success('✅ Transcrição via API concluída com sucesso');
+      return transcription;
+      
+    } catch (error) {
+      logger.error('❌ Erro na transcrição via API:', error);
+      
+      if (CONFIG.whisperApi.mode === 'api') {
+        logger.warn('🔄 API falhou, tentando modo local como fallback...');
+        return await this.transcribeLocally(audioBuffer, inputFormat);
+      }
+      
+      throw error;
+    }
+  }
+
+  async transcribeLocally(audioBuffer, inputFormat = 'ogg') {
+    const timestamp = Date.now();
+    const tempOutputPath = path.join(__dirname, `audio_${timestamp}.wav`);
+    logger.verbose(`📁 Arquivo temporário: ${tempOutputPath}`);
+
+    try {
+      // Verifica se o modelo está disponível
+      const modelFile = MODEL_OBJECT[CONFIG.audio.model];
+      const modelPath = path.join(WHISPER_CPP_PATH, 'models', modelFile);
+      logger.verbose(`🔍 Verificando modelo Whisper:`, {
+        model: CONFIG.audio.model,
+        modelFile,
+        modelPath,
+        language: CONFIG.audio.language
       });
       
-      const timestamp = Date.now();
-      const tempOutputPath = path.join(__dirname, `audio_${timestamp}.wav`);
-      logger.verbose(`📁 Arquivo temporário: ${tempOutputPath}`);
-
       try {
-        // Verifica se o modelo está disponível
-        const modelFile = MODEL_OBJECT[CONFIG.audio.model];
-        const modelPath = path.join(WHISPER_CPP_PATH, 'models', modelFile);
-        logger.verbose(`🔍 Verificando modelo Whisper:`, {
-          model: CONFIG.audio.model,
-          modelFile,
-          modelPath,
-          language: CONFIG.audio.language
-        });
+        await fs.access(modelPath);
+        logger.verbose(`✅ Modelo Whisper encontrado e acessível: ${modelPath}`);
+      } catch (error) {
+        logger.warn(`⚠️ Modelo Whisper não encontrado: ${modelPath}`);
+        logger.info(`🔄 Tentando baixar automaticamente o modelo '${CONFIG.audio.model}'...`);
         
         try {
-          await fs.access(modelPath);
-          logger.verbose(`✅ Modelo Whisper encontrado e acessível: ${modelPath}`);
-        } catch (error) {
-          logger.warn(`⚠️ Modelo Whisper não encontrado: ${modelPath}`);
-          logger.info(`🔄 Tentando baixar automaticamente o modelo '${CONFIG.audio.model}'...`);
+          const transcription = await this.transcribeWithAutoDownload(tempOutputPath, CONFIG.audio.model);
+          logger.success(`✅ Transcrição concluída com download automático do modelo`);
           
-          try {
-            const transcription = await this.transcribeWithAutoDownload(tempOutputPath, CONFIG.audio.model);
-            logger.success(`✅ Transcrição concluída com download automático do modelo`);
-            
-            // Limpa arquivos temporários
-            await Utils.cleanupFile(tempOutputPath);
-            
-            return transcription;
-          } catch (autoDownloadError) {
-            logger.error(`❌ Falha no download automático do modelo:`, autoDownloadError);
-            throw new Error(`Modelo Whisper '${CONFIG.audio.model}' não encontrado em ${modelPath} e falha no download automático: ${autoDownloadError.message}`);
-          }
+          // Limpa arquivos temporários
+          await Utils.cleanupFile(tempOutputPath);
+          
+          return transcription;
+        } catch (autoDownloadError) {
+          logger.error(`❌ Falha no download automático do modelo:`, autoDownloadError);
+          throw new Error(`Modelo Whisper '${CONFIG.audio.model}' não encontrado em ${modelPath} e falha no download automático: ${autoDownloadError.message}`);
         }
-
-        logger.verbose(`🔄 Iniciando conversão de áudio com FFMPEG:`, {
-          inputFormat,
-          outputFormat: 'wav',
-          sampleRate: CONFIG.audio.sampleRate,
-          outputPath: tempOutputPath
-        });
-
-        await new Promise((resolve, reject) => {
-          const inputStream = Readable.from(audioBuffer);
-          const ffmpegCommand = ffmpeg(inputStream)
-            .inputFormat(inputFormat)
-            .outputOptions(`-ar ${CONFIG.audio.sampleRate}`)
-            .toFormat('wav')
-            .on('start', (commandLine) => {
-              logger.verbose(`🚀 FFMPEG comando: ${commandLine}`);
-            })
-            .on('progress', (progress) => {
-              logger.verbose(`⏳ FFMPEG progresso: ${progress.percent}%`);
-            })
-            .on('error', (err) => {
-              logger.error('❌ Erro no FFMPEG:', err);
-              reject(err);
-            })
-            .on('end', () => {
-              logger.verbose('✅ Conversão FFMPEG concluída');
-              resolve();
-            })
-            .save(tempOutputPath);
-        });
-        
-        const options = {
-          modelName: CONFIG.audio.model,
-          autoDownloadModelName: CONFIG.audio.model,
-          verbose: true,
-          removeWavFileAfterTranscription: false,
-          withCuda: false,
-          whisperOptions: { 
-            outputInText: true, 
-            language: CONFIG.audio.language 
-          }
-        };
-        
-        logger.verbose(`🎙️ Iniciando transcrição Whisper:`, {
-          model: options.modelName,
-          language: options.whisperOptions.language,
-          inputFile: tempOutputPath,
-          timeout: CONFIG.audio.timeoutMs
-        });
-        
-        // Executa o Whisper com controle de timeout
-        const whisperStartTime = Date.now();
-        await this.runWhisper(tempOutputPath, options);
-        const whisperEndTime = Date.now();
-        
-        logger.verbose(`⏱️ Transcrição Whisper concluída em ${whisperEndTime - whisperStartTime}ms`);
-        
-        const transcriptionPath = `${tempOutputPath}.txt`;
-        logger.verbose(`📄 Lendo transcrição de: ${transcriptionPath}`);
-        
-        const transcription = await fs.readFile(transcriptionPath, 'utf8');
-        logger.verbose(`📝 Transcrição obtida:`, {
-          length: transcription.length,
-          preview: transcription.substring(0, 100) + (transcription.length > 100 ? '...' : ''),
-          wordCount: transcription.split(' ').length
-        });
-        
-        // Usa o método estático de Utils para limpar arquivos
-        logger.verbose(`🧹 Limpando arquivos temporários...`);
-        await Utils.cleanupFile(tempOutputPath);
-        await Utils.cleanupFile(transcriptionPath);
-        logger.verbose(`✅ Arquivos temporários removidos`);
-        
-        const finalTranscription = transcription.trim();
-        logger.success(`✅ Transcrição concluída. Resultado: ${finalTranscription.length} caracteres, ${finalTranscription.split(' ').length} palavras`);
-        return finalTranscription;
-        
-      } catch (err) {
-        logger.error('❌ Erro na transcrição de áudio:', err);
-        // Tenta limpar o arquivo temporário mesmo em caso de erro
-        await Utils.cleanupFile(tempOutputPath);
-        throw err;
       }
-    });
+
+      logger.verbose(`🔄 Iniciando conversão de áudio com FFMPEG:`, {
+        inputFormat,
+        outputFormat: 'wav',
+        sampleRate: CONFIG.audio.sampleRate,
+        outputPath: tempOutputPath
+      });
+
+      await new Promise((resolve, reject) => {
+        const inputStream = Readable.from(audioBuffer);
+        const ffmpegCommand = ffmpeg(inputStream)
+          .inputFormat(inputFormat)
+          .outputOptions(`-ar ${CONFIG.audio.sampleRate}`)
+          .toFormat('wav')
+          .on('start', (commandLine) => {
+            logger.verbose(`🚀 FFMPEG comando: ${commandLine}`);
+          })
+          .on('progress', (progress) => {
+            logger.verbose(`⏳ FFMPEG progresso: ${progress.percent}%`);
+          })
+          .on('error', (err) => {
+            logger.error('❌ Erro no FFMPEG:', err);
+            reject(err);
+          })
+          .on('end', () => {
+            logger.verbose('✅ Conversão FFMPEG concluída');
+            resolve();
+          })
+          .save(tempOutputPath);
+      });
+        
+      const options = {
+        modelName: CONFIG.audio.model,
+        autoDownloadModelName: CONFIG.audio.model,
+        verbose: true,
+        removeWavFileAfterTranscription: false,
+        withCuda: false,
+        whisperOptions: { 
+          outputInText: true, 
+          language: CONFIG.audio.language 
+        }
+      };
+      
+      logger.verbose(`🎙️ Iniciando transcrição Whisper:`, {
+        model: options.modelName,
+        language: options.whisperOptions.language,
+        inputFile: tempOutputPath,
+        timeout: CONFIG.audio.timeoutMs
+      });
+      
+      // Executa o Whisper com controle de timeout
+      const whisperStartTime = Date.now();
+      await this.runWhisper(tempOutputPath, options);
+      const whisperEndTime = Date.now();
+      
+      logger.verbose(`⏱️ Transcrição Whisper concluída em ${whisperEndTime - whisperStartTime}ms`);
+      
+      const transcriptionPath = `${tempOutputPath}.txt`;
+      logger.verbose(`📄 Lendo transcrição de: ${transcriptionPath}`);
+      
+      const transcription = await fs.readFile(transcriptionPath, 'utf8');
+      logger.verbose(`📝 Transcrição obtida:`, {
+        length: transcription.length,
+        preview: transcription.substring(0, 100) + (transcription.length > 100 ? '...' : ''),
+        wordCount: transcription.split(' ').length
+      });
+      
+      // Usa o método estático de Utils para limpar arquivos
+      logger.verbose(`🧹 Limpando arquivos temporários...`);
+      await Utils.cleanupFile(tempOutputPath);
+      await Utils.cleanupFile(transcriptionPath);
+      logger.verbose(`✅ Arquivos temporários removidos`);
+      
+      const finalTranscription = transcription.trim();
+      logger.success(`✅ Transcrição local concluída. Resultado: ${finalTranscription.length} caracteres, ${finalTranscription.split(' ').length} palavras`);
+      return finalTranscription;
+      
+    } catch (err) {
+      logger.error('❌ Erro na transcrição local de áudio:', err);
+      // Tenta limpar o arquivo temporário mesmo em caso de erro
+      await Utils.cleanupFile(tempOutputPath);
+      throw err;
+    }
   }
 
   async transcribeAndSummarize(audioBuffer, inputFormat = 'ogg') {
@@ -296,6 +359,42 @@ Mantenha o resumo conciso mas informativo, destacando os pontos mais importantes
       logger.error('❌ Erro na transcrição e resumo de áudio:', err);
       throw err;
     }
+  }
+
+  async getWhisperApiStatus() {
+    const effectiveConfig = await this.getEffectiveConfig();
+    
+    if (!await this.whisperApiPool.isEnabled()) {
+      return {
+        enabled: false,
+        mode: effectiveConfig.whisperApi.mode,
+        message: 'Whisper API não habilitado'
+      };
+    }
+
+    try {
+      const status = await this.whisperApiPool.getPoolStatus();
+      return {
+        enabled: true,
+        mode: effectiveConfig.whisperApi.mode,
+        ...status
+      };
+    } catch (error) {
+      return {
+        enabled: true,
+        mode: effectiveConfig.whisperApi.mode,
+        error: error.message,
+        healthy: false
+      };
+    }
+  }
+
+  async getMode() {
+    const effectiveConfig = await this.getEffectiveConfig();
+    if (effectiveConfig.whisperApi.mode === 'api' && await this.whisperApiPool.isEnabled() && this.whisperApiPool.hasHealthyEndpoints()) {
+      return 'api';
+    }
+    return 'local';
   }
 }
 

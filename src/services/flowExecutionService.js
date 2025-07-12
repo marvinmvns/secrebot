@@ -378,8 +378,8 @@ class FlowExecutionService {
             if (result && result.nextNodeId) {
                 await this.moveToNextNode(executionState, result.nextNodeId);
             } else if (result && result.wait) {
-                // Nó está aguardando entrada
-                executionState.waitingForInput = true;
+                // Nó está aguardando entrada - flag já definida no executeInputNode
+                logger.info(`⏸️ Fluxo pausado aguardando entrada do usuário ${executionState.userId}`);
             } else if (result && result.end) {
                 // Finalizar execução
                 await this.endFlowExecution(executionState.userId);
@@ -412,6 +412,38 @@ class FlowExecutionService {
         // Enviar mensagem via WhatsApp
         await this.sendWhatsAppMessage(executionState.userId, message);
 
+        // Verificar se deve aguardar entrada do usuário
+        if (node.data.waitForInput) {
+            // Configurar timeout para entrada
+            const timeout = node.data.inputTimeout || 60;
+            
+            // Definir que está aguardando input ANTES de configurar o timeout
+            executionState.waitingForInput = true;
+            
+            executionState.inputTimeout = setTimeout(async () => {
+                // Timeout atingido, continuar para próximo nó
+                executionState.waitingForInput = false;
+                if (node.outputs.length > 1) {
+                    executionState.currentNodeId = node.outputs[1];
+                    const flow = this.loadedFlows.get(executionState.flowId);
+                    const nextNode = flow.nodes.get(node.outputs[1]);
+                    if (nextNode) {
+                        await this.executeNode(executionState, nextNode);
+                    }
+                } else if (node.outputs.length > 0) {
+                    // Se só há uma saída, continuar normalmente após timeout
+                    executionState.currentNodeId = node.outputs[0];
+                    const flow = this.loadedFlows.get(executionState.flowId);
+                    const nextNode = flow.nodes.get(node.outputs[0]);
+                    if (nextNode) {
+                        await this.executeNode(executionState, nextNode);
+                    }
+                }
+            }, timeout * 1000);
+
+            return { wait: true };
+        }
+
         return { nextNodeId: node.outputs[0] };
     }
 
@@ -419,7 +451,14 @@ class FlowExecutionService {
      * Executa nó de condição
      */
     async executeConditionNode(executionState, node) {
-        const userInput = executionState.variables.get('userInput') || '';
+        // Obter input do usuário - usar a variável especificada no nó ou tentar variáveis comuns
+        const variableName = node.data.variable || 'userChoice';
+        let userInput = executionState.variables.get(variableName) || 
+                       executionState.variables.get('userChoice') ||
+                       executionState.variables.get('nameAndChoice') || 
+                       executionState.variables.get('userInput') || 
+                       executionState.variables.get('opcaoAdicional') || '';
+        
         const conditionValue = node.data.value;
         let conditionMet = false;
 
@@ -449,6 +488,23 @@ class FlowExecutionService {
         // Determinar próximo nó baseado na condição
         const nextNodeIndex = conditionMet ? 0 : 1;
         const nextNodeId = node.outputs[nextNodeIndex];
+        
+        // Verificar se o próximo nó existe
+        if (!nextNodeId) {
+            logger.warn(`⚠️ Nó ${node.id} não tem saída para índice ${nextNodeIndex} (condição=${conditionMet}). Outputs: [${node.outputs.join(', ')}]`);
+            return { end: true }; // Finalizar execução se não há próximo nó
+        }
+
+        // Log para debugging
+        logger.info(`🔍 Verificando condição em ${node.id}: "${userInput}" ${node.data.condition} "${conditionValue}" = ${conditionMet}`);
+        logger.debug(`📊 Variáveis disponíveis: ${Array.from(executionState.variables.keys()).join(', ')}`);
+        
+        // Se a condição foi atendida, não executar mais condições
+        if (conditionMet) {
+            logger.info(`✅ Condição atendida em ${node.id}: "${userInput}" ${node.data.condition} "${conditionValue}"`);
+        } else {
+            logger.info(`❌ Condição NÃO atendida em ${node.id}: "${userInput}" ${node.data.condition} "${conditionValue}"`);
+        }
 
         return { nextNodeId };
     }
@@ -460,11 +516,19 @@ class FlowExecutionService {
         // Configurar timeout para entrada
         const timeout = node.data.timeout || 60;
         
+        // Definir que está aguardando input ANTES de configurar o timeout
+        executionState.waitingForInput = true;
+        
         executionState.inputTimeout = setTimeout(async () => {
             // Timeout atingido, continuar para próximo nó
             executionState.waitingForInput = false;
             if (node.outputs.length > 1) {
-                await this.moveToNextNode(executionState, node.outputs[1]); // Caminho de timeout
+                executionState.currentNodeId = node.outputs[1];
+                const flow = this.loadedFlows.get(executionState.flowId);
+                const nextNode = flow.nodes.get(node.outputs[1]);
+                if (nextNode) {
+                    await this.executeNode(executionState, nextNode);
+                }
             }
         }, timeout * 1000);
 
@@ -573,7 +637,11 @@ class FlowExecutionService {
         }
 
         executionState.currentNodeId = nextNodeId;
-        await this.executeNode(executionState, nextNode);
+        
+        // Não executar o próximo nó se estiver aguardando entrada
+        if (!executionState.waitingForInput) {
+            await this.executeNode(executionState, nextNode);
+        }
     }
 
     /**
@@ -582,9 +650,17 @@ class FlowExecutionService {
     async processUserInput(userId, message) {
         const executionState = this.activeFlows.get(userId);
         
-        if (!executionState || !executionState.waitingForInput) {
-            return false; // Não há fluxo aguardando entrada
+        if (!executionState) {
+            logger.debug(`❌ Nenhum fluxo ativo para usuário ${userId}`);
+            return false; // Não há fluxo ativo
         }
+
+        if (!executionState.waitingForInput) {
+            logger.debug(`❌ Fluxo ativo para ${userId} mas não aguardando entrada (waitingForInput: ${executionState.waitingForInput})`);
+            return false; // Fluxo não está aguardando entrada
+        }
+
+        logger.info(`📥 Processando entrada do usuário ${userId}: "${message}"`);
 
         // Limpar timeout se existir
         if (executionState.inputTimeout) {
@@ -594,14 +670,21 @@ class FlowExecutionService {
 
         // Salvar entrada como variável
         const currentNode = this.getCurrentNode(executionState);
-        const variableName = currentNode.data.variable || 'userInput';
+        const variableName = currentNode.data.variable || currentNode.data.inputVariable || 'userInput';
         executionState.variables.set(variableName, message);
+        
+        logger.info(`💾 Entrada salva como variável '${variableName}': "${message}"`);
 
         // Continuar execução
         executionState.waitingForInput = false;
         
         if (currentNode.outputs.length > 0) {
-            await this.moveToNextNode(executionState, currentNode.outputs[0]);
+            executionState.currentNodeId = currentNode.outputs[0];
+            const flow = this.loadedFlows.get(executionState.flowId);
+            const nextNode = flow.nodes.get(currentNode.outputs[0]);
+            if (nextNode) {
+                await this.executeNode(executionState, nextNode);
+            }
         }
 
         return true;
@@ -637,6 +720,35 @@ class FlowExecutionService {
         if (client) {
             await client.sendMessage(userId, message);
         }
+    }
+
+    /**
+     * Para a execução do fluxo (chamado manualmente pelo usuário)
+     */
+    async stopFlowExecution(userId) {
+        const executionState = this.activeFlows.get(userId);
+        
+        if (executionState) {
+            // Limpar timeout se existir
+            if (executionState.inputTimeout) {
+                clearTimeout(executionState.inputTimeout);
+            }
+
+            // Salvar histórico
+            this.executionHistory.set(userId, {
+                ...executionState,
+                endTime: new Date(),
+                status: 'stopped'
+            });
+
+            // Remover estado ativo
+            this.activeFlows.delete(userId);
+            
+            logger.info(`🛑 Execução do fluxo parada manualmente para usuário ${userId}`);
+            return true;
+        }
+        
+        return false;
     }
 
     /**
@@ -686,6 +798,30 @@ class FlowExecutionService {
      */
     hasActiveFlow(userId) {
         return this.activeFlows.has(userId);
+    }
+
+    /**
+     * Obtém informações sobre o fluxo ativo do usuário
+     */
+    getActiveFlowInfo(userId) {
+        const executionState = this.activeFlows.get(userId);
+        
+        if (!executionState) {
+            return null;
+        }
+
+        const flow = this.loadedFlows.get(executionState.flowId);
+        const currentNode = flow ? flow.nodes.get(executionState.currentNodeId) : null;
+
+        return {
+            flowId: executionState.flowId,
+            flowName: flow ? flow.name : 'Desconhecido',
+            currentNode: currentNode ? currentNode.type : 'Desconhecido',
+            currentNodeId: executionState.currentNodeId,
+            startTime: executionState.startTime.toLocaleString('pt-BR'),
+            waitingForInput: executionState.waitingForInput,
+            status: executionState.status
+        };
     }
 
     /**

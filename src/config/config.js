@@ -54,6 +54,48 @@ export const config = {
     language: process.env.AUDIO_LANGUAGE || 'pt',
     timeoutMs: parseInt(process.env.WHISPER_TIMEOUT_MS || '9990000', 10)
   },
+  whisperApi: {
+    enabled: process.env.WHISPER_API_ENABLED === 'true',
+    mode: process.env.WHISPER_API_MODE || 'api', // 'local' or 'api'
+    endpoints: [
+      {
+        url: process.env.WHISPER_API_ENDPOINT_1 || 'http://localhost:3001',
+        enabled: process.env.WHISPER_API_ENDPOINT_1_ENABLED !== 'false',
+        priority: parseInt(process.env.WHISPER_API_ENDPOINT_1_PRIORITY || '1', 10),
+        maxRetries: parseInt(process.env.WHISPER_API_ENDPOINT_1_MAX_RETRIES || '2', 10)
+      },
+      {
+        url: process.env.WHISPER_API_ENDPOINT_2 || '',
+        enabled: process.env.WHISPER_API_ENDPOINT_2_ENABLED === 'true' && !!process.env.WHISPER_API_ENDPOINT_2,
+        priority: parseInt(process.env.WHISPER_API_ENDPOINT_2_PRIORITY || '2', 10),
+        maxRetries: parseInt(process.env.WHISPER_API_ENDPOINT_2_MAX_RETRIES || '2', 10)
+      },
+      {
+        url: process.env.WHISPER_API_ENDPOINT_3 || '',
+        enabled: process.env.WHISPER_API_ENDPOINT_3_ENABLED === 'true' && !!process.env.WHISPER_API_ENDPOINT_3,
+        priority: parseInt(process.env.WHISPER_API_ENDPOINT_3_PRIORITY || '3', 10),
+        maxRetries: parseInt(process.env.WHISPER_API_ENDPOINT_3_MAX_RETRIES || '2', 10)
+      },
+      {
+        url: process.env.WHISPER_API_ENDPOINT_4 || '',
+        enabled: process.env.WHISPER_API_ENDPOINT_4_ENABLED === 'true' && !!process.env.WHISPER_API_ENDPOINT_4,
+        priority: parseInt(process.env.WHISPER_API_ENDPOINT_4_PRIORITY || '4', 10),
+        maxRetries: parseInt(process.env.WHISPER_API_ENDPOINT_4_MAX_RETRIES || '2', 10)
+      },
+      {
+        url: process.env.WHISPER_API_ENDPOINT_5 || '',
+        enabled: process.env.WHISPER_API_ENDPOINT_5_ENABLED === 'true' && !!process.env.WHISPER_API_ENDPOINT_5,
+        priority: parseInt(process.env.WHISPER_API_ENDPOINT_5_PRIORITY || '5', 10),
+        maxRetries: parseInt(process.env.WHISPER_API_ENDPOINT_5_MAX_RETRIES || '2', 10)
+      }
+    ].filter(endpoint => endpoint.enabled && endpoint.url),
+    timeout: parseInt(process.env.WHISPER_API_TIMEOUT || '300000', 10), // 5 minutes
+    retryDelay: parseInt(process.env.WHISPER_API_RETRY_DELAY || '2000', 10),
+    loadBalancing: {
+      strategy: process.env.WHISPER_API_LOAD_STRATEGY || 'queue_length', // 'round_robin', 'priority', 'queue_length'
+      healthCheckInterval: parseInt(process.env.WHISPER_API_HEALTH_CHECK_INTERVAL || '30000', 10)
+    }
+  },
   elevenlabs: {
     apiKey: process.env.ELEVENLABS_API_KEY || '',
     voiceId: process.env.ELEVENLABS_VOICE_ID || '',
@@ -125,6 +167,34 @@ export function applyConfig(obj) {
     }
   };
   merge(config, obj);
+}
+
+// Função para obter configuração dinâmica com prioridade para MongoDB
+export function getDynamicConfig(mongoConfig = null) {
+  if (!mongoConfig) {
+    return config;
+  }
+
+  // Cria uma cópia da configuração base
+  const dynamicConfig = JSON.parse(JSON.stringify(config));
+  
+  // Aplica configurações do MongoDB com prioridade
+  const merge = (target, source) => {
+    for (const key of Object.keys(source)) {
+      if (source[key] !== undefined && source[key] !== null) {
+        const value = source[key];
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          if (!target[key]) target[key] = {};
+          merge(target[key], value);
+        } else {
+          target[key] = value;
+        }
+      }
+    }
+  };
+  
+  merge(dynamicConfig, mongoConfig);
+  return dynamicConfig;
 }
 
 export { config as CONFIG };

@@ -22,7 +22,9 @@ export const COMMANDS = {
   MODELOS_WHISPER: '!modeloswhisper',
   TROCAR_MODELO_WHISPER: '!trocarmodelwhisper',
   REINICIAR_OLLAMA: '!reiniciarollama',
-  REINICIAR_WHISPER: '!reiniciarwhisper'
+  REINICIAR_WHISPER: '!reiniciarwhisper',
+  SAIR: '!sair',
+  FLOW_SAIR: '!flow sair'
 };
 
 export const NUMERIC_SHORTCUTS = {

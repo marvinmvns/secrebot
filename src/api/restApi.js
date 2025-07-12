@@ -1273,6 +1273,60 @@ class RestAPI {
       res.render('config-test');
     });
 
+    // Página de configuração do Whisper API
+    this.app.get('/whisper-api-config', (req, res) => {
+      res.render('whisper-api-config');
+    });
+
+    // API endpoint para status do Whisper API Pool
+    this.app.get('/api/whisper-api/status', async (req, res) => {
+      try {
+        const audioTranscriber = this.bot.transcriber;
+        const status = await audioTranscriber.getWhisperApiStatus();
+        res.json(status);
+      } catch (error) {
+        logger.error('Erro ao obter status do Whisper API:', error);
+        res.status(500).json({ 
+          error: 'Erro ao obter status do Whisper API',
+          details: error.message 
+        });
+      }
+    });
+
+    // API endpoint para testar conectividade de um endpoint Whisper
+    this.app.post('/api/whisper-api/test', async (req, res) => {
+      try {
+        const { url } = req.body;
+        if (!url) {
+          return res.status(400).json({ error: 'URL do endpoint é obrigatória' });
+        }
+
+        const WhisperAPIClient = (await import('../services/whisperApiClient.js')).default;
+        const client = new WhisperAPIClient(url);
+        
+        const health = await client.getHealth();
+        const formats = await client.getSupportedFormats();
+        const queueEstimate = await client.getQueueEstimate();
+
+        res.json({
+          success: true,
+          url,
+          health,
+          formats,
+          queueEstimate,
+          timestamp: new Date().toISOString()
+        });
+
+      } catch (error) {
+        logger.error('Erro ao testar endpoint Whisper API:', error);
+        res.status(500).json({ 
+          success: false,
+          error: 'Erro ao testar endpoint',
+          details: error.message 
+        });
+      }
+    });
+
     // Rota catch-all para 404
     this.app.use((req, res) => {
         res.status(404).json({ error: '❌ Rota não encontrada' });

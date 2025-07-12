@@ -65,14 +65,14 @@ export class ApplicationFactory {
     return llmService;
   }
 
-  createAudioTranscriber() {
+  createAudioTranscriber(configService) {
     if (this.services.has('audioTranscriber')) {
       return this.services.get('audioTranscriber');
     }
 
-    const transcriber = new AudioTranscriber();
+    const transcriber = new AudioTranscriber(configService);
     this.services.set('audioTranscriber', transcriber);
-    logger.info('Audio transcriber service initialized');
+    logger.info('Audio transcriber service initialized with configService');
     return transcriber;
   }
 
@@ -225,7 +225,7 @@ export class ApplicationFactory {
       const scheduler = await this.createScheduler();
       const configService = await this.createConfigService(scheduler);
       const llmService = this.createLLMService();
-      const transcriber = this.createAudioTranscriber();
+      const transcriber = this.createAudioTranscriber(configService);
       const ttsService = this.createTtsService();
       const bot = await this.createWhatsAppBot(scheduler, llmService, transcriber, ttsService);
       this.createRestAPI(bot, configService);

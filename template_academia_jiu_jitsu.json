@@ -46,36 +46,38 @@
       "x": 500,
       "y": 200,
       "data": {
-        "text": "Para começar, me diga seu nome e escolha uma das opções abaixo:\n\n1️⃣ Informações sobre modalidades\n2️⃣ Preços e planos\n3️⃣ Agendar aula experimental GRÁTIS\n4️⃣ Localização e horários\n5️⃣ Benefícios do Jiu-Jitsu\n6️⃣ Falar com instrutor\n\nDigite seu nome e o número da opção desejada (ex: João 1)",
+        "text": "Para começar, escolha uma das opções abaixo:\n\n1️⃣ Informações sobre modalidades\n2️⃣ Preços e planos\n3️⃣ Agendar aula experimental GRÁTIS\n4️⃣ Localização e horários\n5️⃣ Benefícios do Jiu-Jitsu\n6️⃣ Falar com instrutor\n\nDigite apenas o número da opção desejada (ex: 1)",
         "delay": 1,
         "label": "Menu Principal",
-        "description": "Menu interativo que coleta o nome do usuário e direcionamento inicial"
+        "description": "Menu interativo simplificado que solicita apenas a opção desejada"
       }
     },
     {
-      "id": "input_name_choice",
-      "type": "input",
+      "id": "input_choice",
+      "type": "message",
       "x": 700,
       "y": 200,
       "data": {
-        "timeout": 120,
-        "variable": "nameAndChoice",
-        "label": "Captura Nome e Escolha",
-        "description": "Aguarda entrada do usuário com nome e opção escolhida"
+        "text": "Aguardando sua escolha...",
+        "delay": 1,
+        "label": "Aguardar Escolha",
+        "description": "Sinaliza que está aguardando escolha da opção pelo usuário",
+        "waitForInput": true,
+        "inputVariable": "userChoice",
+        "inputTimeout": 120
       }
     },
     {
-      "id": "var_parse_input",
+      "id": "var_store_choice",
       "type": "variable",
       "x": 900,
       "y": 200,
       "data": {
         "action": "set",
-        "name": "userName",
-        "value": "{{nameAndChoice}}",
-        "label": "Processar Nome",
-        "description": "Extrai e armazena o nome do usuário da entrada",
-        "extract": "name"
+        "name": "selectedOption",
+        "value": "{{userChoice}}",
+        "label": "Armazenar Escolha",
+        "description": "Armazena a opção escolhida pelo usuário"
       }
     },
     {
@@ -85,7 +87,7 @@
       "y": 200,
       "data": {
         "condition": "contains",
-        "variable": "nameAndChoice",
+        "variable": "userChoice",
         "value": "1",
         "label": "Verificar Escolha - Modalidades",
         "description": "Verifica se usuário escolheu opção 1 (modalidades)"
@@ -110,7 +112,7 @@
       "y": 300,
       "data": {
         "condition": "contains",
-        "variable": "nameAndChoice",
+        "variable": "userChoice",
         "value": "2",
         "label": "Verificar Escolha - Preços",
         "description": "Verifica se usuário escolheu opção 2 (preços)"
@@ -135,7 +137,7 @@
       "y": 400,
       "data": {
         "condition": "contains",
-        "variable": "nameAndChoice",
+        "variable": "userChoice",
         "value": "3",
         "label": "Verificar Escolha - Aula Experimental",
         "description": "Verifica se usuário escolheu opção 3 (aula experimental)"
@@ -147,7 +149,7 @@
       "x": 1300,
       "y": 400,
       "data": {
-        "text": "🎉 Que ótimo! A aula experimental é TOTALMENTE GRÁTIS!\n\n✅ **O que está incluso:**\n• Aula completa de 1h\n• Kimono emprestado (se necessário)\n• Avaliação com instrutor\n• Apresentação da academia\n• Sem compromisso!\n\n📅 **Horários disponíveis:**\n• Segunda a Sexta: 6h, 7h, 18h, 19h, 20h\n• Sábado: 9h, 10h, 11h\n\n📋 **Para agendar preciso saber:**\n• Seu nome completo\n• Telefone para contato\n• Idade\n• Experiência anterior (se houver)\n• Melhor dia e horário\n\nVamos agendar sua aula experimental agora? Me passe suas informações! 😊",
+        "text": "🎉 Que ótimo! A aula experimental é TOTALMENTE GRÁTIS!\n\n✅ **O que está incluso:**\n• Aula completa de 1h\n• Kimono emprestado (se necessário)\n• Avaliação com instrutor\n• Apresentação da academia\n• Sem compromisso!\n\n📅 **Horários disponíveis:**\n• Segunda a Sexta: 6h, 7h, 18h, 19h, 20h\n• Sábado: 9h, 10h, 11h\n\n📋 **Para agendar preciso saber:**\n• Seu nome completo\n• Telefone para contato\n• Idade\n• Experiência anterior (se houver)\n• Melhor dia e horário\n\nVamos agendar sua aula experimental agora? Me passe suas informações completas! 😊",
         "delay": 3,
         "label": "Informações Aula Experimental",
         "description": "Explica detalhadamente o que é oferecido na aula experimental e coleta informações para agendamento"
@@ -155,14 +157,17 @@
     },
     {
       "id": "input_dados_experimental",
-      "type": "input",
+      "type": "message",
       "x": 1500,
       "y": 400,
       "data": {
-        "timeout": 300,
-        "variable": "dadosExperimental",
+        "text": "Aguardando seus dados para agendamento...",
+        "delay": 1,
         "label": "Coleta Dados Aula Experimental",
-        "description": "Aguarda dados completos do usuário para agendamento"
+        "description": "Aguarda dados completos do usuário para agendamento",
+        "waitForInput": true,
+        "inputVariable": "dadosExperimental",
+        "inputTimeout": 300
       }
     },
     {
@@ -171,7 +176,7 @@
       "x": 1700,
       "y": 400,
       "data": {
-        "text": "🎉 Perfeito! Seus dados foram registrados!\n\n📝 **Resumo do agendamento:**\nNome: {{userName}}\nDados: {{dadosExperimental}}\n\n✅ **Próximos passos:**\n1. Nosso instrutor entrará em contato em até 2 horas\n2. Confirmaremos horário disponível\n3. Enviaremos localização e orientações\n4. Você virá fazer sua aula GRÁTIS!\n\n💡 **Dicas importantes:**\n• Venha com roupa confortável\n• Traga uma toalha\n• Chegue 15 min antes\n• Traga muita vontade de aprender!\n\n🏆 Mal posso esperar para conhecê-lo pessoalmente!\n\nEnquanto isso, quer saber mais alguma coisa?",
+        "text": "🎉 Perfeito! Seus dados foram registrados!\n\n📝 **Resumo do agendamento:**\nDados coletados: {{dadosExperimental}}\n\n✅ **Próximos passos:**\n1. Nosso instrutor entrará em contato em até 2 horas\n2. Confirmaremos horário disponível\n3. Enviaremos localização e orientações\n4. Você virá fazer sua aula GRÁTIS!\n\n💡 **Dicas importantes:**\n• Venha com roupa confortável\n• Traga uma toalha\n• Chegue 15 min antes\n• Traga muita vontade de aprender!\n\n🏆 Mal posso esperar para conhecê-lo pessoalmente!\n\nEnquanto isso, quer saber mais alguma coisa?",
         "delay": 2,
         "label": "Confirmação de Agendamento",
         "description": "Confirma o agendamento e fornece orientações importantes"
@@ -184,7 +189,7 @@
       "y": 500,
       "data": {
         "condition": "contains",
-        "variable": "nameAndChoice",
+        "variable": "userChoice",
         "value": "4",
         "label": "Verificar Escolha - Localização",
         "description": "Verifica se usuário escolheu opção 4 (localização)"
@@ -209,7 +214,7 @@
       "y": 600,
       "data": {
         "condition": "contains",
-        "variable": "nameAndChoice",
+        "variable": "userChoice",
         "value": "5",
         "label": "Verificar Escolha - Benefícios",
         "description": "Verifica se usuário escolheu opção 5 (benefícios)"
@@ -234,7 +239,7 @@
       "y": 700,
       "data": {
         "condition": "contains",
-        "variable": "nameAndChoice",
+        "variable": "userChoice",
         "value": "6",
         "label": "Verificar Escolha - Instrutor",
         "description": "Verifica se usuário escolheu opção 6 (falar com instrutor)"
@@ -266,14 +271,17 @@
     },
     {
       "id": "input_opcao_adicional",
-      "type": "input",
+      "type": "message",
       "x": 1700,
       "y": 650,
       "data": {
-        "timeout": 180,
-        "variable": "opcaoAdicional",
+        "text": "Aguardando sua escolha...",
+        "delay": 1,
         "label": "Captura Opção Adicional",
-        "description": "Aguarda escolha de opção adicional ou comando especial"
+        "description": "Aguarda escolha de opção adicional ou comando especial",
+        "waitForInput": true,
+        "inputVariable": "opcaoAdicional",
+        "inputTimeout": 180
       }
     },
     {
@@ -349,7 +357,7 @@
           "Content-Type": "application/json",
           "Authorization": "Bearer SEU_TOKEN_AQUI"
         },
-        "body": "{\"nome\": \"{{userName}}\", \"dados\": \"{{dadosExperimental}}\", \"timestamp\": \"{{timestamp}}\"}",
+        "body": "{\"dados\": \"{{dadosExperimental}}\", \"timestamp\": \"{{timestamp}}\"}",
         "label": "Webhook - Salvar Agendamento",
         "description": "Envia dados do agendamento para sistema externo ou CRM"
       }
@@ -360,9 +368,7 @@
       "x": 2100,
       "y": 350,
       "data": {
-        "prompt": "Você é um instrutor de jiu-jitsu experiente. O usuário {{userName}} tem a seguinte dúvida: {{opcaoAdicional}}. Responda de forma educativa, motivadora e técnica, sempre incentivando a prática do jiu-jitsu. Seja específico e útil na resposta.",
-        "model": "gpt-3.5-turbo",
-        "context": true,
+        "prompt": "Você é um instrutor de jiu-jitsu experiente. O usuário tem a seguinte dúvida: {{opcaoAdicional}}. Responda de forma educativa, motivadora e técnica, sempre incentivando a prática do jiu-jitsu. Seja específico e útil na resposta.",
         "label": "IA - Dúvidas Específicas",
         "description": "Usa IA para responder dúvidas específicas sobre jiu-jitsu de forma personalizada"
       }
@@ -384,10 +390,11 @@
       "x": 2000,
       "y": 200,
       "data": {
-        "action": "increment",
+        "action": "set",
         "name": "contadorInteresse",
+        "value": "1",
         "label": "Contador de Interesse",
-        "description": "Incrementa contador sempre que usuário demonstra interesse"
+        "description": "Define contador de interesse para rastreamento"
       }
     }
   ],
@@ -410,16 +417,16 @@
     {
       "id": "conn_4",
       "from": "msg_menu",
-      "to": "input_name_choice"
+      "to": "input_choice"
     },
     {
       "id": "conn_5",
-      "from": "input_name_choice",
-      "to": "var_parse_input"
+      "from": "input_choice",
+      "to": "var_store_choice"
     },
     {
       "id": "conn_6",
-      "from": "var_parse_input",
+      "from": "var_store_choice",
       "to": "condition_menu_choice"
     },
     {

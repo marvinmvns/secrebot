@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuração Whisper API</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .endpoint-card {
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+        .endpoint-card:hover {
+            border-color: #007bff;
+            box-shadow: 0 4px 12px rgba(0,123,255,0.15);
+        }
+        .endpoint-card.active {
+            border-color: #28a745;
+            background-color: #f8fff9;
+        }
+        .endpoint-card.error {
+            border-color: #dc3545;
+            background-color: #fff5f5;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-indicator.healthy {
+            background-color: #28a745;
+            animation: pulse 2s infinite;
+        }
+        .status-indicator.unhealthy {
+            background-color: #dc3545;
+        }
+        .status-indicator.unknown {
+            background-color: #ffc107;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .load-score {
+            font-family: monospace;
+            font-weight: bold;
+        }
+        .test-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+        .test-result.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .test-result.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .config-section {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .form-label {
+            font-weight: 600;
+            color: #495057;
+        }
+        .strategy-option {
+            padding: 15px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .strategy-option:hover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        .strategy-option.selected {
+            border-color: #007bff;
+            background-color: #e3f2fd;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-microphone"></i> Configuração Whisper API
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/"><i class="fas fa-home"></i> Home</a>
+                <a class="nav-link" href="/configs"><i class="fas fa-cog"></i> Configurações</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h2><i class="fas fa-microphone text-primary"></i> Configuração Whisper API</h2>
+                        <p class="text-muted">Configure até 5 endpoints de API Whisper com balanceamento de carga</p>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-outline-info" onclick="loadCurrentStatus()">
+                            <i class="fas fa-sync-alt"></i> Atualizar Status
+                        </button>
+                        <button class="btn btn-success" onclick="saveConfiguration()">
+                            <i class="fas fa-save"></i> Salvar Configuração
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Status Geral -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5><i class="fas fa-info-circle"></i> Status Geral</h5>
+                    </div>
+                    <div class="card-body" id="generalStatus">
+                        <div class="d-flex justify-content-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configuração Principal -->
+                <div class="config-section">
+                    <h4><i class="fas fa-cogs"></i> Configuração Principal</h4>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Modo de Operação</label>
+                                <select class="form-select" id="operationMode">
+                                    <option value="local">Local (Whisper.cpp)</option>
+                                    <option value="api">API (Endpoints externos)</option>
+                                </select>
+                                <div class="form-text">
+                                    <strong>Local:</strong> Usa Whisper.cpp instalado localmente<br>
+                                    <strong>API:</strong> Usa endpoints externos com fallback para local
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Timeout (ms)</label>
+                                <input type="number" class="form-control" id="apiTimeout" min="30000" max="600000" step="1000">
+                                <div class="form-text">Tempo limite para requisições API (30s - 10min)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Estratégia de Load Balancing</label>
+                                <div id="loadBalancingStrategy">
+                                    <div class="strategy-option" data-strategy="queue_length">
+                                        <strong>Queue Length</strong><br>
+                                        <small>Seleciona o endpoint com menor fila de processamento</small>
+                                    </div>
+                                    <div class="strategy-option" data-strategy="round_robin">
+                                        <strong>Round Robin</strong><br>
+                                        <small>Alterna entre endpoints sequencialmente</small>
+                                    </div>
+                                    <div class="strategy-option" data-strategy="priority">
+                                        <strong>Priority</strong><br>
+                                        <small>Sempre usa o endpoint de maior prioridade disponível</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Delay entre Tentativas (ms)</label>
+                                <input type="number" class="form-control" id="retryDelay" min="1000" max="10000" step="500">
+                                <div class="form-text">Tempo de espera entre tentativas de retry</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Intervalo Health Check (ms)</label>
+                                <input type="number" class="form-control" id="healthCheckInterval" min="10000" max="300000" step="5000">
+                                <div class="form-text">Frequência de verificação de saúde dos endpoints</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Endpoints -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-server"></i> Endpoints de API</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="endpointsContainer">
+                            <!-- Endpoints serão gerados dinamicamente -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentConfig = {};
+        let generalStatus = {};
+
+        // Carregar configuração inicial
+        document.addEventListener('DOMContentLoaded', function() {
+            loadConfiguration();
+            loadCurrentStatus();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            // Strategy selection
+            document.querySelectorAll('.strategy-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    document.querySelectorAll('.strategy-option').forEach(o => o.classList.remove('selected'));
+                    this.classList.add('selected');
+                });
+            });
+
+            // Auto-save on change
+            ['operationMode', 'apiTimeout', 'retryDelay', 'healthCheckInterval'].forEach(id => {
+                document.getElementById(id).addEventListener('change', updateConfigFromForm);
+            });
+        }
+
+        async function loadConfiguration() {
+            try {
+                const response = await fetch('/api/configs');
+                const config = await response.json();
+                currentConfig = config;
+                updateFormFromConfig();
+            } catch (error) {
+                console.error('Erro ao carregar configuração:', error);
+                showAlert('Erro ao carregar configuração', 'danger');
+            }
+        }
+
+        async function loadCurrentStatus() {
+            try {
+                const response = await fetch('/api/whisper-api/status');
+                generalStatus = await response.json();
+                updateGeneralStatus();
+                updateEndpointsStatus();
+            } catch (error) {
+                console.error('Erro ao carregar status:', error);
+                document.getElementById('generalStatus').innerHTML = 
+                    '<div class="alert alert-warning">Erro ao carregar status</div>';
+            }
+        }
+
+        function updateFormFromConfig() {
+            const whisperApi = currentConfig.whisperApi || {};
+            
+            document.getElementById('operationMode').value = whisperApi.mode || 'local';
+            document.getElementById('apiTimeout').value = whisperApi.timeout || 300000;
+            document.getElementById('retryDelay').value = whisperApi.retryDelay || 2000;
+            document.getElementById('healthCheckInterval').value = 
+                whisperApi.loadBalancing?.healthCheckInterval || 30000;
+
+            // Update strategy selection
+            const strategy = whisperApi.loadBalancing?.strategy || 'queue_length';
+            document.querySelectorAll('.strategy-option').forEach(option => {
+                option.classList.remove('selected');
+                if (option.dataset.strategy === strategy) {
+                    option.classList.add('selected');
+                }
+            });
+
+            updateEndpointsForm();
+        }
+
+        function updateConfigFromForm() {
+            if (!currentConfig.whisperApi) currentConfig.whisperApi = {};
+            if (!currentConfig.whisperApi.loadBalancing) currentConfig.whisperApi.loadBalancing = {};
+
+            currentConfig.whisperApi.enabled = true;
+            currentConfig.whisperApi.mode = document.getElementById('operationMode').value;
+            currentConfig.whisperApi.timeout = parseInt(document.getElementById('apiTimeout').value);
+            currentConfig.whisperApi.retryDelay = parseInt(document.getElementById('retryDelay').value);
+            currentConfig.whisperApi.loadBalancing.healthCheckInterval = 
+                parseInt(document.getElementById('healthCheckInterval').value);
+
+            const selectedStrategy = document.querySelector('.strategy-option.selected');
+            if (selectedStrategy) {
+                currentConfig.whisperApi.loadBalancing.strategy = selectedStrategy.dataset.strategy;
+            }
+        }
+
+        function updateGeneralStatus() {
+            const container = document.getElementById('generalStatus');
+            
+            if (!generalStatus) {
+                container.innerHTML = '<div class="alert alert-warning">Status não disponível</div>';
+                return;
+            }
+
+            const modeClass = generalStatus.mode === 'api' ? 'success' : 'info';
+            const healthyCount = generalStatus.healthyEndpoints || 0;
+            const totalCount = generalStatus.totalEndpoints || 0;
+            
+            container.innerHTML = `
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title">Modo Atual</h5>
+                                <span class="badge bg-${modeClass} fs-6">${generalStatus.mode || 'local'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title">Endpoints</h5>
+                                <span class="fs-4">${healthyCount}/${totalCount}</span>
+                                <br><small class="text-muted">Saudáveis</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title">Estratégia</h5>
+                                <span class="badge bg-info fs-6">${generalStatus.strategy || 'queue_length'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title">Status</h5>
+                                <span class="badge bg-${generalStatus.enabled ? 'success' : 'secondary'} fs-6">
+                                    ${generalStatus.enabled ? 'Habilitado' : 'Desabilitado'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateEndpointsForm() {
+            const container = document.getElementById('endpointsContainer');
+            const endpoints = currentConfig.whisperApi?.endpoints || [];
+            
+            // Ensure we have 5 endpoint slots
+            while (endpoints.length < 5) {
+                endpoints.push({
+                    url: '',
+                    enabled: false,
+                    priority: endpoints.length + 1,
+                    maxRetries: 2
+                });
+            }
+
+            container.innerHTML = endpoints.map((endpoint, index) => 
+                createEndpointCard(endpoint, index)
+            ).join('');
+
+            // Attach event listeners
+            endpoints.forEach((_, index) => {
+                ['url', 'enabled', 'priority', 'maxRetries'].forEach(field => {
+                    const element = document.getElementById(`endpoint_${index}_${field}`);
+                    if (element) {
+                        element.addEventListener('change', () => updateEndpointConfig(index));
+                    }
+                });
+
+                document.getElementById(`testEndpoint_${index}`).addEventListener('click', 
+                    () => testEndpoint(index));
+            });
+        }
+
+        function updateEndpointsStatus() {
+            if (!generalStatus.endpoints) return;
+
+            generalStatus.endpoints.forEach((status, index) => {
+                const card = document.querySelector(`[data-endpoint-index="${index}"]`);
+                if (!card) return;
+
+                const indicator = card.querySelector('.status-indicator');
+                const statusText = card.querySelector('.endpoint-status');
+                const queueInfo = card.querySelector('.queue-info');
+
+                if (status.healthy) {
+                    indicator.className = 'status-indicator healthy';
+                    card.className = 'endpoint-card active';
+                    statusText.innerHTML = `<i class="fas fa-check-circle text-success"></i> Online`;
+                    
+                    if (status.queueLength !== undefined) {
+                        queueInfo.innerHTML = `
+                            Fila: ${status.queueLength} | 
+                            Tempo médio: ${status.avgProcessingTime}ms | 
+                            Score: <span class="load-score">${status.loadScore}</span>
+                        `;
+                    }
+                } else {
+                    indicator.className = 'status-indicator unhealthy';
+                    card.className = 'endpoint-card error';
+                    statusText.innerHTML = `<i class="fas fa-times-circle text-danger"></i> Offline`;
+                    queueInfo.innerHTML = status.error || 'Endpoint não disponível';
+                }
+            });
+        }
+
+        function createEndpointCard(endpoint, index) {
+            return `
+                <div class="endpoint-card" data-endpoint-index="${index}">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <span class="status-indicator unknown"></span>
+                                Endpoint ${index + 1}
+                            </h6>
+                            <div class="endpoint-status">
+                                <i class="fas fa-question-circle text-muted"></i> Desconhecido
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">URL do Endpoint</label>
+                                    <input type="url" class="form-control" id="endpoint_${index}_url" 
+                                           value="${endpoint.url || ''}" 
+                                           placeholder="http://localhost:3001">
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="mb-3">
+                                    <label class="form-label">Prioridade</label>
+                                    <input type="number" class="form-control" id="endpoint_${index}_priority" 
+                                           value="${endpoint.priority || index + 1}" min="1" max="5">
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="mb-3">
+                                    <label class="form-label">Max Retries</label>
+                                    <input type="number" class="form-control" id="endpoint_${index}_maxRetries" 
+                                           value="${endpoint.maxRetries || 2}" min="0" max="5">
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="mb-3">
+                                    <label class="form-label">Habilitado</label>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" 
+                                               id="endpoint_${index}_enabled" 
+                                               ${endpoint.enabled ? 'checked' : ''}>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="queue-info text-muted small">
+                                Aguardando informações...
+                            </div>
+                            <button class="btn btn-outline-primary btn-sm" id="testEndpoint_${index}">
+                                <i class="fas fa-vial"></i> Testar
+                            </button>
+                        </div>
+                        
+                        <div id="testResult_${index}"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateEndpointConfig(index) {
+            if (!currentConfig.whisperApi) currentConfig.whisperApi = {};
+            if (!currentConfig.whisperApi.endpoints) currentConfig.whisperApi.endpoints = [];
+
+            while (currentConfig.whisperApi.endpoints.length <= index) {
+                currentConfig.whisperApi.endpoints.push({});
+            }
+
+            const endpoint = currentConfig.whisperApi.endpoints[index];
+            endpoint.url = document.getElementById(`endpoint_${index}_url`).value;
+            endpoint.enabled = document.getElementById(`endpoint_${index}_enabled`).checked;
+            endpoint.priority = parseInt(document.getElementById(`endpoint_${index}_priority`).value);
+            endpoint.maxRetries = parseInt(document.getElementById(`endpoint_${index}_maxRetries`).value);
+        }
+
+        async function testEndpoint(index) {
+            const url = document.getElementById(`endpoint_${index}_url`).value;
+            if (!url) {
+                showAlert('URL do endpoint é obrigatória', 'warning');
+                return;
+            }
+
+            const resultContainer = document.getElementById(`testResult_${index}`);
+            const testButton = document.getElementById(`testEndpoint_${index}`);
+            
+            testButton.disabled = true;
+            testButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testando...';
+
+            try {
+                const response = await fetch('/api/whisper-api/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultContainer.innerHTML = `
+                        <div class="test-result success">
+                            <i class="fas fa-check-circle"></i> Teste bem-sucedido!<br>
+                            Status: ${result.health.status}<br>
+                            Fila: ${result.queueEstimate.queueLength} jobs<br>
+                            Formatos: ${result.formats.supportedFormats.join(', ')}
+                        </div>
+                    `;
+                } else {
+                    resultContainer.innerHTML = `
+                        <div class="test-result error">
+                            <i class="fas fa-times-circle"></i> Teste falhou<br>
+                            Erro: ${result.details}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultContainer.innerHTML = `
+                    <div class="test-result error">
+                        <i class="fas fa-times-circle"></i> Erro na conexão<br>
+                        ${error.message}
+                    </div>
+                `;
+            } finally {
+                testButton.disabled = false;
+                testButton.innerHTML = '<i class="fas fa-vial"></i> Testar';
+            }
+        }
+
+        async function saveConfiguration() {
+            updateConfigFromForm();
+            
+            // Update endpoints
+            for (let i = 0; i < 5; i++) {
+                updateEndpointConfig(i);
+            }
+
+            try {
+                const response = await fetch('/api/configs', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentConfig)
+                });
+
+                if (response.ok) {
+                    showAlert('Configuração salva com sucesso! A aplicação será reiniciada.', 'success');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    const error = await response.json();
+                    showAlert('Erro ao salvar configuração: ' + error.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Erro ao salvar configuração: ' + error.message, 'danger');
+            }
+        }
+
+        function showAlert(message, type) {
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            const alertContainer = document.createElement('div');
+            alertContainer.innerHTML = alertHtml;
+            document.querySelector('.container').prepend(alertContainer.firstElementChild);
+        }
+    </script>
+</body>
+</html>

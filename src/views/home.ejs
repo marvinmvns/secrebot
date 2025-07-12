@@ -1,17 +1,485 @@
-<h1 class="mb-4">Funcionalidades</h1>
-<ul class="list-group">
-  <li class="list-group-item">
-    <a href="/dashboard">Agendamentos</a>
-  </li>
-  <li class="list-group-item">
-    <a href="/config">Configurações</a>
-  </li>
-  <li class="list-group-item"><a href="/chat">Chat</a></li>
-  <li class="list-group-item"><a href="/transcribe">Transcrever Áudio</a></li>
-  <li class="list-group-item"><a href="/describe">Descrever Imagem</a></li>
-  <li class="list-group-item"><a href="/calories">Estimativa de Calorias</a></li>
-  <li class="list-group-item"><a href="/linkedin">Análise de LinkedIn</a></li>
-  <li class="list-group-item"><a href="/summarize">Resumir Texto</a></li>
-  <li class="list-group-item"><a href="/video">Transcrição de Vídeo</a></li>
-  <li class="list-group-item"><a href="/resources">Recursos do Sistema</a></li>
-</ul>
+<div class="welcome-header text-center mb-5">
+  <div class="hero-section">
+    <h1 class="display-4 fw-bold text-gradient mb-3">
+      <i class="fab fa-whatsapp text-success me-3"></i>SecreBot
+    </h1>
+    <p class="lead text-muted mb-4">Sistema completo de automação WhatsApp com IA integrada</p>
+    <div class="hero-stats row text-center">
+      <div class="col-md-3">
+        <div class="stat-card">
+          <i class="fas fa-robot text-primary"></i>
+          <h4>IA Avançada</h4>
+          <p>Processamento inteligente</p>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="stat-card">
+          <i class="fas fa-microphone text-warning"></i>
+          <h4>Transcrição</h4>
+          <p>Áudio para texto</p>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="stat-card">
+          <i class="fas fa-chart-line text-info"></i>
+          <h4>Analytics</h4>
+          <p>Métricas em tempo real</p>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="stat-card">
+          <i class="fas fa-cogs text-secondary"></i>
+          <h4>Automação</h4>
+          <p>Fluxos personalizados</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Funcionalidades Principais -->
+<div class="row mb-5">
+  <div class="col-12">
+    <h2 class="section-title">
+      <i class="fas fa-star text-warning"></i>
+      Funcionalidades Principais
+    </h2>
+  </div>
+</div>
+
+<div class="row g-4 mb-5">
+  <!-- Dashboard e Monitoramento -->
+  <div class="col-lg-6 col-xl-4">
+    <div class="feature-card h-100">
+      <div class="feature-icon">
+        <i class="fas fa-chart-line"></i>
+      </div>
+      <h4>Dashboard & Analytics</h4>
+      <p class="text-muted">Monitore mensagens agendadas e estatísticas do sistema em tempo real.</p>
+      <div class="feature-actions">
+        <a href="/dashboard" class="btn btn-primary btn-sm">
+          <i class="fas fa-chart-line"></i> Abrir Dashboard
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat IA -->
+  <div class="col-lg-6 col-xl-4">
+    <div class="feature-card h-100">
+      <div class="feature-icon">
+        <i class="fas fa-comments"></i>
+      </div>
+      <h4>Chat com IA</h4>
+      <p class="text-muted">Converse com modelos de IA avançados como Ollama e receba respostas inteligentes.</p>
+      <div class="feature-actions">
+        <a href="/chat" class="btn btn-success btn-sm">
+          <i class="fas fa-comments"></i> Iniciar Chat
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flow Builder -->
+  <div class="col-lg-6 col-xl-4">
+    <div class="feature-card h-100">
+      <div class="feature-icon">
+        <i class="fas fa-project-diagram"></i>
+      </div>
+      <h4>Flow Builder</h4>
+      <p class="text-muted">Crie fluxos de automação personalizados com interface visual intuitiva.</p>
+      <div class="feature-actions">
+        <a href="/flow-builder" class="btn btn-info btn-sm">
+          <i class="fas fa-project-diagram"></i> Criar Fluxo
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Processamento de Mídia e IA -->
+<div class="row mb-4">
+  <div class="col-12">
+    <h3 class="section-title">
+      <i class="fas fa-robot text-primary"></i>
+      Processamento IA & Mídia
+    </h3>
+  </div>
+</div>
+
+<div class="row g-3 mb-5">
+  <div class="col-md-6 col-lg-4 col-xl-3">
+    <div class="tool-card">
+      <div class="tool-icon">
+        <i class="fas fa-microphone"></i>
+      </div>
+      <h5>Transcrever Áudio</h5>
+      <p>Converta áudio em texto usando Whisper</p>
+      <a href="/transcribe" class="btn btn-outline-primary btn-sm w-100">
+        <i class="fas fa-microphone"></i> Transcrever
+      </a>
+    </div>
+  </div>
+
+  <div class="col-md-6 col-lg-4 col-xl-3">
+    <div class="tool-card">
+      <div class="tool-icon">
+        <i class="fas fa-image"></i>
+      </div>
+      <h5>Analisar Imagem</h5>
+      <p>Descreva imagens com IA visual</p>
+      <a href="/describe" class="btn btn-outline-primary btn-sm w-100">
+        <i class="fas fa-image"></i> Analisar
+      </a>
+    </div>
+  </div>
+
+  <div class="col-md-6 col-lg-4 col-xl-3">
+    <div class="tool-card">
+      <div class="tool-icon">
+        <i class="fas fa-file-alt"></i>
+      </div>
+      <h5>Resumir Texto</h5>
+      <p>Crie resumos inteligentes de textos</p>
+      <a href="/summarize" class="btn btn-outline-primary btn-sm w-100">
+        <i class="fas fa-file-alt"></i> Resumir
+      </a>
+    </div>
+  </div>
+
+  <div class="col-md-6 col-lg-4 col-xl-3">
+    <div class="tool-card">
+      <div class="tool-icon">
+        <i class="fab fa-youtube"></i>
+      </div>
+      <h5>Analisar YouTube</h5>
+      <p>Transcreva e analise vídeos do YouTube</p>
+      <a href="/video" class="btn btn-outline-primary btn-sm w-100">
+        <i class="fab fa-youtube"></i> Analisar
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Utilitários -->
+<div class="row mb-4">
+  <div class="col-12">
+    <h3 class="section-title">
+      <i class="fas fa-tools text-warning"></i>
+      Utilitários
+    </h3>
+  </div>
+</div>
+
+<div class="row g-3 mb-5">
+  <div class="col-md-6 col-lg-4">
+    <div class="utility-card">
+      <i class="fas fa-apple-alt text-success"></i>
+      <h5>Contador de Calorias</h5>
+      <p>Analise informações nutricionais de alimentos</p>
+      <a href="/calories" class="btn btn-success btn-sm">Calcular Calorias</a>
+    </div>
+  </div>
+
+  <div class="col-md-6 col-lg-4">
+    <div class="utility-card">
+      <i class="fab fa-linkedin text-primary"></i>
+      <h5>Análise LinkedIn</h5>
+      <p>Extraia e analise perfis do LinkedIn</p>
+      <a href="/linkedin" class="btn btn-primary btn-sm">Analisar Perfil</a>
+    </div>
+  </div>
+
+  <div class="col-md-6 col-lg-4">
+    <div class="utility-card">
+      <i class="fas fa-server text-info"></i>
+      <h5>Recursos do Sistema</h5>
+      <p>Monitore CPU, memória e performance</p>
+      <a href="/resources" class="btn btn-info btn-sm">Ver Recursos</a>
+    </div>
+  </div>
+</div>
+
+<!-- Agendamento e Configurações -->
+<div class="row mb-4">
+  <div class="col-12">
+    <h3 class="section-title">
+      <i class="fas fa-cogs text-secondary"></i>
+      Agendamento & Configurações
+    </h3>
+  </div>
+</div>
+
+<div class="row g-3 mb-5">
+  <div class="col-md-6">
+    <div class="config-card">
+      <div class="row align-items-center">
+        <div class="col-3">
+          <i class="fas fa-plus-circle text-success fa-3x"></i>
+        </div>
+        <div class="col-9">
+          <h5>Agendar Mensagem</h5>
+          <p class="mb-2">Agende mensagens para envio futuro</p>
+          <a href="/messages/new" class="btn btn-success btn-sm">
+            <i class="fas fa-plus"></i> Nova Mensagem
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="config-card">
+      <div class="row align-items-center">
+        <div class="col-3">
+          <i class="fas fa-sliders-h text-primary fa-3x"></i>
+        </div>
+        <div class="col-9">
+          <h5>Configurações</h5>
+          <p class="mb-2">Ajuste configurações do sistema</p>
+          <div class="btn-group btn-group-sm">
+            <a href="/config" class="btn btn-outline-primary">Básicas</a>
+            <a href="/configs" class="btn btn-outline-secondary">Avançadas</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Configurações Especiais -->
+<div class="row">
+  <div class="col-12">
+    <div class="advanced-section p-4">
+      <h4><i class="fas fa-microphone text-warning"></i> Configuração Whisper API</h4>
+      <p class="text-muted mb-3">Configure endpoints de API Whisper para transcrição distribuída com balanceamento de carga</p>
+      <a href="/whisper-api-config" class="btn btn-warning">
+        <i class="fas fa-microphone"></i> Configurar Whisper API
+      </a>
+    </div>
+  </div>
+</div>
+
+<style>
+  .text-gradient {
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .hero-section {
+    padding: 3rem 0;
+  }
+  
+  .stat-card {
+    padding: 1.5rem;
+    text-align: center;
+  }
+  
+  .stat-card i {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .stat-card h4 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  
+  .stat-card p {
+    font-size: 0.9rem;
+    margin: 0;
+  }
+  
+  .section-title {
+    color: #2d3748;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  
+  .feature-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 2rem;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .feature-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+  }
+  
+  .feature-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  }
+  
+  .feature-icon {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+  }
+  
+  .feature-icon i {
+    color: white;
+    font-size: 1.5rem;
+  }
+  
+  .feature-card h4 {
+    color: #2d3748;
+    font-weight: 600;
+    margin-bottom: 1rem;
+  }
+  
+  .feature-actions {
+    margin-top: 1.5rem;
+  }
+  
+  .tool-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    height: 100%;
+  }
+  
+  .tool-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+    border-color: #667eea;
+  }
+  
+  .tool-icon {
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+  }
+  
+  .tool-icon i {
+    color: white;
+    font-size: 1.2rem;
+  }
+  
+  .tool-card h5 {
+    color: #2d3748;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  
+  .tool-card p {
+    color: #718096;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+  }
+  
+  .utility-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    height: 100%;
+  }
+  
+  .utility-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+  }
+  
+  .utility-card i {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .utility-card h5 {
+    color: #2d3748;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  
+  .utility-card p {
+    color: #718096;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+  }
+  
+  .config-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+    height: 100%;
+  }
+  
+  .config-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+  }
+  
+  .config-card h5 {
+    color: #2d3748;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  
+  .config-card p {
+    color: #718096;
+    font-size: 0.9rem;
+  }
+  
+  .advanced-section {
+    background: linear-gradient(135deg, #fef7cd, #fbbf24);
+    border-radius: 16px;
+    margin-top: 2rem;
+  }
+  
+  .advanced-section h4 {
+    color: #92400e;
+    font-weight: 600;
+  }
+  
+  .btn-group-sm .btn {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  @media (max-width: 768px) {
+    .hero-section {
+      padding: 2rem 0;
+    }
+    
+    .display-4 {
+      font-size: 2rem;
+    }
+    
+    .feature-card, .tool-card, .utility-card, .config-card {
+      margin-bottom: 1rem;
+    }
+  }
+</style>

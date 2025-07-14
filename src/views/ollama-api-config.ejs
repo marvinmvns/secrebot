@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configuração Whisper API</title>
+    <title>Configuração Ollama API</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -95,17 +95,25 @@
             border-color: #007bff;
             background-color: #e3f2fd;
         }
+        .model-info {
+            background: #f1f3f4;
+            border-radius: 6px;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
     </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand" href="/">
-                <i class="fas fa-microphone"></i> Configuração Whisper API
+                <i class="fas fa-robot"></i> Configuração Ollama API
             </a>
             <div class="navbar-nav ms-auto">
                 <a class="nav-link" href="/"><i class="fas fa-home"></i> Home</a>
                 <a class="nav-link" href="/configs"><i class="fas fa-cog"></i> Configurações</a>
+                <a class="nav-link" href="/whisper-api-config"><i class="fas fa-microphone"></i> Whisper API</a>
             </div>
         </div>
     </nav>
@@ -115,8 +123,8 @@
             <div class="col-12">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div>
-                        <h2><i class="fas fa-microphone text-primary"></i> Configuração Whisper API</h2>
-                        <p class="text-muted">Configure até 5 endpoints de API Whisper com balanceamento de carga</p>
+                        <h2><i class="fas fa-robot text-primary"></i> Configuração Ollama API</h2>
+                        <p class="text-muted">Configure até 5 endpoints de API Ollama com balanceamento de carga</p>
                     </div>
                     <div class="btn-group">
                         <button class="btn btn-outline-info" onclick="loadCurrentStatus()">
@@ -151,11 +159,11 @@
                             <div class="mb-3">
                                 <label class="form-label">Modo de Operação</label>
                                 <select class="form-select" id="operationMode">
-                                    <option value="local">Local (Whisper.cpp)</option>
+                                    <option value="local">Local (Ollama instalado localmente)</option>
                                     <option value="api">API (Endpoints externos)</option>
                                 </select>
                                 <div class="form-text">
-                                    <strong>Local:</strong> Usa Whisper.cpp instalado localmente<br>
+                                    <strong>Local:</strong> Usa Ollama instalado localmente<br>
                                     <strong>API:</strong> Usa endpoints externos com fallback para local
                                 </div>
                             </div>
@@ -163,8 +171,8 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label">Timeout (ms)</label>
-                                <input type="number" class="form-control" id="apiTimeout" min="30000" max="600000" step="1000">
-                                <div class="form-text">Tempo limite para requisições API (30s - 10min)</div>
+                                <input type="number" class="form-control" id="apiTimeout" min="60000" max="1800000" step="1000">
+                                <div class="form-text">Tempo limite para requisições API (1min - 30min)</div>
                             </div>
                         </div>
                     </div>
@@ -176,7 +184,7 @@
                                 <div id="loadBalancingStrategy">
                                     <div class="strategy-option" data-strategy="queue_length">
                                         <strong>Queue Length</strong><br>
-                                        <small>Seleciona o endpoint com menor fila de processamento</small>
+                                        <small>Seleciona o endpoint com menor carga de modelos</small>
                                     </div>
                                     <div class="strategy-option" data-strategy="round_robin">
                                         <strong>Round Robin</strong><br>
@@ -199,112 +207,6 @@
                                 <label class="form-label">Intervalo Health Check (ms)</label>
                                 <input type="number" class="form-control" id="healthCheckInterval" min="10000" max="300000" step="5000">
                                 <div class="form-text">Frequência de verificação de saúde dos endpoints</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Configuração Whisper Options -->
-                <div class="config-section">
-                    <h4><i class="fas fa-cogs"></i> Opções de Transcrição (whisperOptions)</h4>
-                    <p class="text-muted">Configure parâmetros universais de transcrição aplicados tanto para local quanto API</p>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6><i class="fas fa-file-export"></i> Formatos de Saída</h6>
-                            <div class="mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="outputInText">
-                                    <label class="form-check-label" for="outputInText">
-                                        <strong>Texto (.txt)</strong> - Saída em texto simples
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="outputInSrt" checked>
-                                    <label class="form-check-label" for="outputInSrt">
-                                        <strong>SubRip (.srt)</strong> - Formato de legendas padrão
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="outputInVtt">
-                                    <label class="form-check-label" for="outputInVtt">
-                                        <strong>WebVTT (.vtt)</strong> - Formato web de legendas
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="outputInLrc">
-                                    <label class="form-check-label" for="outputInLrc">
-                                        <strong>LRC (.lrc)</strong> - Formato de letras sincronizadas
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-6">
-                            <h6><i class="fas fa-database"></i> Formatos de Dados</h6>
-                            <div class="mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="outputInJson">
-                                    <label class="form-check-label" for="outputInJson">
-                                        <strong>JSON (.json)</strong> - Dados estruturados básicos
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="outputInJsonFull">
-                                    <label class="form-check-label" for="outputInJsonFull">
-                                        <strong>JSON Full (.json)</strong> - Dados completos incluindo metadados
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="outputInCsv">
-                                    <label class="form-check-label" for="outputInCsv">
-                                        <strong>CSV (.csv)</strong> - Planilha de dados tabulares
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="outputInWords">
-                                    <label class="form-check-label" for="outputInWords">
-                                        <strong>Words (.wts)</strong> - Arquivo de palavras para karaokê
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6><i class="fas fa-language"></i> Opções de Idioma</h6>
-                            <div class="mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="translateToEnglish">
-                                    <label class="form-check-label" for="translateToEnglish">
-                                        <strong>Traduzir para Inglês</strong> - Traduz do idioma fonte para inglês
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-6">
-                            <h6><i class="fas fa-clock"></i> Opções de Timestamp</h6>
-                            <div class="mb-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="splitOnWord" checked>
-                                    <label class="form-check-label" for="splitOnWord">
-                                        <strong>Split on Word</strong> - Dividir por palavra em vez de token
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="removeTimestamps">
-                                    <label class="form-check-label" for="removeTimestamps">
-                                        <strong>Remover Timestamps</strong> - Remove linhas de tempo da transcrição
-                                    </label>
-                                </div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Duração dos Timestamps (segundos)</label>
-                                <input type="number" class="form-control" id="timestampsLength" value="20" min="5" max="60">
-                                <div class="form-text">Quantidade de diálogo por par de timestamp</div>
                             </div>
                         </div>
                     </div>
@@ -347,14 +249,7 @@
             });
 
             // Auto-save on change
-            ['operationMode', 'apiTimeout', 'retryDelay', 'healthCheckInterval', 'timestampsLength'].forEach(id => {
-                document.getElementById(id).addEventListener('change', updateConfigFromForm);
-            });
-
-            // WhisperOptions checkboxes
-            ['outputInCsv', 'outputInJson', 'outputInJsonFull', 'outputInLrc', 'outputInSrt', 
-             'outputInText', 'outputInVtt', 'outputInWords', 'translateToEnglish', 
-             'splitOnWord', 'removeTimestamps'].forEach(id => {
+            ['operationMode', 'apiTimeout', 'retryDelay', 'healthCheckInterval'].forEach(id => {
                 document.getElementById(id).addEventListener('change', updateConfigFromForm);
             });
         }
@@ -373,7 +268,7 @@
 
         async function loadCurrentStatus() {
             try {
-                const response = await fetch('/api/whisper-api/status');
+                const response = await fetch('/api/ollama-api/status');
                 generalStatus = await response.json();
                 updateGeneralStatus();
                 updateEndpointsStatus();
@@ -385,16 +280,16 @@
         }
 
         function updateFormFromConfig() {
-            const whisperApi = currentConfig.whisperApi || {};
+            const ollamaApi = currentConfig.ollamaApi || {};
             
-            document.getElementById('operationMode').value = whisperApi.mode || 'local';
-            document.getElementById('apiTimeout').value = whisperApi.timeout || 300000;
-            document.getElementById('retryDelay').value = whisperApi.retryDelay || 2000;
+            document.getElementById('operationMode').value = ollamaApi.mode || 'local';
+            document.getElementById('apiTimeout').value = ollamaApi.timeout || 600000;
+            document.getElementById('retryDelay').value = ollamaApi.retryDelay || 2000;
             document.getElementById('healthCheckInterval').value = 
-                whisperApi.loadBalancing?.healthCheckInterval || 30000;
+                ollamaApi.loadBalancing?.healthCheckInterval || 30000;
 
             // Update strategy selection
-            const strategy = whisperApi.loadBalancing?.strategy || 'queue_length';
+            const strategy = ollamaApi.loadBalancing?.strategy || 'queue_length';
             document.querySelectorAll('.strategy-option').forEach(option => {
                 option.classList.remove('selected');
                 if (option.dataset.strategy === strategy) {
@@ -402,56 +297,24 @@
                 }
             });
 
-            // Update whisperOptions
-            const whisperOptions = whisperApi.whisperOptions || {};
-            document.getElementById('outputInCsv').checked = whisperOptions.outputInCsv || false;
-            document.getElementById('outputInJson').checked = whisperOptions.outputInJson || false;
-            document.getElementById('outputInJsonFull').checked = whisperOptions.outputInJsonFull || false;
-            document.getElementById('outputInLrc').checked = whisperOptions.outputInLrc || false;
-            document.getElementById('outputInSrt').checked = whisperOptions.outputInSrt !== undefined ? whisperOptions.outputInSrt : true;
-            document.getElementById('outputInText').checked = whisperOptions.outputInText || false;
-            document.getElementById('outputInVtt').checked = whisperOptions.outputInVtt || false;
-            document.getElementById('outputInWords').checked = whisperOptions.outputInWords || false;
-            document.getElementById('translateToEnglish').checked = whisperOptions.translateToEnglish || false;
-            document.getElementById('splitOnWord').checked = whisperOptions.splitOnWord !== undefined ? whisperOptions.splitOnWord : true;
-            document.getElementById('removeTimestamps').checked = whisperOptions.removeTimestamps || false;
-            document.getElementById('timestampsLength').value = whisperOptions.timestamps_length || 20;
-
             updateEndpointsForm();
         }
 
         function updateConfigFromForm() {
-            if (!currentConfig.whisperApi) currentConfig.whisperApi = {};
-            if (!currentConfig.whisperApi.loadBalancing) currentConfig.whisperApi.loadBalancing = {};
+            if (!currentConfig.ollamaApi) currentConfig.ollamaApi = {};
+            if (!currentConfig.ollamaApi.loadBalancing) currentConfig.ollamaApi.loadBalancing = {};
 
-            currentConfig.whisperApi.enabled = true;
-            currentConfig.whisperApi.mode = document.getElementById('operationMode').value;
-            currentConfig.whisperApi.timeout = parseInt(document.getElementById('apiTimeout').value);
-            currentConfig.whisperApi.retryDelay = parseInt(document.getElementById('retryDelay').value);
-            currentConfig.whisperApi.loadBalancing.healthCheckInterval = 
+            currentConfig.ollamaApi.enabled = true;
+            currentConfig.ollamaApi.mode = document.getElementById('operationMode').value;
+            currentConfig.ollamaApi.timeout = parseInt(document.getElementById('apiTimeout').value);
+            currentConfig.ollamaApi.retryDelay = parseInt(document.getElementById('retryDelay').value);
+            currentConfig.ollamaApi.loadBalancing.healthCheckInterval = 
                 parseInt(document.getElementById('healthCheckInterval').value);
 
             const selectedStrategy = document.querySelector('.strategy-option.selected');
             if (selectedStrategy) {
-                currentConfig.whisperApi.loadBalancing.strategy = selectedStrategy.dataset.strategy;
+                currentConfig.ollamaApi.loadBalancing.strategy = selectedStrategy.dataset.strategy;
             }
-
-            // Update whisperOptions
-            if (!currentConfig.whisperApi.whisperOptions) currentConfig.whisperApi.whisperOptions = {};
-            const whisperOptions = currentConfig.whisperApi.whisperOptions;
-            
-            whisperOptions.outputInCsv = document.getElementById('outputInCsv').checked;
-            whisperOptions.outputInJson = document.getElementById('outputInJson').checked;
-            whisperOptions.outputInJsonFull = document.getElementById('outputInJsonFull').checked;
-            whisperOptions.outputInLrc = document.getElementById('outputInLrc').checked;
-            whisperOptions.outputInSrt = document.getElementById('outputInSrt').checked;
-            whisperOptions.outputInText = document.getElementById('outputInText').checked;
-            whisperOptions.outputInVtt = document.getElementById('outputInVtt').checked;
-            whisperOptions.outputInWords = document.getElementById('outputInWords').checked;
-            whisperOptions.translateToEnglish = document.getElementById('translateToEnglish').checked;
-            whisperOptions.splitOnWord = document.getElementById('splitOnWord').checked;
-            whisperOptions.removeTimestamps = document.getElementById('removeTimestamps').checked;
-            whisperOptions.timestamps_length = parseInt(document.getElementById('timestampsLength').value);
         }
 
         function updateGeneralStatus() {
@@ -509,7 +372,7 @@
 
         function updateEndpointsForm() {
             const container = document.getElementById('endpointsContainer');
-            const endpoints = currentConfig.whisperApi?.endpoints || [];
+            const endpoints = currentConfig.ollamaApi?.endpoints || [];
             
             // Ensure we have 5 endpoint slots
             while (endpoints.length < 5) {
@@ -548,25 +411,25 @@
 
                 const indicator = card.querySelector('.status-indicator');
                 const statusText = card.querySelector('.endpoint-status');
-                const queueInfo = card.querySelector('.queue-info');
+                const modelInfo = card.querySelector('.model-info');
 
                 if (status.healthy) {
                     indicator.className = 'status-indicator healthy';
                     card.className = 'endpoint-card active';
                     statusText.innerHTML = `<i class="fas fa-check-circle text-success"></i> Online`;
                     
-                    if (status.queueLength !== undefined) {
-                        queueInfo.innerHTML = `
-                            Fila: ${status.queueLength} | 
-                            Tempo médio: ${status.avgProcessingTime}ms | 
-                            Score: <span class="load-score">${status.loadScore}</span>
+                    if (status.runningModels !== undefined) {
+                        modelInfo.innerHTML = `
+                            Modelos em execução: ${status.runningModels} | 
+                            Score: <span class="load-score">${status.loadScore}</span> |
+                            Versão: ${status.version || 'N/A'}
                         `;
                     }
                 } else {
                     indicator.className = 'status-indicator unhealthy';
                     card.className = 'endpoint-card error';
                     statusText.innerHTML = `<i class="fas fa-times-circle text-danger"></i> Offline`;
-                    queueInfo.innerHTML = status.error || 'Endpoint não disponível';
+                    modelInfo.innerHTML = status.error || 'Endpoint não disponível';
                 }
             });
         }
@@ -592,7 +455,7 @@
                                     <label class="form-label">URL do Endpoint</label>
                                     <input type="url" class="form-control" id="endpoint_${index}_url" 
                                            value="${endpoint.url || ''}" 
-                                           placeholder="http://localhost:3001">
+                                           placeholder="http://localhost:11434">
                                 </div>
                             </div>
                             <div class="col-md-2">
@@ -622,7 +485,7 @@
                         </div>
                         
                         <div class="d-flex justify-content-between align-items-center">
-                            <div class="queue-info text-muted small">
+                            <div class="model-info">
                                 Aguardando informações...
                             </div>
                             <button class="btn btn-outline-primary btn-sm" id="testEndpoint_${index}">
@@ -637,14 +500,14 @@
         }
 
         function updateEndpointConfig(index) {
-            if (!currentConfig.whisperApi) currentConfig.whisperApi = {};
-            if (!currentConfig.whisperApi.endpoints) currentConfig.whisperApi.endpoints = [];
+            if (!currentConfig.ollamaApi) currentConfig.ollamaApi = {};
+            if (!currentConfig.ollamaApi.endpoints) currentConfig.ollamaApi.endpoints = [];
 
-            while (currentConfig.whisperApi.endpoints.length <= index) {
-                currentConfig.whisperApi.endpoints.push({});
+            while (currentConfig.ollamaApi.endpoints.length <= index) {
+                currentConfig.ollamaApi.endpoints.push({});
             }
 
-            const endpoint = currentConfig.whisperApi.endpoints[index];
+            const endpoint = currentConfig.ollamaApi.endpoints[index];
             endpoint.url = document.getElementById(`endpoint_${index}_url`).value;
             endpoint.enabled = document.getElementById(`endpoint_${index}_enabled`).checked;
             endpoint.priority = parseInt(document.getElementById(`endpoint_${index}_priority`).value);
@@ -665,7 +528,7 @@
             testButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testando...';
 
             try {
-                const response = await fetch('/api/whisper-api/test', {
+                const response = await fetch('/api/ollama-api/test', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url })
@@ -677,9 +540,9 @@
                     resultContainer.innerHTML = `
                         <div class="test-result success">
                             <i class="fas fa-check-circle"></i> Teste bem-sucedido!<br>
-                            Status: ${result.health.status}<br>
-                            Fila: ${result.queueEstimate.queueLength} jobs<br>
-                            Formatos: ${result.formats.supportedFormats.join(', ')}
+                            Versão: ${result.version}<br>
+                            Modelos disponíveis: ${result.models?.length || 0}<br>
+                            Modelos em execução: ${result.runningModels?.length || 0}
                         </div>
                     `;
                 } else {

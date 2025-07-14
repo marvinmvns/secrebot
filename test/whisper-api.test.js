@@ -157,14 +157,12 @@ describe('Whisper API Client Integration (Mock)', () => {
     const options = {
       language: 'pt',
       translate: false,
-      wordTimestamps: true,
       cleanup: true
     };
     
     // Verify that options are handled properly
     assert.strictEqual(options.language, 'pt');
     assert.strictEqual(options.translate, false);
-    assert.strictEqual(options.wordTimestamps, true);
     assert.strictEqual(options.cleanup, true);
   });
 

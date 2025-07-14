@@ -24,10 +24,25 @@ class WhisperAPIClient {
       const formData = new FormData();
       formData.append('audio', await fs.readFile(filePath));
       
-      if (options.language) formData.append('language', options.language);
-      if (options.translate !== undefined) formData.append('translate', String(options.translate));
-      if (options.wordTimestamps !== undefined) formData.append('wordTimestamps', String(options.wordTimestamps));
-      if (options.cleanup !== undefined) formData.append('cleanup', String(options.cleanup));
+      // Merge global whisperOptions with provided options
+      const mergedOptions = { ...CONFIG.whisperApi.whisperOptions, ...options };
+      
+      if (mergedOptions.language) formData.append('language', mergedOptions.language);
+      if (mergedOptions.translateToEnglish !== undefined) formData.append('translate', String(mergedOptions.translateToEnglish));
+      if (mergedOptions.cleanup !== undefined) formData.append('cleanup', String(mergedOptions.cleanup));
+      
+      // Add whisperOptions parameters
+      if (mergedOptions.outputInCsv) formData.append('outputInCsv', 'true');
+      if (mergedOptions.outputInJson) formData.append('outputInJson', 'true');
+      if (mergedOptions.outputInJsonFull) formData.append('outputInJsonFull', 'true');
+      if (mergedOptions.outputInLrc) formData.append('outputInLrc', 'true');
+      if (mergedOptions.outputInSrt) formData.append('outputInSrt', 'true');
+      if (mergedOptions.outputInText) formData.append('outputInText', 'true');
+      if (mergedOptions.outputInVtt) formData.append('outputInVtt', 'true');
+      if (mergedOptions.outputInWords) formData.append('outputInWords', 'true');
+      if (mergedOptions.splitOnWord !== undefined) formData.append('splitOnWord', String(mergedOptions.splitOnWord));
+      if (mergedOptions.timestamps_length !== undefined) formData.append('timestamps_length', String(mergedOptions.timestamps_length));
+      if (mergedOptions.removeTimestamps !== undefined) formData.append('removeTimestamps', String(mergedOptions.removeTimestamps));
 
       const response = await this.axios.post('/transcribe', formData, {
         headers: formData.getHeaders(),
@@ -49,10 +64,25 @@ class WhisperAPIClient {
       const formData = new FormData();
       formData.append('audio', audioBuffer, { filename });
       
-      if (options.language) formData.append('language', options.language);
-      if (options.translate !== undefined) formData.append('translate', String(options.translate));
-      if (options.wordTimestamps !== undefined) formData.append('wordTimestamps', String(options.wordTimestamps));
-      if (options.cleanup !== undefined) formData.append('cleanup', String(options.cleanup));
+      // Merge global whisperOptions with provided options
+      const mergedOptions = { ...CONFIG.whisperApi.whisperOptions, ...options };
+      
+      if (mergedOptions.language) formData.append('language', mergedOptions.language);
+      if (mergedOptions.translateToEnglish !== undefined) formData.append('translate', String(mergedOptions.translateToEnglish));
+      if (mergedOptions.cleanup !== undefined) formData.append('cleanup', String(mergedOptions.cleanup));
+      
+      // Add whisperOptions parameters
+      if (mergedOptions.outputInCsv) formData.append('outputInCsv', 'true');
+      if (mergedOptions.outputInJson) formData.append('outputInJson', 'true');
+      if (mergedOptions.outputInJsonFull) formData.append('outputInJsonFull', 'true');
+      if (mergedOptions.outputInLrc) formData.append('outputInLrc', 'true');
+      if (mergedOptions.outputInSrt) formData.append('outputInSrt', 'true');
+      if (mergedOptions.outputInText) formData.append('outputInText', 'true');
+      if (mergedOptions.outputInVtt) formData.append('outputInVtt', 'true');
+      if (mergedOptions.outputInWords) formData.append('outputInWords', 'true');
+      if (mergedOptions.splitOnWord !== undefined) formData.append('splitOnWord', String(mergedOptions.splitOnWord));
+      if (mergedOptions.timestamps_length !== undefined) formData.append('timestamps_length', String(mergedOptions.timestamps_length));
+      if (mergedOptions.removeTimestamps !== undefined) formData.append('removeTimestamps', String(mergedOptions.removeTimestamps));
 
       const response = await this.axios.post('/transcribe', formData, {
         headers: formData.getHeaders(),
@@ -151,7 +181,7 @@ class WhisperAPIClient {
 
   async getHealth() {
     try {
-      const response = await this.axios.get('/health', { timeout: 5000 });
+      const response = await this.axios.get('/health', { timeout: 10000 });
       this.isHealthy = true;
       this.lastHealthCheck = Date.now();
       

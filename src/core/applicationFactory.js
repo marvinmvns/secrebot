@@ -8,6 +8,7 @@ import RestAPI from '../api/restApi.js';
 import ConfigService from '../services/configService.js';
 import FlowService from '../services/flowService.js';
 import FlowExecutionService from '../services/flowExecutionService.js';
+import YouTubeService from '../services/youtubeService.js';
 import { config, applyConfig } from '../config/config.js';
 import logger from '../utils/logger.js';
 import { handleError, setupGlobalErrorHandlers, gracefulShutdown } from '../utils/errorHandler.js';
@@ -54,12 +55,12 @@ export class ApplicationFactory {
   }
 
 
-  createLLMService() {
+  createLLMService(configService = null) {
     if (this.services.has('llmService')) {
       return this.services.get('llmService');
     }
 
-    const llmService = new LLMService();
+    const llmService = new LLMService(configService);
     this.services.set('llmService', llmService);
     logger.info('LLM service initialized');
     return llmService;
@@ -224,9 +225,13 @@ export class ApplicationFactory {
 
       const scheduler = await this.createScheduler();
       const configService = await this.createConfigService(scheduler);
-      const llmService = this.createLLMService();
+      const llmService = this.createLLMService(configService);
       const transcriber = this.createAudioTranscriber(configService);
       const ttsService = this.createTtsService();
+      
+      // Configure YouTubeService to use the parametrized transcriber
+      YouTubeService.setTranscriber(transcriber);
+      logger.debug('🔧 YouTubeService configured with parametrized AudioTranscriber');
       const bot = await this.createWhatsAppBot(scheduler, llmService, transcriber, ttsService);
       this.createRestAPI(bot, configService);
 

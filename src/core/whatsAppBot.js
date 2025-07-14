@@ -1460,8 +1460,8 @@ async handleRecursoCommand(contactId) {
               }
               
               const transcriptLength = transcript.length;
-              const truncatedTranscript = transcript.slice(0, 15000);
-              const truncated = transcriptLength > 15000;
+              const truncatedTranscript = transcript.slice(0, 150000);
+              const truncated = transcriptLength > 150000;
               
               logger.verbose(`📏 Processamento da transcrição:`, {
                 originalLength: transcriptLength,

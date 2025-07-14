@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resumir Vídeo via Whisper</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .log-container {
+            background: #1e1e1e;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+            height: 400px;
+            overflow-y: auto;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 3px 0;
+            border-bottom: 1px solid #333;
+        }
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        .log-timestamp {
+            color: #888;
+            font-size: 0.85em;
+        }
+        .log-level-info { color: #4fc3f7; }
+        .log-level-success { color: #81c784; }
+        .log-level-warning { color: #ffb74d; }
+        .log-level-error { color: #e57373; }
+        .log-level-verbose { color: #ba68c8; }
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+        .result-container {
+            display: none;
+            margin-top: 20px;
+        }
+        .spinner-border-sm {
+            width: 1rem;
+            height: 1rem;
+        }
+        .form-container {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-idle { background-color: #6c757d; }
+        .status-processing { background-color: #ffc107; animation: pulse 1s infinite; }
+        .status-success { background-color: #28a745; }
+        .status-error { background-color: #dc3545; }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .stat-card {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-lg-12">
+                <div class="d-flex align-items-center mb-4">
+                    <i class="fas fa-video text-primary me-3" style="font-size: 2em;"></i>
+                    <div>
+                        <h2 class="mb-1">Resumir Vídeo via Whisper</h2>
+                        <p class="text-muted mb-0">Transcrição via Whisper + Resumo via LLM</p>
+                    </div>
+                </div>
+
+                <!-- Formulário -->
+                <div class="form-container">
+                    <form id="videoForm">
+                        <div class="row">
+                            <div class="col-md-10">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="fab fa-youtube text-danger"></i>
+                                    </span>
+                                    <input type="url" 
+                                           id="videoUrl" 
+                                           class="form-control" 
+                                           placeholder="https://www.youtube.com/watch?v=..." 
+                                           required>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" 
+                                        id="processBtn" 
+                                        class="btn btn-primary w-100">
+                                    <i class="fas fa-play me-2"></i>
+                                    Processar
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Status e Estatísticas -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <span id="statusIndicator" class="status-indicator status-idle"></span>
+                                    Status do Processamento
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="currentStatus">Sistema pronto para processar vídeo</div>
+                                <div class="progress-container">
+                                    <div class="progress mt-3">
+                                        <div id="progressBar" 
+                                             class="progress-bar progress-bar-striped progress-bar-animated" 
+                                             style="width: 0%"></div>
+                                    </div>
+                                    <small id="progressText" class="text-muted"></small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-chart-bar me-2"></i>
+                                    Estatísticas
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="stats-grid">
+                                    <div class="stat-card">
+                                        <div id="transcriptionTime" class="stat-value">-</div>
+                                        <div class="stat-label">Tempo Transcrição</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div id="summaryTime" class="stat-value">-</div>
+                                        <div class="stat-label">Tempo Resumo</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div id="totalTime" class="stat-value">-</div>
+                                        <div class="stat-label">Tempo Total</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div id="wordCount" class="stat-value">-</div>
+                                        <div class="stat-label">Palavras</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Log em Tempo Real -->
+                <div class="card mt-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-terminal me-2"></i>
+                            Log do Processamento
+                        </h5>
+                        <div>
+                            <button id="clearLogBtn" class="btn btn-sm btn-outline-secondary me-2">
+                                <i class="fas fa-eraser me-1"></i>
+                                Limpar
+                            </button>
+                            <button id="scrollLockBtn" class="btn btn-sm btn-outline-info" data-locked="false">
+                                <i class="fas fa-lock-open me-1"></i>
+                                Auto-scroll
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="logContainer" class="log-container">
+                            <div class="log-entry">
+                                <span class="log-timestamp">[Sistema]</span>
+                                <span class="log-level-info">Sistema inicializado e pronto para processar vídeos</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resultado -->
+                <div id="resultContainer" class="result-container">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-file-alt me-2"></i>
+                                Resumo do Vídeo
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="resultContent"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        class ResumirVideo2UI {
+            constructor() {
+                this.eventSource = null;
+                this.isProcessing = false;
+                this.scrollLocked = false;
+                this.startTime = null;
+                this.transcriptionStartTime = null;
+                this.summaryStartTime = null;
+                
+                this.initializeElements();
+                this.bindEvents();
+            }
+
+            initializeElements() {
+                this.form = document.getElementById('videoForm');
+                this.urlInput = document.getElementById('videoUrl');
+                this.processBtn = document.getElementById('processBtn');
+                this.statusIndicator = document.getElementById('statusIndicator');
+                this.currentStatus = document.getElementById('currentStatus');
+                this.progressContainer = document.querySelector('.progress-container');
+                this.progressBar = document.getElementById('progressBar');
+                this.progressText = document.getElementById('progressText');
+                this.logContainer = document.getElementById('logContainer');
+                this.resultContainer = document.getElementById('resultContainer');
+                this.resultContent = document.getElementById('resultContent');
+                this.clearLogBtn = document.getElementById('clearLogBtn');
+                this.scrollLockBtn = document.getElementById('scrollLockBtn');
+                
+                // Stats elements
+                this.transcriptionTimeEl = document.getElementById('transcriptionTime');
+                this.summaryTimeEl = document.getElementById('summaryTime');
+                this.totalTimeEl = document.getElementById('totalTime');
+                this.wordCountEl = document.getElementById('wordCount');
+            }
+
+            bindEvents() {
+                this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+                this.clearLogBtn.addEventListener('click', () => this.clearLog());
+                this.scrollLockBtn.addEventListener('click', () => this.toggleScrollLock());
+            }
+
+            handleSubmit(e) {
+                e.preventDefault();
+                
+                if (this.isProcessing) {
+                    this.stopProcessing();
+                    return;
+                }
+
+                const url = this.urlInput.value.trim();
+                if (!url) {
+                    this.addLogEntry('error', 'URL do vídeo é obrigatória');
+                    return;
+                }
+
+                this.startProcessing(url);
+            }
+
+            startProcessing(url) {
+                this.isProcessing = true;
+                this.startTime = Date.now();
+                this.updateUI();
+                this.resetStats();
+                
+                this.addLogEntry('info', `Iniciando processamento: ${url}`);
+                this.updateStatus('Conectando ao servidor...', 'processing', 10);
+
+                // Iniciar SSE para logs em tempo real
+                this.eventSource = new EventSource(`/resumirvideo2/process?url=${encodeURIComponent(url)}`);
+                
+                this.eventSource.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    this.handleServerEvent(data);
+                };
+
+                this.eventSource.onerror = (event) => {
+                    this.addLogEntry('error', 'Erro de conexão com o servidor');
+                    this.stopProcessing();
+                };
+            }
+
+            handleServerEvent(data) {
+                const { type, message, level, progress, stats, result } = data;
+
+                switch (type) {
+                    case 'log':
+                        this.addLogEntry(level || 'info', message);
+                        if (message.includes('Transcrição concluída')) {
+                            this.transcriptionStartTime = Date.now();
+                        }
+                        if (message.includes('Resumo gerado')) {
+                            this.summaryStartTime = Date.now();
+                        }
+                        break;
+                        
+                    case 'status':
+                        this.updateStatus(message, level || 'processing', progress || null);
+                        break;
+                        
+                    case 'progress':
+                        this.updateProgress(progress, message);
+                        break;
+                        
+                    case 'stats':
+                        this.updateStats(stats);
+                        break;
+                        
+                    case 'result':
+                        this.showResult(result);
+                        this.stopProcessing();
+                        break;
+                        
+                    case 'error':
+                        this.addLogEntry('error', message);
+                        this.updateStatus('Erro no processamento', 'error');
+                        this.stopProcessing();
+                        break;
+                        
+                    case 'complete':
+                        this.updateStatus('Processamento concluído', 'success', 100);
+                        this.stopProcessing();
+                        break;
+                }
+            }
+
+            stopProcessing() {
+                this.isProcessing = false;
+                
+                if (this.eventSource) {
+                    this.eventSource.close();
+                    this.eventSource = null;
+                }
+                
+                this.updateUI();
+                this.calculateFinalStats();
+            }
+
+            updateUI() {
+                if (this.isProcessing) {
+                    this.processBtn.innerHTML = '<i class="fas fa-stop me-2"></i>Parar';
+                    this.processBtn.className = 'btn btn-danger w-100';
+                    this.urlInput.disabled = true;
+                    this.progressContainer.style.display = 'block';
+                } else {
+                    this.processBtn.innerHTML = '<i class="fas fa-play me-2"></i>Processar';
+                    this.processBtn.className = 'btn btn-primary w-100';
+                    this.urlInput.disabled = false;
+                    this.progressContainer.style.display = 'none';
+                }
+            }
+
+            updateStatus(message, level, progress = null) {
+                this.currentStatus.textContent = message;
+                
+                this.statusIndicator.className = `status-indicator status-${level}`;
+                
+                if (progress !== null) {
+                    this.updateProgress(progress);
+                }
+            }
+
+            updateProgress(progress, text = null) {
+                this.progressBar.style.width = `${progress}%`;
+                this.progressBar.setAttribute('aria-valuenow', progress);
+                
+                if (text) {
+                    this.progressText.textContent = text;
+                }
+            }
+
+            addLogEntry(level, message) {
+                const timestamp = new Date().toLocaleTimeString('pt-BR');
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                logEntry.innerHTML = `
+                    <span class="log-timestamp">[${timestamp}]</span>
+                    <span class="log-level-${level}">${message}</span>
+                `;
+                
+                this.logContainer.appendChild(logEntry);
+                
+                if (!this.scrollLocked) {
+                    this.logContainer.scrollTop = this.logContainer.scrollHeight;
+                }
+            }
+
+            clearLog() {
+                this.logContainer.innerHTML = `
+                    <div class="log-entry">
+                        <span class="log-timestamp">[Sistema]</span>
+                        <span class="log-level-info">Log limpo pelo usuário</span>
+                    </div>
+                `;
+            }
+
+            toggleScrollLock() {
+                this.scrollLocked = !this.scrollLocked;
+                const icon = this.scrollLockBtn.querySelector('i');
+                const text = this.scrollLockBtn.querySelector('span') || this.scrollLockBtn.childNodes[1];
+                
+                if (this.scrollLocked) {
+                    icon.className = 'fas fa-lock me-1';
+                    this.scrollLockBtn.setAttribute('data-locked', 'true');
+                    this.scrollLockBtn.className = 'btn btn-sm btn-warning';
+                } else {
+                    icon.className = 'fas fa-lock-open me-1';
+                    this.scrollLockBtn.setAttribute('data-locked', 'false');
+                    this.scrollLockBtn.className = 'btn btn-sm btn-outline-info';
+                }
+            }
+
+            resetStats() {
+                this.transcriptionTimeEl.textContent = '-';
+                this.summaryTimeEl.textContent = '-';
+                this.totalTimeEl.textContent = '-';
+                this.wordCountEl.textContent = '-';
+            }
+
+            updateStats(stats) {
+                if (stats.transcriptionTime) {
+                    this.transcriptionTimeEl.textContent = this.formatTime(stats.transcriptionTime);
+                }
+                if (stats.summaryTime) {
+                    this.summaryTimeEl.textContent = this.formatTime(stats.summaryTime);
+                }
+                if (stats.wordCount) {
+                    this.wordCountEl.textContent = stats.wordCount.toLocaleString('pt-BR');
+                }
+            }
+
+            calculateFinalStats() {
+                if (this.startTime) {
+                    const totalTime = Date.now() - this.startTime;
+                    this.totalTimeEl.textContent = this.formatTime(totalTime);
+                }
+            }
+
+            formatTime(ms) {
+                const seconds = Math.floor(ms / 1000);
+                const minutes = Math.floor(seconds / 60);
+                const remainingSeconds = seconds % 60;
+                
+                if (minutes > 0) {
+                    return `${minutes}m ${remainingSeconds}s`;
+                }
+                return `${remainingSeconds}s`;
+            }
+
+            showResult(result) {
+                this.resultContent.innerHTML = `
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-2">Resumo Gerado:</h6>
+                        <div style="white-space: pre-wrap; line-height: 1.6;">${result}</div>
+                    </div>
+                `;
+                this.resultContainer.style.display = 'block';
+                
+                // Scroll suave para o resultado
+                this.resultContainer.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        // Inicializar quando a página carregar
+        document.addEventListener('DOMContentLoaded', () => {
+            new ResumirVideo2UI();
+        });
+    </script>
+</body>
+</html>

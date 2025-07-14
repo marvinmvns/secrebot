@@ -1,15 +1,18 @@
 import { Ollama } from 'ollama';
 import Utils from '../utils/index.js'; // Ajustar caminho se necessário
-import { CONFIG, CHAT_MODES, PROMPTS } from '../config/index.js'; // Ajustar caminho se necessário
+import { CONFIG, CHAT_MODES, PROMPTS, getDynamicConfig } from '../config/index.js'; // Ajustar caminho se necessário
 import { fetchProfileStructured } from './linkedinScraper.js';
 import JobQueue from './jobQueue.js';
+import OllamaAPIPool from './ollamaApiPool.js';
 import logger from '../utils/logger.js';
 
 // ============ Serviço LLM ============
 class LLMService {
-  constructor() {
+  constructor(configService = null) {
+    this.configService = configService;
     this.contexts = new Map();
     this.ollama = new Ollama({ host: CONFIG.llm.host });
+    this.ollamaApiPool = new OllamaAPIPool(configService);
     this.queue = new JobQueue(
       CONFIG.queues.llmConcurrency,
       CONFIG.queues.memoryThresholdGB
@@ -21,6 +24,26 @@ class LLMService {
       180000000, // 30 minutos
       360000000  // 1 hora (limite máximo)
     ];
+  }
+
+  async getEffectiveConfig() {
+    let mongoConfig = null;
+    if (this.configService) {
+      try {
+        mongoConfig = await this.configService.getConfig();
+      } catch (error) {
+        logger.warn('⚠️ Erro ao obter configuração do MongoDB para LLM, usando configuração padrão:', error.message);
+      }
+    }
+    return getDynamicConfig(mongoConfig);
+  }
+
+  async shouldUseApiPool() {
+    const config = await this.getEffectiveConfig();
+    return config.ollamaApi.enabled && 
+           config.ollamaApi.mode === 'api' && 
+           await this.ollamaApiPool.isEnabled() &&
+           this.ollamaApiPool.hasHealthyEndpoints();
   }
 
   getContext(contactId, type) {
@@ -87,20 +110,46 @@ class LLMService {
   }
   
   async chatWithTimeout(requestParams, timeoutMs) {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error(`LLM timeout após ${this.formatTimeout(timeoutMs)}`));
       }, timeoutMs);
       
-      this.ollama.chat(requestParams)
-        .then(response => {
-          clearTimeout(timeout);
-          resolve(response);
-        })
-        .catch(error => {
-          clearTimeout(timeout);
-          reject(error);
-        });
+      try {
+        const useApiPool = await this.shouldUseApiPool();
+        let response;
+        
+        if (useApiPool) {
+          logger.debug('🔄 Usando Ollama API Pool para chat');
+          response = await this.ollamaApiPool.chat({
+            ...requestParams,
+            stream: false
+          });
+        } else {
+          logger.debug('🔄 Usando Ollama local para chat');
+          response = await this.ollama.chat(requestParams);
+        }
+        
+        clearTimeout(timeout);
+        resolve(response);
+      } catch (error) {
+        clearTimeout(timeout);
+        
+        // Se falhou com API Pool, tenta fallback para local
+        const useApiPool = await this.shouldUseApiPool();
+        if (useApiPool && !error.message?.includes('No healthy')) {
+          try {
+            logger.warn('⚠️ Fallback para Ollama local após falha na API');
+            const response = await this.ollama.chat(requestParams);
+            resolve(response);
+            return;
+          } catch (fallbackError) {
+            logger.error('❌ Fallback para Ollama local também falhou:', fallbackError.message);
+          }
+        }
+        
+        reject(error);
+      }
     });
   }
   
@@ -222,16 +271,46 @@ ${structuredText}`;
     const temperature = options.temperature || 0.7;
     
     try {
-      const response = await this.ollama.chat({
+      const useApiPool = await this.shouldUseApiPool();
+      let response;
+      
+      const requestParams = {
         model: CONFIG.llm.model,
         messages: [{ role: 'user', content: prompt }],
         options: {
           temperature: temperature
-        }
-      });
+        },
+        stream: false
+      };
+      
+      if (useApiPool) {
+        logger.debug('🔄 Usando Ollama API Pool para geração de resposta');
+        response = await this.ollamaApiPool.chat(requestParams);
+      } else {
+        logger.debug('🔄 Usando Ollama local para geração de resposta');
+        response = await this.ollama.chat(requestParams);
+      }
       
       return response.message.content;
     } catch (error) {
+      // Fallback para local se a API falhar
+      const useApiPool = await this.shouldUseApiPool();
+      if (useApiPool && !error.message?.includes('No healthy')) {
+        try {
+          logger.warn('⚠️ Fallback para Ollama local na geração de resposta');
+          const response = await this.ollama.chat({
+            model: CONFIG.llm.model,
+            messages: [{ role: 'user', content: prompt }],
+            options: {
+              temperature: temperature
+            }
+          });
+          return response.message.content;
+        } catch (fallbackError) {
+          logger.error('❌ Fallback também falhou na geração de resposta:', fallbackError.message);
+        }
+      }
+      
       logger.error('Erro ao gerar resposta LLM:', error);
       throw error;
     }
@@ -241,21 +320,137 @@ ${structuredText}`;
   async analyzeImage(imagePath, prompt) {
     try {
       // Para Ollama com suporte a vision, usar o modelo multimodal
-      const visionModel = CONFIG.llm.visionModel || 'llava';
+      const visionModel = CONFIG.llm.imageModel || CONFIG.llm.visionModel || 'llava';
+      const useApiPool = await this.shouldUseApiPool();
+      let response;
       
-      const response = await this.ollama.chat({
+      const requestParams = {
         model: visionModel,
         messages: [{
           role: 'user',
           content: prompt,
           images: [imagePath]
-        }]
-      });
+        }],
+        stream: false
+      };
+      
+      if (useApiPool) {
+        logger.debug('🔄 Usando Ollama API Pool para análise de imagem');
+        response = await this.ollamaApiPool.chat(requestParams);
+      } else {
+        logger.debug('🔄 Usando Ollama local para análise de imagem');
+        response = await this.ollama.chat(requestParams);
+      }
       
       return response.message.content;
     } catch (error) {
+      // Fallback para local se a API falhar
+      const useApiPool = await this.shouldUseApiPool();
+      if (useApiPool && !error.message?.includes('No healthy')) {
+        try {
+          logger.warn('⚠️ Fallback para Ollama local na análise de imagem');
+          const visionModel = CONFIG.llm.imageModel || CONFIG.llm.visionModel || 'llava';
+          const response = await this.ollama.chat({
+            model: visionModel,
+            messages: [{
+              role: 'user',
+              content: prompt,
+              images: [imagePath]
+            }]
+          });
+          return response.message.content;
+        } catch (fallbackError) {
+          logger.error('❌ Fallback também falhou na análise de imagem:', fallbackError.message);
+        }
+      }
+      
       logger.error('Erro ao analisar imagem:', error);
       return null;
+    }
+  }
+
+  // ============ Métodos de gerenciamento da API Ollama ============
+  async getOllamaApiStatus() {
+    if (!await this.ollamaApiPool.isEnabled()) {
+      return { enabled: false, message: 'Ollama API Pool não está habilitado' };
+    }
+    
+    return await this.ollamaApiPool.getPoolStatus();
+  }
+
+  async listModels() {
+    const useApiPool = await this.shouldUseApiPool();
+    
+    if (useApiPool) {
+      try {
+        return await this.ollamaApiPool.listModels();
+      } catch (error) {
+        logger.warn('⚠️ Fallback para Ollama local na listagem de modelos');
+      }
+    }
+    
+    // Fallback para método direto do Ollama local
+    return await this.ollama.list();
+  }
+
+  async pullModel(modelName) {
+    const useApiPool = await this.shouldUseApiPool();
+    
+    if (useApiPool) {
+      try {
+        return await this.ollamaApiPool.pullModel(modelName);
+      } catch (error) {
+        logger.warn('⚠️ Fallback para Ollama local no pull do modelo');
+      }
+    }
+    
+    // Fallback para método direto do Ollama local
+    return await this.ollama.pull({ model: modelName });
+  }
+
+  async deleteModel(modelName) {
+    const useApiPool = await this.shouldUseApiPool();
+    
+    if (useApiPool) {
+      try {
+        return await this.ollamaApiPool.deleteModel(modelName);
+      } catch (error) {
+        logger.warn('⚠️ Fallback para Ollama local na deleção do modelo');
+      }
+    }
+    
+    // Fallback para método direto do Ollama local
+    return await this.ollama.delete({ model: modelName });
+  }
+
+  // Método simplificado para uso direto (usado por RestAPI)
+  async chatWithModel(prompt, model = CONFIG.llm.model) {
+    try {
+      logger.debug(`🤖 LLMService.chatWithModel: ${model}`);
+      
+      if (await this.shouldUseApiPool()) {
+        logger.debug('📡 Usando OllamaAPI pool');
+        const client = await this.ollamaApiPool.getClient();
+        if (client) {
+          const response = await client.chat({
+            model,
+            messages: [{ role: 'user', content: prompt }]
+          });
+          return response;
+        }
+      }
+      
+      // Fallback para Ollama local
+      logger.debug('🏠 Usando Ollama local');
+      const response = await this.ollama.chat({
+        model,
+        messages: [{ role: 'user', content: prompt }]
+      });
+      
+      return response;
+    } catch (error) {
+      logger.error('❌ Erro em chatWithModel:', error);
+      throw error;
     }
   }
 }

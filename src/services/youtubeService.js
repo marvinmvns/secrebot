@@ -14,8 +14,24 @@ import logger from '../utils/logger.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const transcriber = new AudioTranscriber();
+// Global transcriber instance will be injected via setTranscriber()
+let globalTranscriber = null;
 let ytClientPromise;
+
+// Function to set the transcriber instance (called from ApplicationFactory)
+function setTranscriber(transcriberInstance) {
+  globalTranscriber = transcriberInstance;
+  logger.debug('🔧 YouTubeService: AudioTranscriber instance configured');
+}
+
+// Function to get the transcriber (with fallback)
+function getTranscriber() {
+  if (!globalTranscriber) {
+    logger.warn('⚠️ YouTubeService: Using fallback AudioTranscriber (may not respect API configuration)');
+    return new AudioTranscriber();
+  }
+  return globalTranscriber;
+}
 
 async function initClient() {
   if (!ytClientPromise) {
@@ -158,7 +174,7 @@ async function fetchTranscript(url) {
   try {
     const { buffer, format } = await downloadAudioBuffer(url);
     logger.verbose(`🎵 Áudio baixado com sucesso (${format}), iniciando transcrição via Whisper`);
-    const transcript = await transcriber.transcribe(buffer, format);
+    const transcript = await getTranscriber().transcribe(buffer, format);
     logger.success(`✅ Transcrição obtida via Whisper (${transcript.length} caracteres)`);
     return transcript;
   } catch (whisperErr) {
@@ -188,7 +204,7 @@ async function fetchTranscriptWhisperOnly(url) {
     });
     
     const transcriptionStartTime = Date.now();
-    const transcript = await transcriber.transcribe(wavBuffer, 'wav');
+    const transcript = await getTranscriber().transcribe(wavBuffer, 'wav');
     const transcriptionEndTime = Date.now();
     
     logger.verbose(`📝 Detalhes da transcrição:`, {
@@ -211,4 +227,4 @@ async function fetchTranscriptWhisperOnly(url) {
   }
 }
 
-export default { fetchTranscript, fetchTranscriptWhisperOnly, shouldUseYtDlp };
+export default { fetchTranscript, fetchTranscriptWhisperOnly, shouldUseYtDlp, setTranscriber };

@@ -366,14 +366,27 @@ class RestAPI {
       }
     });
 
-    const ollamaClient = new Ollama({ host: CONFIG.llm.host });
+    // Removed direct Ollama client - will use bot's LLMService instead
 
-    async function processImage(buffer, mode = 'description') {
+    const processImage = async (buffer, mode = 'description') => {
       const imagePath = path.join(__dirname, `image_${Date.now()}.jpg`);
       await fs.writeFile(imagePath, buffer);
       try {
         const prompt = mode === 'calories' ? PROMPTS.calorieEstimation : PROMPTS.imageDescription;
-        const resp = await ollamaClient.generate({ model: CONFIG.llm.imageModel, prompt, images: [imagePath], stream: false });
+        // Use the bot's LLM service (which respects API/Local configuration)
+        let resp;
+        if (await this.bot.llmService.shouldUseApiPool()) {
+          const client = await this.bot.llmService.ollamaApiPool.getClient();
+          if (client) {
+            resp = await client.generate({ model: CONFIG.llm.imageModel, prompt, images: [imagePath], stream: false });
+          } else {
+            // Fallback to local Ollama
+            resp = await this.bot.llmService.ollama.generate({ model: CONFIG.llm.imageModel, prompt, images: [imagePath], stream: false });
+          }
+        } else {
+          // Use local Ollama
+          resp = await this.bot.llmService.ollama.generate({ model: CONFIG.llm.imageModel, prompt, images: [imagePath], stream: false });
+        }
         const desc = resp.response.trim();
         if (mode !== 'calories') return desc;
         let foods = [];
@@ -648,6 +661,171 @@ class RestAPI {
       } catch (err) {
         logger.error('Erro em /video', err);
         res.render('video', { result: 'Erro ao processar vídeo.', url });
+      }
+    });
+
+    // ===== RESUMIR VIDEO 2 ROUTES =====
+    this.app.get('/resumirvideo2', (req, res) => {
+      res.render('resumirvideo2');
+    });
+
+    this.app.get('/resumirvideo2/process', async (req, res) => {
+      const url = req.query.url;
+      
+      if (!url || !url.trim()) {
+        res.status(400).json({ error: 'URL é obrigatória' });
+        return;
+      }
+
+      // Configurar SSE
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control'
+      });
+
+      // Função para enviar eventos SSE
+      const sendEvent = (data) => {
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+      };
+
+      // Função para enviar logs
+      const sendLog = (level, message) => {
+        sendEvent({ type: 'log', level, message });
+        logger.info(`[ResumirVideo2] ${message}`);
+      };
+
+      // Função para enviar status
+      const sendStatus = (message, level = 'processing', progress = null) => {
+        sendEvent({ type: 'status', message, level, progress });
+      };
+
+      // Função para enviar progresso
+      const sendProgress = (progress, message = null) => {
+        sendEvent({ type: 'progress', progress, message });
+      };
+
+      try {
+        sendLog('info', `Iniciando processamento do vídeo: ${url}`);
+        sendStatus('Validando URL do YouTube...', 'processing', 5);
+
+        // Validar URL do YouTube
+        if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
+          sendLog('error', 'URL inválida: deve ser um link do YouTube');
+          sendEvent({ type: 'error', message: 'URL deve ser do YouTube' });
+          res.end();
+          return;
+        }
+
+        sendLog('success', 'URL validada com sucesso');
+        sendStatus('Iniciando transcrição via Whisper...', 'processing', 10);
+
+        const startTime = Date.now();
+        let transcriptionTime = 0;
+        let summaryTime = 0;
+
+        // Primeira fase: Transcrição via Whisper
+        sendLog('info', 'Baixando áudio do vídeo...');
+        sendProgress(20, 'Baixando áudio...');
+
+        const transcriptionStartTime = Date.now();
+        let transcript;
+
+        try {
+          sendLog('info', 'Chamando YouTubeService.fetchTranscriptWhisperOnly...');
+          transcript = await YouTubeService.fetchTranscriptWhisperOnly(url);
+          transcriptionTime = Date.now() - transcriptionStartTime;
+          
+          sendLog('success', `Transcrição concluída em ${Math.round(transcriptionTime/1000)}s`);
+          sendProgress(60, 'Transcrição concluída');
+          
+          const wordCount = transcript ? transcript.split(' ').length : 0;
+          sendEvent({ 
+            type: 'stats', 
+            stats: { transcriptionTime, wordCount }
+          });
+
+        } catch (transcriptionError) {
+          sendLog('error', `Erro na transcrição: ${transcriptionError.message}`);
+          sendEvent({ type: 'error', message: `Falha na transcrição: ${transcriptionError.message}` });
+          res.end();
+          return;
+        }
+
+        if (!transcript || transcript.trim().length === 0) {
+          sendLog('warning', 'Transcrição vazia ou inválida');
+          sendEvent({ type: 'error', message: 'Não foi possível extrair conteúdo do vídeo' });
+          res.end();
+          return;
+        }
+
+        sendLog('info', `Transcrição obtida: ${transcript.length} caracteres`);
+        sendStatus('Gerando resumo via LLM...', 'processing', 70);
+
+        // Segunda fase: Resumo via LLM
+        const summaryStartTime = Date.now();
+        
+        try {
+          sendLog('info', 'Conectando ao serviço LLM...');
+          sendProgress(75, 'Conectando ao LLM...');
+
+          // Truncar transcrição se muito longa
+          const maxLength = 15000;
+          const truncatedTranscript = transcript.slice(0, maxLength);
+          const wasTruncated = transcript.length > maxLength;
+          
+          if (wasTruncated) {
+            sendLog('warning', `Transcrição truncada de ${transcript.length} para ${maxLength} caracteres`);
+          }
+
+          sendLog('info', 'Gerando resumo...');
+          sendProgress(85, 'Gerando resumo...');
+
+          const summaryPrompt = `Resuma em português o texto a seguir em tópicos claros e objetivos, em até 30 linhas:\n\n${truncatedTranscript}`;
+          
+          // Usar o LLMService parametrizado do bot
+          const response = await this.bot.llmService.chatWithModel(summaryPrompt, CONFIG.llm.model);
+          if (!response) {
+            throw new Error('Resposta vazia do serviço LLM');
+          }
+
+          const summary = response.message.content;
+          summaryTime = Date.now() - summaryStartTime;
+          
+          sendLog('success', `Resumo gerado em ${Math.round(summaryTime/1000)}s`);
+          sendProgress(95, 'Resumo concluído');
+          
+          sendEvent({ 
+            type: 'stats', 
+            stats: { summaryTime }
+          });
+
+          // Enviar resultado final
+          sendLog('success', 'Processamento concluído com sucesso');
+          sendStatus('Processamento concluído', 'success', 100);
+          
+          sendEvent({ 
+            type: 'result', 
+            result: summary
+          });
+
+          sendEvent({ type: 'complete' });
+
+        } catch (summaryError) {
+          sendLog('error', `Erro ao gerar resumo: ${summaryError.message}`);
+          sendEvent({ type: 'error', message: `Falha ao gerar resumo: ${summaryError.message}` });
+          res.end();
+          return;
+        }
+
+      } catch (error) {
+        logger.error('Erro no processamento resumirvideo2:', error);
+        sendLog('error', `Erro inesperado: ${error.message}`);
+        sendEvent({ type: 'error', message: 'Erro interno do servidor' });
+      } finally {
+        res.end();
       }
     });
 
@@ -1322,6 +1500,115 @@ class RestAPI {
         res.status(500).json({ 
           success: false,
           error: 'Erro ao testar endpoint',
+          details: error.message 
+        });
+      }
+    });
+
+    // ============ Ollama API Routes ============
+    
+    // Página de configuração do Ollama API
+    this.app.get('/ollama-api-config', (req, res) => {
+      res.render('ollama-api-config');
+    });
+
+    // API endpoint para status do Ollama API Pool
+    this.app.get('/api/ollama-api/status', async (req, res) => {
+      try {
+        const llmService = this.bot.llmService;
+        const status = await llmService.getOllamaApiStatus();
+        res.json(status);
+      } catch (error) {
+        logger.error('Erro ao obter status do Ollama API:', error);
+        res.status(500).json({ 
+          error: 'Erro ao obter status do Ollama API',
+          details: error.message 
+        });
+      }
+    });
+
+    // API endpoint para testar conectividade de um endpoint Ollama
+    this.app.post('/api/ollama-api/test', async (req, res) => {
+      try {
+        const { url } = req.body;
+        if (!url) {
+          return res.status(400).json({ error: 'URL do endpoint é obrigatória' });
+        }
+
+        const OllamaAPIClient = (await import('../services/ollamaApiClient.js')).default;
+        const client = new OllamaAPIClient(url);
+        
+        const health = await client.getHealth();
+        const version = await client.getVersion();
+        const models = await client.listModels();
+        const runningModels = await client.listRunningModels();
+
+        res.json({
+          success: true,
+          url,
+          health,
+          version: version.version,
+          models: models.models,
+          runningModels: runningModels.models,
+          timestamp: new Date().toISOString()
+        });
+
+      } catch (error) {
+        logger.error('Erro ao testar endpoint Ollama API:', error);
+        res.status(500).json({ 
+          success: false,
+          error: 'Erro ao testar endpoint',
+          details: error.message 
+        });
+      }
+    });
+
+    // API endpoint para listar modelos via Ollama API
+    this.app.get('/api/ollama-api/models', async (req, res) => {
+      try {
+        const llmService = this.bot.llmService;
+        const models = await llmService.listModels();
+        res.json(models);
+      } catch (error) {
+        logger.error('Erro ao listar modelos Ollama:', error);
+        res.status(500).json({ 
+          error: 'Erro ao listar modelos',
+          details: error.message 
+        });
+      }
+    });
+
+    // API endpoint para fazer pull de um modelo via Ollama API
+    this.app.post('/api/ollama-api/pull', async (req, res) => {
+      try {
+        const { model } = req.body;
+        if (!model) {
+          return res.status(400).json({ error: 'Nome do modelo é obrigatório' });
+        }
+
+        const llmService = this.bot.llmService;
+        const result = await llmService.pullModel(model);
+        res.json(result);
+      } catch (error) {
+        logger.error('Erro ao fazer pull do modelo:', error);
+        res.status(500).json({ 
+          error: 'Erro ao fazer pull do modelo',
+          details: error.message 
+        });
+      }
+    });
+
+    // API endpoint para deletar um modelo via Ollama API
+    this.app.delete('/api/ollama-api/models/:model', async (req, res) => {
+      try {
+        const { model } = req.params;
+        const llmService = this.bot.llmService;
+        const result = await llmService.deleteModel(model);
+        res.json(result);
+      } catch (error) {
+        logger.error('Erro ao deletar modelo:', error);
+        res.status(500).json({ 
+          error: 'Erro ao deletar modelo',
           details: error.message 
         });
       }

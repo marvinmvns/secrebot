@@ -94,6 +94,62 @@ export const config = {
     loadBalancing: {
       strategy: process.env.WHISPER_API_LOAD_STRATEGY || 'queue_length', // 'round_robin', 'priority', 'queue_length'
       healthCheckInterval: parseInt(process.env.WHISPER_API_HEALTH_CHECK_INTERVAL || '30000', 10)
+    },
+    whisperOptions: {
+      outputInCsv: process.env.WHISPER_OUTPUT_CSV === 'true',
+      outputInJson: process.env.WHISPER_OUTPUT_JSON === 'true',
+      outputInJsonFull: process.env.WHISPER_OUTPUT_JSON_FULL === 'true',
+      outputInLrc: process.env.WHISPER_OUTPUT_LRC === 'true',
+      outputInSrt: process.env.WHISPER_OUTPUT_SRT !== 'false',
+      outputInText: process.env.WHISPER_OUTPUT_TEXT === 'true',
+      outputInVtt: process.env.WHISPER_OUTPUT_VTT === 'true',
+      outputInWords: process.env.WHISPER_OUTPUT_WORDS === 'true',
+      translateToEnglish: process.env.WHISPER_TRANSLATE_EN === 'true',
+      timestamps_length: parseInt(process.env.WHISPER_TIMESTAMPS_LENGTH || '20', 10),
+      splitOnWord: process.env.WHISPER_SPLIT_ON_WORD !== 'false',
+      removeTimestamps: process.env.WHISPER_REMOVE_TIMESTAMPS === 'true'
+    }
+  },
+  ollamaApi: {
+    enabled: process.env.OLLAMA_API_ENABLED === 'true',
+    mode: process.env.OLLAMA_API_MODE || 'local', // 'local' or 'api'
+    endpoints: [
+      {
+        url: process.env.OLLAMA_API_ENDPOINT_1 || 'http://localhost:11434',
+        enabled: process.env.OLLAMA_API_ENDPOINT_1_ENABLED !== 'false',
+        priority: parseInt(process.env.OLLAMA_API_ENDPOINT_1_PRIORITY || '1', 10),
+        maxRetries: parseInt(process.env.OLLAMA_API_ENDPOINT_1_MAX_RETRIES || '2', 10)
+      },
+      {
+        url: process.env.OLLAMA_API_ENDPOINT_2 || '',
+        enabled: process.env.OLLAMA_API_ENDPOINT_2_ENABLED === 'true' && !!process.env.OLLAMA_API_ENDPOINT_2,
+        priority: parseInt(process.env.OLLAMA_API_ENDPOINT_2_PRIORITY || '2', 10),
+        maxRetries: parseInt(process.env.OLLAMA_API_ENDPOINT_2_MAX_RETRIES || '2', 10)
+      },
+      {
+        url: process.env.OLLAMA_API_ENDPOINT_3 || '',
+        enabled: process.env.OLLAMA_API_ENDPOINT_3_ENABLED === 'true' && !!process.env.OLLAMA_API_ENDPOINT_3,
+        priority: parseInt(process.env.OLLAMA_API_ENDPOINT_3_PRIORITY || '3', 10),
+        maxRetries: parseInt(process.env.OLLAMA_API_ENDPOINT_3_MAX_RETRIES || '2', 10)
+      },
+      {
+        url: process.env.OLLAMA_API_ENDPOINT_4 || '',
+        enabled: process.env.OLLAMA_API_ENDPOINT_4_ENABLED === 'true' && !!process.env.OLLAMA_API_ENDPOINT_4,
+        priority: parseInt(process.env.OLLAMA_API_ENDPOINT_4_PRIORITY || '4', 10),
+        maxRetries: parseInt(process.env.OLLAMA_API_ENDPOINT_4_MAX_RETRIES || '2', 10)
+      },
+      {
+        url: process.env.OLLAMA_API_ENDPOINT_5 || '',
+        enabled: process.env.OLLAMA_API_ENDPOINT_5_ENABLED === 'true' && !!process.env.OLLAMA_API_ENDPOINT_5,
+        priority: parseInt(process.env.OLLAMA_API_ENDPOINT_5_PRIORITY || '5', 10),
+        maxRetries: parseInt(process.env.OLLAMA_API_ENDPOINT_5_MAX_RETRIES || '2', 10)
+      }
+    ].filter(endpoint => endpoint.enabled && endpoint.url),
+    timeout: parseInt(process.env.OLLAMA_API_TIMEOUT || '600000', 10), // 10 minutes
+    retryDelay: parseInt(process.env.OLLAMA_API_RETRY_DELAY || '2000', 10),
+    loadBalancing: {
+      strategy: process.env.OLLAMA_API_LOAD_STRATEGY || 'queue_length', // 'round_robin', 'priority', 'queue_length'
+      healthCheckInterval: parseInt(process.env.OLLAMA_API_HEALTH_CHECK_INTERVAL || '30000', 10)
     }
   },
   elevenlabs: {

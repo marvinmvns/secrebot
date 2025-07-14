@@ -24,9 +24,29 @@ class AudioTranscriber {
     this.whisperApiPool = new WhisperAPIPool(configService);
   }
 
+  async getEffectiveWhisperOptions() {
+    let mongoConfig = null;
+    if (this.configService) {
+      try {
+        mongoConfig = await this.configService.getConfig();
+      } catch (error) {
+        logger.warn('⚠️ Erro ao obter configuração do MongoDB para whisperOptions, usando configuração padrão:', error.message);
+      }
+    }
+    
+    if (mongoConfig?.whisperApi?.whisperOptions) {
+      return { ...CONFIG.whisperApi.whisperOptions, ...mongoConfig.whisperApi.whisperOptions };
+    }
+    
+    return CONFIG.whisperApi.whisperOptions;
+  }
+
   async transcribeWithAutoDownload(filePath, modelName = CONFIG.audio.model) {
     try {
       logger.debug(`🔄 Iniciando transcrição com auto-download do modelo: ${modelName}`);
+      
+      // Get effective whisperOptions (merged from config and MongoDB)
+      const whisperOptions = await this.getEffectiveWhisperOptions();
       
       const options = {
         modelName: modelName,
@@ -35,7 +55,7 @@ class AudioTranscriber {
         removeWavFileAfterTranscription: false,
         withCuda: false,
         whisperOptions: { 
-          outputInText: true, 
+          ...whisperOptions,
           language: CONFIG.audio.language 
         },
         logger: logger
@@ -57,7 +77,27 @@ class AudioTranscriber {
     const execPath = path.join(WHISPER_CPP_PATH, WHISPER_CPP_MAIN_PATH);
     const modelFile = MODEL_OBJECT[options.modelName];
     const modelPath = path.join(WHISPER_CPP_PATH, 'models', modelFile);
-    const args = ['-m', modelPath, '-f', filePath, '-otxt', '-l', options.whisperOptions.language];
+    
+    // Build args with whisperOptions
+    const args = ['-m', modelPath, '-f', filePath, '-l', options.whisperOptions.language];
+    
+    // Add output format options
+    if (options.whisperOptions.outputInText) args.push('-otxt');
+    if (options.whisperOptions.outputInSrt) args.push('-osrt');
+    if (options.whisperOptions.outputInVtt) args.push('-ovtt');
+    if (options.whisperOptions.outputInLrc) args.push('-olrc');
+    if (options.whisperOptions.outputInWords) args.push('-owts');
+    if (options.whisperOptions.outputInCsv) args.push('-ocsv');
+    if (options.whisperOptions.outputInJson) args.push('-oj');
+    if (options.whisperOptions.outputInJsonFull) args.push('-of');
+    
+    // Add other options
+    if (options.whisperOptions.translateToEnglish) args.push('--translate');
+    if (options.whisperOptions.splitOnWord) args.push('--split-on-word');
+    if (options.whisperOptions.timestamps_length) {
+      args.push('--length');
+      args.push(String(options.whisperOptions.timestamps_length));
+    }
 
     // Log detalhado para debug
     logger.debug('🔧 Whisper Debug Info:', {
@@ -174,6 +214,26 @@ class AudioTranscriber {
     });
   }
 
+  /**
+   * Remove timestamp lines from Whisper transcription output
+   * @param {string} text - The text containing timestamps
+   * @returns {string} The cleaned text without timestamp lines
+   */
+  removeTimestampsFromText(text) {
+    if (!text || typeof text !== 'string') {
+      return text;
+    }
+    
+    // Pattern to match timestamp lines: [HH:MM:SS.mmm] -> [HH:MM:SS.mmm]
+    const timestampPattern = /^\s*\[\d{2}:\d{2}:\d{2}\.\d{3,4}\]\s*->\s*\[\d{2}:\d{2}:\d{2}\.\d{3,4}\]\s*$/gm;
+    
+    // Split text into lines, filter out timestamp lines, and rejoin
+    const lines = text.split('\n');
+    const cleanedLines = lines.filter(line => !timestampPattern.test(line));
+    
+    return cleanedLines.join('\n').trim();
+  }
+
   async transcribeViaAPI(audioBuffer, inputFormat = 'ogg') {
     try {
       const timestamp = Date.now();
@@ -181,14 +241,22 @@ class AudioTranscriber {
       
       logger.debug(`🌐 Iniciando transcrição via API para arquivo: ${filename}`);
       
+      // Get effective whisperOptions for API transcription
+      const whisperOptions = await this.getEffectiveWhisperOptions();
+      
       const options = {
         language: CONFIG.audio.language,
-        translate: false,
-        wordTimestamps: false,
-        cleanup: true
+        cleanup: true,
+        ...whisperOptions
       };
 
-      const transcription = await this.whisperApiPool.transcribe(audioBuffer, filename, options);
+      let transcription = await this.whisperApiPool.transcribe(audioBuffer, filename, options);
+      
+      // Remove timestamps if the option is enabled
+      if (options.removeTimestamps) {
+        logger.debug('🧹 Removendo timestamps da transcrição...');
+        transcription = this.removeTimestampsFromText(transcription);
+      }
       
       logger.success('✅ Transcrição via API concluída com sucesso');
       return transcription;

@@ -1,4 +1,5 @@
 import OllamaAPIClient from './ollamaApiClient.js';
+import RKLlamaAPIClient from './rkllamaApiClient.js';
 import logger from '../utils/logger.js';
 import { CONFIG, getDynamicConfig } from '../config/index.js';
 
@@ -8,6 +9,7 @@ class OllamaAPIPool {
     this.clients = [];
     this.currentIndex = 0;
     this.lastHealthCheck = 0;
+    this.healthCheckInterval = null;
     this.initialize();
   }
 
@@ -23,37 +25,100 @@ class OllamaAPIPool {
     return getDynamicConfig(mongoConfig);
   }
 
+  // Helper function to detect RKLLama endpoints (by configured type)
+  isRKLlamaEndpoint(endpoint) {
+    // Check configured type first, fallback to port detection for backward compatibility
+    if (endpoint.type) {
+      return endpoint.type === 'rkllama';
+    }
+    
+    // Fallback: detect by port for existing configurations
+    try {
+      const parsedUrl = new URL(endpoint.url || endpoint);
+      return parsedUrl.port === '8080';
+    } catch (error) {
+      logger.warn(`⚠️ URL inválida para detecção RKLLama: ${endpoint.url || endpoint}`);
+      return false;
+    }
+  }
+
+  // Create appropriate client based on endpoint type
+  createClient(endpoint) {
+    const isRKLlama = this.isRKLlamaEndpoint(endpoint);
+    
+    if (isRKLlama) {
+      logger.info(`🤖 Criando cliente RKLLama para: ${endpoint.url}`);
+      return new RKLlamaAPIClient(endpoint.url);
+    } else {
+      logger.info(`🧠 Criando cliente Ollama para: ${endpoint.url}`);
+      return new OllamaAPIClient(endpoint.url);
+    }
+  }
+
   async initialize() {
     logger.info('🔧 Inicializando pool de APIs Ollama...');
+    
+    // Stop existing health check interval if running
+    this.stopHealthCheckInterval();
     
     const effectiveConfig = await this.getEffectiveConfig();
     
     if (!effectiveConfig.ollamaApi.enabled || !effectiveConfig.ollamaApi.endpoints.length) {
       logger.warn('⚠️ OllamaAPI não habilitado ou sem endpoints configurados');
+      this.clients = [];
       return;
     }
 
-    this.clients = effectiveConfig.ollamaApi.endpoints.map(endpoint => {
-      const client = new OllamaAPIClient(endpoint.url);
-      client.endpoint = endpoint;
-      client.retryCount = 0;
-      logger.info(`📡 Endpoint Ollama configurado: ${endpoint.url} (prioridade: ${endpoint.priority})`);
-      return client;
-    });
+    this.clients = effectiveConfig.ollamaApi.endpoints
+      .filter(endpoint => endpoint.enabled)
+      .map(endpoint => {
+        const client = this.createClient(endpoint);
+        client.endpoint = endpoint;
+        client.retryCount = 0;
+        
+        const clientType = this.isRKLlamaEndpoint(endpoint) ? 'RKLLama' : 'Ollama';
+        logger.info(`📡 Endpoint ${clientType} configurado: ${endpoint.url} (prioridade: ${endpoint.priority})`);
+        return client;
+      });
 
     this.clients.sort((a, b) => a.endpoint.priority - b.endpoint.priority);
     
-    logger.success(`✅ Pool Ollama inicializado com ${this.clients.length} endpoints`);
-    this.startHealthCheckInterval();
+    if (this.clients.length > 0) {
+      logger.success(`✅ Pool Ollama inicializado com ${this.clients.length} endpoints`);
+      this.startHealthCheckInterval();
+    } else {
+      logger.warn('⚠️ Nenhum endpoint Ollama habilitado encontrado');
+    }
   }
 
   startHealthCheckInterval() {
-    setInterval(async () => {
+    this.healthCheckInterval = setInterval(async () => {
       await this.performHealthChecks();
     }, CONFIG.ollamaApi.loadBalancing.healthCheckInterval);
   }
 
+  stopHealthCheckInterval() {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = null;
+      logger.debug('🛑 Health check interval Ollama parado');
+    }
+  }
+
   async performHealthChecks() {
+    // Check if the service is still enabled
+    const isServiceEnabled = await this.isEnabled();
+    if (!isServiceEnabled) {
+      logger.debug('🛑 OllamaAPI desabilitado, parando health checks');
+      this.stopHealthCheckInterval();
+      return;
+    }
+
+    if (this.clients.length === 0) {
+      logger.debug('🛑 Nenhum cliente Ollama disponível para health check');
+      return;
+    }
+
     logger.debug('🔍 Executando health checks nos endpoints Ollama...');
     
     const healthPromises = this.clients.map(async (client) => {
@@ -146,6 +211,7 @@ class OllamaAPIPool {
     const healthyClients = this.getHealthyClients();
     
     if (healthyClients.length === 0) {
+      logger.warn('⚠️ Nenhum endpoint Ollama API saudável disponível');
       throw new Error('No healthy Ollama API endpoints available');
     }
 
@@ -178,27 +244,15 @@ class OllamaAPIPool {
       }
     }
     
+    logger.error(`❌ Todos os endpoints Ollama API falharam. Último erro: ${lastError?.message}`);
     throw new Error(`All Ollama API endpoints failed. Last error: ${lastError?.message}`);
   }
 
   async generate(options = {}) {
     logger.service('🤖 Iniciando geração via Ollama API...');
     
-    try {
-      const client = await this.selectBestClient();
-      
-      logger.info(`🎯 Endpoint selecionado: ${client.baseURL} (${CONFIG.ollamaApi.loadBalancing.strategy})`);
-      
-      const result = await client.generate(options);
-      
-      logger.success(`✅ Geração via API concluída com sucesso`);
-      return result;
-      
-    } catch (error) {
-      logger.warn(`⚠️ Falha no endpoint principal, tentando fallback...`);
-      
-      return await this.generateWithFallback(options);
-    }
+    // Always use fallback method to try all available endpoints
+    return await this.generateWithFallback(options);
   }
 
   // ============ Chat Methods ============
@@ -206,6 +260,7 @@ class OllamaAPIPool {
     const healthyClients = this.getHealthyClients();
     
     if (healthyClients.length === 0) {
+      logger.warn('⚠️ Nenhum endpoint Ollama API saudável disponível');
       throw new Error('No healthy Ollama API endpoints available');
     }
 
@@ -238,27 +293,15 @@ class OllamaAPIPool {
       }
     }
     
+    logger.error(`❌ Todos os endpoints Ollama API falharam. Último erro: ${lastError?.message}`);
     throw new Error(`All Ollama API endpoints failed. Last error: ${lastError?.message}`);
   }
 
   async chat(options = {}) {
     logger.service('💬 Iniciando chat via Ollama API...');
     
-    try {
-      const client = await this.selectBestClient();
-      
-      logger.info(`🎯 Endpoint selecionado: ${client.baseURL} (${CONFIG.ollamaApi.loadBalancing.strategy})`);
-      
-      const result = await client.chat(options);
-      
-      logger.success(`✅ Chat via API concluído com sucesso`);
-      return result;
-      
-    } catch (error) {
-      logger.warn(`⚠️ Falha no endpoint principal, tentando fallback...`);
-      
-      return await this.chatWithFallback(options);
-    }
+    // Always use fallback method to try all available endpoints
+    return await this.chatWithFallback(options);
   }
 
   // ============ Model Management Methods ============
@@ -340,6 +383,7 @@ class OllamaAPIPool {
     const healthyClients = this.getHealthyClients();
     
     if (healthyClients.length === 0) {
+      logger.warn('⚠️ Nenhum endpoint Ollama API saudável disponível');
       throw new Error('No healthy Ollama API endpoints available');
     }
 
@@ -347,23 +391,38 @@ class OllamaAPIPool {
     
     for (const client of healthyClients) {
       try {
-        return await client[method](...args);
+        logger.debug(`🎯 Tentando ${method} com ${client.baseURL}`);
+        const result = await client[method](...args);
+        logger.success(`✅ ${method} bem-sucedido via ${client.baseURL}`);
+        return result;
       } catch (error) {
         lastError = error;
         client.retryCount++;
         
+        logger.warn(`⚠️ Falha em ${method} via ${client.baseURL}: ${error.message}`);
+        
         if (client.retryCount >= client.endpoint.maxRetries) {
           client.isHealthy = false;
+          logger.error(`❌ Endpoint ${client.baseURL} marcado como não saudável após ${client.retryCount} falhas`);
+        }
+        
+        if (healthyClients.indexOf(client) < healthyClients.length - 1) {
+          logger.debug(`🔄 Tentando próximo endpoint para ${method}...`);
+          await new Promise(resolve => setTimeout(resolve, CONFIG.ollamaApi.retryDelay));
         }
       }
     }
     
+    logger.error(`❌ Todos os endpoints falharam para ${method}. Último erro: ${lastError?.message}`);
     throw new Error(`All Ollama API endpoints failed. Last error: ${lastError?.message}`);
   }
 
   // ============ Pool Status ============
   async getPoolStatus() {
+    const effectiveConfig = await this.getEffectiveConfig();
     const status = {
+      enabled: effectiveConfig.ollamaApi.enabled,
+      mode: effectiveConfig.ollamaApi.mode || 'local',
       totalEndpoints: this.clients.length,
       healthyEndpoints: this.getHealthyClients().length,
       strategy: CONFIG.ollamaApi.loadBalancing.strategy,
@@ -374,20 +433,25 @@ class OllamaAPIPool {
       try {
         const health = await client.getHealth();
         const runningModels = await client.listRunningModels();
+        const clientType = this.isRKLlamaEndpoint(client.endpoint) ? 'RKLLama' : 'Ollama';
         
         status.endpoints.push({
           url: client.baseURL,
+          type: clientType,
           healthy: client.isHealthy,
           priority: client.endpoint.priority,
           runningModels: runningModels.models?.length || 0,
           loadScore: client.getLoadScore(),
           retryCount: client.retryCount,
           lastHealthCheck: new Date(client.lastHealthCheck).toISOString(),
-          version: health.version
+          version: health.version,
+          currentModel: health.currentModel || null
         });
       } catch (error) {
+        const clientType = this.isRKLlamaEndpoint(client.endpoint) ? 'RKLLama' : 'Ollama';
         status.endpoints.push({
           url: client.baseURL,
+          type: clientType,
           healthy: false,
           priority: client.endpoint.priority,
           error: error.message,
@@ -411,6 +475,17 @@ class OllamaAPIPool {
 
   getMode() {
     return CONFIG.ollamaApi.mode;
+  }
+
+  async reinitialize() {
+    logger.info('🔄 Reinicializando pool de APIs Ollama...');
+    await this.initialize();
+  }
+
+  destroy() {
+    logger.info('🗑️ Destruindo pool de APIs Ollama...');
+    this.stopHealthCheckInterval();
+    this.clients = [];
   }
 }
 

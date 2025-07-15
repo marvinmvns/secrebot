@@ -157,6 +157,18 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
+                                <label class="form-label">Status Geral do OllamaAPI</label>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="ollamaApiEnabled">
+                                    <label class="form-check-label" for="ollamaApiEnabled">
+                                        <strong>Habilitar OllamaAPI</strong>
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    Ativa ou desativa completamente o sistema de OllamaAPI
+                                </div>
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label">Modo de Operação</label>
                                 <select class="form-select" id="operationMode">
                                     <option value="local">Local (Ollama instalado localmente)</option>
@@ -249,7 +261,7 @@
             });
 
             // Auto-save on change
-            ['operationMode', 'apiTimeout', 'retryDelay', 'healthCheckInterval'].forEach(id => {
+            ['ollamaApiEnabled', 'operationMode', 'apiTimeout', 'retryDelay', 'healthCheckInterval'].forEach(id => {
                 document.getElementById(id).addEventListener('change', updateConfigFromForm);
             });
         }
@@ -282,6 +294,7 @@
         function updateFormFromConfig() {
             const ollamaApi = currentConfig.ollamaApi || {};
             
+            document.getElementById('ollamaApiEnabled').checked = ollamaApi.enabled || false;
             document.getElementById('operationMode').value = ollamaApi.mode || 'local';
             document.getElementById('apiTimeout').value = ollamaApi.timeout || 600000;
             document.getElementById('retryDelay').value = ollamaApi.retryDelay || 2000;
@@ -304,7 +317,7 @@
             if (!currentConfig.ollamaApi) currentConfig.ollamaApi = {};
             if (!currentConfig.ollamaApi.loadBalancing) currentConfig.ollamaApi.loadBalancing = {};
 
-            currentConfig.ollamaApi.enabled = true;
+            currentConfig.ollamaApi.enabled = document.getElementById('ollamaApiEnabled').checked;
             currentConfig.ollamaApi.mode = document.getElementById('operationMode').value;
             currentConfig.ollamaApi.timeout = parseInt(document.getElementById('apiTimeout').value);
             currentConfig.ollamaApi.retryDelay = parseInt(document.getElementById('retryDelay').value);
@@ -378,11 +391,19 @@
             while (endpoints.length < 5) {
                 endpoints.push({
                     url: '',
+                    type: 'ollama',
                     enabled: false,
                     priority: endpoints.length + 1,
                     maxRetries: 2
                 });
             }
+
+            // Ensure existing endpoints have a type
+            endpoints.forEach(endpoint => {
+                if (!endpoint.type) {
+                    endpoint.type = 'ollama';
+                }
+            });
 
             container.innerHTML = endpoints.map((endpoint, index) => 
                 createEndpointCard(endpoint, index)
@@ -390,15 +411,37 @@
 
             // Attach event listeners
             endpoints.forEach((_, index) => {
-                ['url', 'enabled', 'priority', 'maxRetries'].forEach(field => {
+                ['url', 'type', 'enabled', 'priority', 'maxRetries', 'model'].forEach(field => {
                     const element = document.getElementById(`endpoint_${index}_${field}`);
                     if (element) {
-                        element.addEventListener('change', () => updateEndpointConfig(index));
+                        element.addEventListener('change', () => {
+                            updateEndpointConfig(index);
+                            if (field === 'type') {
+                                toggleRKLlamaSection(index);
+                            }
+                            if (field === 'model') {
+                                const currentType = document.getElementById(`endpoint_${index}_type`).value;
+                                if (currentType === 'rkllama') {
+                                    updateLoadModelButton(index);
+                                }
+                            }
+                        });
                     }
                 });
 
+                // Load models button
+                document.getElementById(`loadModels_${index}`).addEventListener('click', 
+                    () => loadEndpointModels(index));
+                
+                // Load model button (RKLLama)
+                document.getElementById(`loadModelBtn_${index}`).addEventListener('click', 
+                    () => loadModelInRKLlama(index));
+
                 document.getElementById(`testEndpoint_${index}`).addEventListener('click', 
                     () => testEndpoint(index));
+                
+                // Initialize RKLLama section visibility
+                toggleRKLlamaSection(index);
             });
         }
 
@@ -412,6 +455,16 @@
                 const indicator = card.querySelector('.status-indicator');
                 const statusText = card.querySelector('.endpoint-status');
                 const modelInfo = card.querySelector('.model-info');
+                const typeIndicator = card.querySelector('.endpoint-type');
+
+                // Update type indicator
+                if (typeIndicator) {
+                    const isRKLlama = status.type === 'RKLLama';
+                    typeIndicator.innerHTML = isRKLlama ? 
+                        '<i class="fas fa-robot text-white"></i> RKLLama' : 
+                        '<i class="fas fa-brain text-white"></i> Ollama';
+                    typeIndicator.className = `endpoint-type badge ${isRKLlama ? 'bg-info' : 'bg-primary'}`;
+                }
 
                 if (status.healthy) {
                     indicator.className = 'status-indicator healthy';
@@ -419,11 +472,18 @@
                     statusText.innerHTML = `<i class="fas fa-check-circle text-success"></i> Online`;
                     
                     if (status.runningModels !== undefined) {
-                        modelInfo.innerHTML = `
+                        let modelInfoHtml = `
                             Modelos em execução: ${status.runningModels} | 
                             Score: <span class="load-score">${status.loadScore}</span> |
                             Versão: ${status.version || 'N/A'}
                         `;
+                        
+                        // Add current model info for RKLLama
+                        if (status.type === 'RKLLama' && status.currentModel) {
+                            modelInfoHtml += `<br>Modelo atual: ${status.currentModel}`;
+                        }
+                        
+                        modelInfo.innerHTML = modelInfoHtml;
                     }
                 } else {
                     indicator.className = 'status-indicator unhealthy';
@@ -435,6 +495,10 @@
         }
 
         function createEndpointCard(endpoint, index) {
+            const isPort8080 = endpoint.url && endpoint.url.includes(':8080');
+            const placeholderUrl = isPort8080 ? 'http://localhost:8080' : 'http://localhost:11434';
+            const selectedModel = endpoint.model || '';
+            
             return `
                 <div class="endpoint-card" data-endpoint-index="${index}">
                     <div class="card-header">
@@ -442,6 +506,9 @@
                             <h6 class="mb-0">
                                 <span class="status-indicator unknown"></span>
                                 Endpoint ${index + 1}
+                                <span class="endpoint-type badge bg-secondary ms-2">
+                                    <i class="fas fa-question-circle"></i> Detectando...
+                                </span>
                             </h6>
                             <div class="endpoint-status">
                                 <i class="fas fa-question-circle text-muted"></i> Desconhecido
@@ -450,29 +517,67 @@
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">URL do Endpoint</label>
                                     <input type="url" class="form-control" id="endpoint_${index}_url" 
                                            value="${endpoint.url || ''}" 
-                                           placeholder="http://localhost:11434">
+                                           placeholder="${placeholderUrl}">
+                                    <div class="form-text">
+                                        <strong>Ollama:</strong> http://localhost:11434 ou http://192.168.x.x:11434<br>
+                                        <strong>RKLLama:</strong> http://localhost:8080 ou http://192.168.x.x:8080
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-md-2">
+                                <div class="mb-3">
+                                    <label class="form-label">Tipo</label>
+                                    <select class="form-select" id="endpoint_${index}_type">
+                                        <option value="ollama" ${(endpoint.type || 'ollama') === 'ollama' ? 'selected' : ''}>
+                                            🧠 Ollama
+                                        </option>
+                                        <option value="rkllama" ${endpoint.type === 'rkllama' ? 'selected' : ''}>
+                                            🤖 RKLLama
+                                        </option>
+                                    </select>
+                                    <div class="form-text">
+                                        Escolha o tipo de API
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">Modelo Preferido</label>
+                                    <div class="input-group">
+                                        <select class="form-select" id="endpoint_${index}_model" disabled>
+                                            <option value="">Selecione um modelo...</option>
+                                            ${selectedModel ? `<option value="${selectedModel}" selected>${selectedModel}</option>` : ''}
+                                        </select>
+                                        <button class="btn btn-outline-secondary" type="button" id="loadModels_${index}" 
+                                                title="Carregar modelos disponíveis">
+                                            <i class="fas fa-sync-alt"></i>
+                                        </button>
+                                    </div>
+                                    <div class="form-text">
+                                        <span id="modelStatus_${index}">Conecte-se ao endpoint para ver modelos</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-1">
                                 <div class="mb-3">
                                     <label class="form-label">Prioridade</label>
                                     <input type="number" class="form-control" id="endpoint_${index}_priority" 
                                            value="${endpoint.priority || index + 1}" min="1" max="5">
                                 </div>
                             </div>
-                            <div class="col-md-2">
+                            <div class="col-md-1">
                                 <div class="mb-3">
                                     <label class="form-label">Max Retries</label>
                                     <input type="number" class="form-control" id="endpoint_${index}_maxRetries" 
                                            value="${endpoint.maxRetries || 2}" min="0" max="5">
                                 </div>
                             </div>
-                            <div class="col-md-2">
+                            <div class="col-md-1">
                                 <div class="mb-3">
                                     <label class="form-label">Habilitado</label>
                                     <div class="form-check form-switch">
@@ -480,6 +585,19 @@
                                                id="endpoint_${index}_enabled" 
                                                ${endpoint.enabled ? 'checked' : ''}>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- RKLLama Model Loading Section -->
+                        <div class="row rkllama-section" id="rkllama_${index}" style="display: none;">
+                            <div class="col-md-12">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i>
+                                    <strong>RKLLama:</strong> Selecione um modelo acima e clique em "Carregar Modelo" para ativá-lo no endpoint.
+                                    <button class="btn btn-sm btn-primary ms-2" id="loadModelBtn_${index}" disabled>
+                                        <i class="fas fa-download"></i> Carregar Modelo
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -509,13 +627,159 @@
 
             const endpoint = currentConfig.ollamaApi.endpoints[index];
             endpoint.url = document.getElementById(`endpoint_${index}_url`).value;
+            endpoint.type = document.getElementById(`endpoint_${index}_type`).value;
             endpoint.enabled = document.getElementById(`endpoint_${index}_enabled`).checked;
             endpoint.priority = parseInt(document.getElementById(`endpoint_${index}_priority`).value);
             endpoint.maxRetries = parseInt(document.getElementById(`endpoint_${index}_maxRetries`).value);
+            endpoint.model = document.getElementById(`endpoint_${index}_model`).value;
+        }
+
+        function toggleRKLlamaSection(index) {
+            const type = document.getElementById(`endpoint_${index}_type`).value;
+            const rkLlamaSection = document.getElementById(`rkllama_${index}`);
+            
+            if (type === 'rkllama') {
+                rkLlamaSection.style.display = 'block';
+            } else {
+                rkLlamaSection.style.display = 'none';
+            }
+        }
+
+        async function loadEndpointModels(index) {
+            const url = document.getElementById(`endpoint_${index}_url`).value;
+            const type = document.getElementById(`endpoint_${index}_type`).value;
+            const modelSelect = document.getElementById(`endpoint_${index}_model`);
+            const loadButton = document.getElementById(`loadModels_${index}`);
+            const statusSpan = document.getElementById(`modelStatus_${index}`);
+            
+            if (!url.trim()) {
+                statusSpan.textContent = 'URL do endpoint é obrigatória';
+                statusSpan.className = 'text-danger';
+                return;
+            }
+
+            // Update UI state
+            loadButton.disabled = true;
+            loadButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            statusSpan.textContent = 'Carregando modelos...';
+            statusSpan.className = 'text-info';
+            modelSelect.disabled = true;
+
+            try {
+                const response = await fetch('/api/ollama-api/endpoint-models', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, type })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Clear existing options
+                    modelSelect.innerHTML = '<option value="">Selecione um modelo...</option>';
+                    
+                    // Add models to select
+                    const models = result.models || [];
+                    models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = typeof model === 'string' ? model : model.name || model.model;
+                        option.textContent = typeof model === 'string' ? model : model.name || model.model;
+                        modelSelect.appendChild(option);
+                    });
+                    
+                    // Restore selected model if it exists
+                    const savedModel = currentConfig.ollamaApi?.endpoints?.[index]?.model;
+                    if (savedModel && models.some(m => (typeof m === 'string' ? m : m.name || m.model) === savedModel)) {
+                        modelSelect.value = savedModel;
+                    }
+                    
+                    modelSelect.disabled = false;
+                    statusSpan.textContent = `${models.length} modelo(s) encontrado(s)`;
+                    statusSpan.className = 'text-success';
+                    
+                    // Update load model button for RKLLama
+                    if (type === 'rkllama') {
+                        updateLoadModelButton(index);
+                    }
+                } else {
+                    statusSpan.textContent = `Erro: ${result.error}`;
+                    statusSpan.className = 'text-danger';
+                }
+            } catch (error) {
+                statusSpan.textContent = `Erro na conexão: ${error.message}`;
+                statusSpan.className = 'text-danger';
+            } finally {
+                loadButton.disabled = false;
+                loadButton.innerHTML = '<i class="fas fa-sync-alt"></i>';
+            }
+        }
+
+        function updateLoadModelButton(index) {
+            const modelSelect = document.getElementById(`endpoint_${index}_model`);
+            const loadModelBtn = document.getElementById(`loadModelBtn_${index}`);
+            
+            if (modelSelect.value) {
+                loadModelBtn.disabled = false;
+                loadModelBtn.innerHTML = `<i class="fas fa-download"></i> Carregar ${modelSelect.value}`;
+            } else {
+                loadModelBtn.disabled = true;
+                loadModelBtn.innerHTML = '<i class="fas fa-download"></i> Carregar Modelo';
+            }
+        }
+
+        async function loadModelInRKLlama(index) {
+            const url = document.getElementById(`endpoint_${index}_url`).value;
+            const model = document.getElementById(`endpoint_${index}_model`).value;
+            const loadModelBtn = document.getElementById(`loadModelBtn_${index}`);
+            
+            if (!url.trim() || !model) {
+                showAlert('URL e modelo são obrigatórios para carregar modelo no RKLLama', 'warning');
+                return;
+            }
+
+            // Update UI state
+            loadModelBtn.disabled = true;
+            loadModelBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Carregando...';
+
+            try {
+                const response = await fetch('/api/ollama-api/load-model', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, model, type: 'rkllama' })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert(`Modelo ${model} carregado com sucesso no RKLLama!`, 'success');
+                    loadModelBtn.innerHTML = `<i class="fas fa-check"></i> ${model} Carregado`;
+                    loadModelBtn.className = 'btn btn-sm btn-success ms-2';
+                    
+                    // Update endpoint config
+                    updateEndpointConfig(index);
+                    
+                    // Refresh status
+                    setTimeout(() => {
+                        loadCurrentStatus();
+                    }, 2000);
+                } else {
+                    showAlert(`Erro ao carregar modelo: ${result.error}`, 'danger');
+                    loadModelBtn.innerHTML = `<i class="fas fa-download"></i> Carregar ${model}`;
+                    loadModelBtn.className = 'btn btn-sm btn-primary ms-2';
+                }
+            } catch (error) {
+                showAlert(`Erro na conexão: ${error.message}`, 'danger');
+                loadModelBtn.innerHTML = `<i class="fas fa-download"></i> Carregar ${model}`;
+                loadModelBtn.className = 'btn btn-sm btn-primary ms-2';
+            } finally {
+                loadModelBtn.disabled = false;
+            }
         }
 
         async function testEndpoint(index) {
             const url = document.getElementById(`endpoint_${index}_url`).value;
+            const type = document.getElementById(`endpoint_${index}_type`).value;
+            
             if (!url) {
                 showAlert('URL do endpoint é obrigatória', 'warning');
                 return;
@@ -531,24 +795,38 @@
                 const response = await fetch('/api/ollama-api/test', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url })
+                    body: JSON.stringify({ url, type })
                 });
 
                 const result = await response.json();
                 
                 if (result.success) {
-                    resultContainer.innerHTML = `
+                    let successHtml = `
                         <div class="test-result success">
                             <i class="fas fa-check-circle"></i> Teste bem-sucedido!<br>
+                            Tipo: ${result.type || type}<br>
                             Versão: ${result.version}<br>
+                    `;
+                    
+                    if (result.type === 'RKLLama') {
+                        successHtml += `
+                            Modelos disponíveis: ${result.models?.length || 0}<br>
+                            Modelo atual: ${result.currentModel || 'Nenhum carregado'}
+                        `;
+                    } else {
+                        successHtml += `
                             Modelos disponíveis: ${result.models?.length || 0}<br>
                             Modelos em execução: ${result.runningModels?.length || 0}
-                        </div>
-                    `;
+                        `;
+                    }
+                    
+                    successHtml += '</div>';
+                    resultContainer.innerHTML = successHtml;
                 } else {
                     resultContainer.innerHTML = `
                         <div class="test-result error">
                             <i class="fas fa-times-circle"></i> Teste falhou<br>
+                            Tipo: ${type}<br>
                             Erro: ${result.details}
                         </div>
                     `;

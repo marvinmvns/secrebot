@@ -66,14 +66,14 @@ export class ApplicationFactory {
     return llmService;
   }
 
-  createAudioTranscriber(configService) {
+  createAudioTranscriber(configService, llmService) {
     if (this.services.has('audioTranscriber')) {
       return this.services.get('audioTranscriber');
     }
 
-    const transcriber = new AudioTranscriber(configService);
+    const transcriber = new AudioTranscriber(configService, llmService);
     this.services.set('audioTranscriber', transcriber);
-    logger.info('Audio transcriber service initialized with configService');
+    logger.info('Audio transcriber service initialized with configService and llmService');
     return transcriber;
   }
 
@@ -130,7 +130,7 @@ export class ApplicationFactory {
     }
   }
 
-  async createTelegramBot() {
+  async createTelegramBot(llmService = null) {
     if (this.services.has('telegramBot')) {
       return this.services.get('telegramBot');
     }
@@ -149,7 +149,7 @@ export class ApplicationFactory {
         return null;
       }
 
-      const telegramBot = new TelegramBotService();
+      const telegramBot = new TelegramBotService(llmService);
       
       // Wait for initialization to complete
       try {
@@ -188,7 +188,8 @@ export class ApplicationFactory {
   async initializeTelegramAsync() {
     try {
       logger.info('Inicializando bot do Telegram em segundo plano...');
-      const telegramBot = await this.createTelegramBot();
+      const llmService = this.services.get('llmService');
+      const telegramBot = await this.createTelegramBot(llmService);
       
       if (telegramBot && telegramBot.isActive()) {
         logger.info('Bot do Telegram ativo e pronto para uso');
@@ -226,7 +227,7 @@ export class ApplicationFactory {
       const scheduler = await this.createScheduler();
       const configService = await this.createConfigService(scheduler);
       const llmService = this.createLLMService(configService);
-      const transcriber = this.createAudioTranscriber(configService);
+      const transcriber = this.createAudioTranscriber(configService, llmService);
       const ttsService = this.createTtsService();
       
       // Configure YouTubeService to use the parametrized transcriber

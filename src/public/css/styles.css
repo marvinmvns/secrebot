@@ -19,11 +19,11 @@ body {
 
 .navbar .nav-link,
 .navbar-brand {
-  color: #fff !important;
+  color: #000 !important;
 }
 
 .navbar .nav-link:hover {
-  color: #e8f0fe !important;
+  color: #ec0808 !important;
 }
 
 /* Formulários */

@@ -31,7 +31,6 @@ import {
   PROMPTS,
   __dirname
 } from '../config/index.js';
-const ollamaClient = new Ollama({ host: CONFIG.llm.host });
 
 // Importar o serviço TTS
 import TtsService from '../services/ttsService.js';
@@ -1702,13 +1701,23 @@ async handleRecursoCommand(contactId) {
         mode = 'description';
       }
       await this.sendResponse(contactId, processingMessage, true); // Status sempre em texto
-      const response = await ollamaClient.generate({
-        model: CONFIG.llm.imageModel,
-        prompt: prompt,
-        images: [imagePath],
-        stream: false
-      });
-      const description = response.response.trim();
+      
+      let description;
+      try {
+        description = await this.llmService.generateImageAnalysis(prompt, imagePath);
+      } catch (error) {
+        logger.error('❌ Erro na análise de imagem via LLMService, tentando fallback:', error);
+        // Fallback to direct Ollama call
+        const { Ollama } = await import('ollama');
+        const ollamaClient = new Ollama({ host: CONFIG.llm.host });
+        const response = await ollamaClient.generate({
+          model: CONFIG.llm.imageModel,
+          prompt: prompt,
+          images: [imagePath],
+          stream: false
+        });
+        description = response.response.trim();
+      }
       logger.verbose(`🤖 Resposta da análise de imagem (${mode}): ${description.substring(0, 100)}...`);
 
       if (mode === 'calories') {

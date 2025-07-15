@@ -149,6 +149,18 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
+                                <label class="form-label">Status Geral do WhisperAPI</label>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="whisperApiEnabled">
+                                    <label class="form-check-label" for="whisperApiEnabled">
+                                        <strong>Habilitar WhisperAPI</strong>
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    Ativa ou desativa completamente o sistema de WhisperAPI
+                                </div>
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label">Modo de Operação</label>
                                 <select class="form-select" id="operationMode">
                                     <option value="local">Local (Whisper.cpp)</option>
@@ -347,8 +359,14 @@
             });
 
             // Auto-save on change
-            ['operationMode', 'apiTimeout', 'retryDelay', 'healthCheckInterval', 'timestampsLength'].forEach(id => {
+            ['whisperApiEnabled', 'operationMode', 'apiTimeout', 'retryDelay', 'healthCheckInterval', 'timestampsLength'].forEach(id => {
                 document.getElementById(id).addEventListener('change', updateConfigFromForm);
+            });
+
+            // Special handling for WhisperAPI enabled toggle
+            document.getElementById('whisperApiEnabled').addEventListener('change', function() {
+                updateConfigFromForm();
+                toggleEndpointsSection();
             });
 
             // WhisperOptions checkboxes
@@ -373,6 +391,17 @@
 
         async function loadCurrentStatus() {
             try {
+                // Check if WhisperAPI is enabled before fetching status
+                if (currentConfig.whisperApi && !currentConfig.whisperApi.enabled) {
+                    generalStatus = {
+                        enabled: false,
+                        mode: currentConfig.whisperApi.mode || 'local',
+                        message: 'WhisperAPI desabilitado'
+                    };
+                    updateGeneralStatus();
+                    return;
+                }
+
                 const response = await fetch('/api/whisper-api/status');
                 generalStatus = await response.json();
                 updateGeneralStatus();
@@ -387,6 +416,7 @@
         function updateFormFromConfig() {
             const whisperApi = currentConfig.whisperApi || {};
             
+            document.getElementById('whisperApiEnabled').checked = whisperApi.enabled || false;
             document.getElementById('operationMode').value = whisperApi.mode || 'local';
             document.getElementById('apiTimeout').value = whisperApi.timeout || 300000;
             document.getElementById('retryDelay').value = whisperApi.retryDelay || 2000;
@@ -418,13 +448,30 @@
             document.getElementById('timestampsLength').value = whisperOptions.timestamps_length || 20;
 
             updateEndpointsForm();
+            toggleEndpointsSection();
+        }
+
+        function toggleEndpointsSection() {
+            const enabled = document.getElementById('whisperApiEnabled').checked;
+            const endpointsContainer = document.getElementById('endpointsContainer');
+            const endpointsCard = endpointsContainer ? endpointsContainer.closest('.card') : null;
+            
+            if (endpointsCard) {
+                if (enabled) {
+                    endpointsCard.style.opacity = '1';
+                    endpointsCard.style.pointerEvents = 'auto';
+                } else {
+                    endpointsCard.style.opacity = '0.5';
+                    endpointsCard.style.pointerEvents = 'none';
+                }
+            }
         }
 
         function updateConfigFromForm() {
             if (!currentConfig.whisperApi) currentConfig.whisperApi = {};
             if (!currentConfig.whisperApi.loadBalancing) currentConfig.whisperApi.loadBalancing = {};
 
-            currentConfig.whisperApi.enabled = true;
+            currentConfig.whisperApi.enabled = document.getElementById('whisperApiEnabled').checked;
             currentConfig.whisperApi.mode = document.getElementById('operationMode').value;
             currentConfig.whisperApi.timeout = parseInt(document.getElementById('apiTimeout').value);
             currentConfig.whisperApi.retryDelay = parseInt(document.getElementById('retryDelay').value);

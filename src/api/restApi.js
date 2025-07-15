@@ -6,7 +6,7 @@ import methodOverride from 'method-override';
 import { ObjectId } from 'mongodb';
 import multer from 'multer';
 import fs from 'fs/promises';
-import { Ollama } from 'ollama';
+// Ollama import removed - using LLMService instead
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import mammoth from 'mammoth';
 import si from 'systeminformation';
@@ -375,16 +375,13 @@ class RestAPI {
         const prompt = mode === 'calories' ? PROMPTS.calorieEstimation : PROMPTS.imageDescription;
         // Use the bot's LLM service (which respects API/Local configuration)
         let resp;
-        if (await this.bot.llmService.shouldUseApiPool()) {
-          const client = await this.bot.llmService.ollamaApiPool.getClient();
-          if (client) {
-            resp = await client.generate({ model: CONFIG.llm.imageModel, prompt, images: [imagePath], stream: false });
-          } else {
-            // Fallback to local Ollama
-            resp = await this.bot.llmService.ollama.generate({ model: CONFIG.llm.imageModel, prompt, images: [imagePath], stream: false });
-          }
-        } else {
-          // Use local Ollama
+        try {
+          // Use the LLMService generateImageAnalysis method that handles API/local routing
+          const response = await this.bot.llmService.generateImageAnalysis(prompt, imagePath);
+          resp = { response }; // Wrap in expected format
+        } catch (error) {
+          logger.error('❌ Erro na análise de imagem via LLMService:', error);
+          // Fallback to direct Ollama call
           resp = await this.bot.llmService.ollama.generate({ model: CONFIG.llm.imageModel, prompt, images: [imagePath], stream: false });
         }
         const desc = resp.response.trim();
@@ -1527,38 +1524,61 @@ class RestAPI {
       }
     });
 
-    // API endpoint para testar conectividade de um endpoint Ollama
+    // API endpoint para testar conectividade de um endpoint Ollama/RKLLama
     this.app.post('/api/ollama-api/test', async (req, res) => {
       try {
-        const { url } = req.body;
+        const { url, type = 'ollama' } = req.body;
         if (!url) {
           return res.status(400).json({ error: 'URL do endpoint é obrigatória' });
         }
 
-        const OllamaAPIClient = (await import('../services/ollamaApiClient.js')).default;
-        const client = new OllamaAPIClient(url);
+        let client;
+        if (type === 'rkllama') {
+          const RKLlamaAPIClient = (await import('../services/rkllamaApiClient.js')).default;
+          client = new RKLlamaAPIClient(url);
+        } else {
+          const OllamaAPIClient = (await import('../services/ollamaApiClient.js')).default;
+          client = new OllamaAPIClient(url);
+        }
         
         const health = await client.getHealth();
-        const version = await client.getVersion();
         const models = await client.listModels();
         const runningModels = await client.listRunningModels();
-
-        res.json({
-          success: true,
-          url,
-          health,
-          version: version.version,
-          models: models.models,
-          runningModels: runningModels.models,
-          timestamp: new Date().toISOString()
-        });
+        
+        if (type === 'rkllama') {
+          const currentModel = await client.getCurrentModel();
+          res.json({
+            success: true,
+            url,
+            type: 'RKLLama',
+            health,
+            version: health.version,
+            models: models.models,
+            currentModel: currentModel.model_name,
+            runningModels: runningModels.models,
+            timestamp: new Date().toISOString()
+          });
+        } else {
+          const version = await client.getVersion();
+          res.json({
+            success: true,
+            url,
+            type: 'Ollama',
+            health,
+            version: version.version,
+            models: models.models,
+            runningModels: runningModels.models,
+            timestamp: new Date().toISOString()
+          });
+        }
 
       } catch (error) {
-        logger.error('Erro ao testar endpoint Ollama API:', error);
+        logger.error(`Erro ao testar endpoint ${type}:`, error);
         res.status(500).json({ 
           success: false,
           error: 'Erro ao testar endpoint',
-          details: error.message 
+          details: error.message,
+          type: req.body.type || 'ollama'
         });
       }
     });
@@ -1574,6 +1594,79 @@ class RestAPI {
         res.status(500).json({ 
           error: 'Erro ao listar modelos',
           details: error.message 
+        });
+      }
+    });
+
+    // API endpoint para listar modelos de um endpoint específico
+    this.app.post('/api/ollama-api/endpoint-models', async (req, res) => {
+      try {
+        const { url, type = 'ollama' } = req.body;
+        if (!url) {
+          return res.status(400).json({ error: 'URL do endpoint é obrigatória' });
+        }
+
+        let client;
+        if (type === 'rkllama') {
+          const RKLlamaAPIClient = (await import('../services/rkllamaApiClient.js')).default;
+          client = new RKLlamaAPIClient(url);
+        } else {
+          const OllamaAPIClient = (await import('../services/ollamaApiClient.js')).default;
+          client = new OllamaAPIClient(url);
+        }
+        
+        const models = await client.listModels();
+        
+        res.json({
+          success: true,
+          url,
+          type,
+          models: models.models || [],
+          timestamp: new Date().toISOString()
+        });
+
+      } catch (error) {
+        logger.error(`Erro ao listar modelos do endpoint ${req.body.type}:`, error);
+        res.status(500).json({ 
+          success: false,
+          error: 'Erro ao listar modelos do endpoint',
+          details: error.message,
+          type: req.body.type || 'ollama'
+        });
+      }
+    });
+
+    // API endpoint para carregar modelo em endpoint RKLLama
+    this.app.post('/api/ollama-api/load-model', async (req, res) => {
+      try {
+        const { url, model, type = 'rkllama' } = req.body;
+        if (!url || !model) {
+          return res.status(400).json({ error: 'URL e modelo são obrigatórios' });
+        }
+
+        if (type !== 'rkllama') {
+          return res.status(400).json({ error: 'Load model só é suportado para RKLLama' });
+        }
+
+        const RKLlamaAPIClient = (await import('../services/rkllamaApiClient.js')).default;
+        const client = new RKLlamaAPIClient(url);
+        
+        const result = await client.loadModel(model);
+        
+        res.json({
+          success: true,
+          url,
+          model,
+          result,
+          timestamp: new Date().toISOString()
+        });
+
+      } catch (error) {
+        logger.error(`Erro ao carregar modelo ${req.body.model}:`, error);
+        res.status(500).json({ 
+          success: false,
+          error: 'Erro ao carregar modelo',
+          details: error.message
         });
       }
     });

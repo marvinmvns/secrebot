@@ -3,7 +3,6 @@ import logger from '../utils/logger.js';
 import { config } from '../config/config.js';
 import { TELEGRAM_COMMANDS, TELEGRAM_MESSAGES } from '../constants/telegramCommands.js';
 import { TelegramIntegrationService } from '../services/telegramIntegrationService.js';
-import { Ollama } from 'ollama';
 import { CONFIG, WHISPER_MODELS_LIST } from '../config/index.js';
 import si from 'systeminformation';
 import TtsService from '../services/ttsService.js';
@@ -13,13 +12,13 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 class TelegramBotService {
-    constructor() {
+    constructor(llmService = null) {
         this.bot = null;
         this.isInitialized = false;
         this.userStates = new Map(); // Armazena estado de navegação por usuário
         this.userPreferences = new Map(); // Armazena preferências do usuário
         this.integrationService = null;
-        this.ollamaClient = new Ollama({ host: CONFIG.llm.host });
+        this.llmService = llmService;
         this.ttsService = new TtsService();
         this.initPromise = this.init(); // Armazena a Promise de inicialização
     }

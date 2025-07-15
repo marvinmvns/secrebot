@@ -9,18 +9,17 @@ import Utils from '../utils/index.js'; // Ajustar caminho se necessário
 import { CONFIG, __dirname, getDynamicConfig } from '../config/index.js'; // Ajustar caminho se necessário
 import JobQueue from './jobQueue.js';
 import logger from '../utils/logger.js';
-import { Ollama } from 'ollama';
 import WhisperAPIPool from './whisperApiPool.js';
 
 // ============ Transcritor de Áudio ============
 class AudioTranscriber {
-  constructor(configService = null) {
+  constructor(configService = null, llmService = null) {
     this.configService = configService;
+    this.llmService = llmService;
     this.queue = new JobQueue(
       CONFIG.queues.whisperConcurrency,
       CONFIG.queues.memoryThresholdGB
     );
-    this.ollamaClient = new Ollama({ host: CONFIG.llm.host });
     this.whisperApiPool = new WhisperAPIPool(configService);
   }
 
@@ -264,12 +263,14 @@ class AudioTranscriber {
     } catch (error) {
       logger.error('❌ Erro na transcrição via API:', error);
       
-      if (CONFIG.whisperApi.mode === 'api') {
-        logger.warn('🔄 API falhou, tentando modo local como fallback...');
+      // Always try local fallback when API fails, regardless of mode
+      logger.warn('🔄 Todos os endpoints API falharam, tentando modo local como fallback...');
+      try {
         return await this.transcribeLocally(audioBuffer, inputFormat);
+      } catch (localError) {
+        logger.error('❌ Fallback local também falhou:', localError.message);
+        throw new Error(`API transcription failed: ${error.message}. Local fallback failed: ${localError.message}`);
       }
-      
-      throw error;
     }
   }
 
@@ -409,18 +410,29 @@ TRANSCRIÇÃO:
 O resumo deve incluir os principais pontos discutidos, eventos importantes e qualquer informação relevante mencionada. Evite detalhes excessivos e mantenha o foco nos aspectos mais significativos da conversa. O resumo deve ser escrito em português e ser facilmente compreensível.
 Mantenha o resumo conciso mas informativo, destacando os pontos mais importantes do áudio.`;
 
-      const summary = await this.ollamaClient.generate({
-        model: CONFIG.llm.model,
-        prompt: summaryPrompt,
-        stream: false
-      });
+      let summary;
+      if (this.llmService) {
+        summary = await this.llmService.generateText(summaryPrompt);
+      } else {
+        // Fallback to direct Ollama call if LLMService is not available
+        const { Ollama } = await import('ollama');
+        const ollamaClient = new Ollama({ host: CONFIG.llm.host });
+        const response = await ollamaClient.generate({
+          model: CONFIG.llm.model,
+          prompt: summaryPrompt,
+          stream: false
+        });
+        summary = response.response;
+      }
 
       logger.success('✅ Transcrição e resumo concluídos.');
       
+      const summaryText = typeof summary === 'string' ? summary : summary.response;
+      
       return {
         transcription: transcription,
-        summary: summary.response,
-        combined: `🎤 **TRANSCRIÇÃO COMPLETA:**\n\n${transcription}\n\n---\n\n${summary.response}`
+        summary: summaryText,
+        combined: `🎤 **TRANSCRIÇÃO COMPLETA:**\n\n${transcription}\n\n---\n\n${summaryText}`
       };
       
     } catch (err) {
@@ -463,6 +475,16 @@ Mantenha o resumo conciso mas informativo, destacando os pontos mais importantes
       return 'api';
     }
     return 'local';
+  }
+
+  async onConfigurationChanged() {
+    logger.info('🔄 Configuração alterada, reinicializando WhisperAPIPool...');
+    await this.whisperApiPool.reinitialize();
+  }
+
+  destroy() {
+    logger.info('🗑️ Destruindo AudioTranscriber...');
+    this.whisperApiPool.destroy();
   }
 }
 

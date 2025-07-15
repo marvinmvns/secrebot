@@ -8,6 +8,7 @@ class WhisperAPIPool {
     this.clients = [];
     this.currentIndex = 0;
     this.lastHealthCheck = 0;
+    this.healthCheckInterval = null;
     this.initialize();
   }
 
@@ -26,34 +27,65 @@ class WhisperAPIPool {
   async initialize() {
     logger.info('🔧 Inicializando pool de APIs Whisper...');
     
+    // Stop existing health check interval if running
+    this.stopHealthCheckInterval();
+    
     const effectiveConfig = await this.getEffectiveConfig();
     
     if (!effectiveConfig.whisperApi.enabled || !effectiveConfig.whisperApi.endpoints.length) {
       logger.warn('⚠️ WhisperAPI não habilitado ou sem endpoints configurados');
+      this.clients = [];
       return;
     }
 
-    this.clients = effectiveConfig.whisperApi.endpoints.map(endpoint => {
-      const client = new WhisperAPIClient(endpoint.url);
-      client.endpoint = endpoint;
-      client.retryCount = 0;
-      logger.info(`📡 Endpoint configurado: ${endpoint.url} (prioridade: ${endpoint.priority})`);
-      return client;
-    });
+    this.clients = effectiveConfig.whisperApi.endpoints
+      .filter(endpoint => endpoint.enabled)
+      .map(endpoint => {
+        const client = new WhisperAPIClient(endpoint.url);
+        client.endpoint = endpoint;
+        client.retryCount = 0;
+        logger.info(`📡 Endpoint configurado: ${endpoint.url} (prioridade: ${endpoint.priority})`);
+        return client;
+      });
 
     this.clients.sort((a, b) => a.endpoint.priority - b.endpoint.priority);
     
-    logger.success(`✅ Pool inicializado com ${this.clients.length} endpoints`);
-    this.startHealthCheckInterval();
+    if (this.clients.length > 0) {
+      logger.success(`✅ Pool inicializado com ${this.clients.length} endpoints`);
+      this.startHealthCheckInterval();
+    } else {
+      logger.warn('⚠️ Nenhum endpoint habilitado encontrado');
+    }
   }
 
   startHealthCheckInterval() {
-    setInterval(async () => {
+    this.healthCheckInterval = setInterval(async () => {
       await this.performHealthChecks();
     }, CONFIG.whisperApi.loadBalancing.healthCheckInterval);
   }
 
+  stopHealthCheckInterval() {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = null;
+      logger.debug('🛑 Health check interval parado');
+    }
+  }
+
   async performHealthChecks() {
+    // Check if the service is still enabled
+    const isServiceEnabled = await this.isEnabled();
+    if (!isServiceEnabled) {
+      logger.debug('🛑 WhisperAPI desabilitado, parando health checks');
+      this.stopHealthCheckInterval();
+      return;
+    }
+
+    if (this.clients.length === 0) {
+      logger.debug('🛑 Nenhum cliente disponível para health check');
+      return;
+    }
+
     logger.debug('🔍 Executando health checks nos endpoints...');
     
     const healthPromises = this.clients.map(async (client) => {
@@ -144,6 +176,7 @@ class WhisperAPIPool {
     const healthyClients = this.getHealthyClients();
     
     if (healthyClients.length === 0) {
+      logger.warn('⚠️ Nenhum endpoint Whisper API saudável disponível');
       throw new Error('No healthy Whisper API endpoints available');
     }
 
@@ -176,28 +209,16 @@ class WhisperAPIPool {
       }
     }
     
+    logger.error(`❌ Todos os endpoints Whisper API falharam. Último erro: ${lastError?.message}`);
     throw new Error(`All Whisper API endpoints failed. Last error: ${lastError?.message}`);
   }
 
   async transcribe(audioBuffer, filename, options = {}) {
     logger.service('🎤 Iniciando transcrição via Whisper API...');
     
-    try {
-      const client = await this.selectBestClient();
-      
-      logger.info(`🎯 Endpoint selecionado: ${client.baseURL} (${CONFIG.whisperApi.loadBalancing.strategy})`);
-      
-      const result = await client.transcribeBufferAndWait(audioBuffer, filename, options);
-      
-      logger.success(`✅ Transcrição via API concluída com sucesso`);
-      return result.result.text;
-      
-    } catch (error) {
-      logger.warn(`⚠️ Falha no endpoint principal, tentando fallback...`);
-      
-      const result = await this.transcribeWithFallback(audioBuffer, filename, options);
-      return result.result.text;
-    }
+    // Always use fallback method to try all available endpoints
+    const result = await this.transcribeWithFallback(audioBuffer, filename, options);
+    return result.result.text;
   }
 
   async getPoolStatus() {
@@ -245,6 +266,17 @@ class WhisperAPIPool {
 
   hasHealthyEndpoints() {
     return this.getHealthyClients().length > 0;
+  }
+
+  async reinitialize() {
+    logger.info('🔄 Reinicializando pool de APIs Whisper...');
+    await this.initialize();
+  }
+
+  destroy() {
+    logger.info('🗑️ Destruindo pool de APIs Whisper...');
+    this.stopHealthCheckInterval();
+    this.clients = [];
   }
 }
 

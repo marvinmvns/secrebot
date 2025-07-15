@@ -135,16 +135,21 @@ class LLMService {
       } catch (error) {
         clearTimeout(timeout);
         
-        // Se falhou com API Pool, tenta fallback para local
-        const useApiPool = await this.shouldUseApiPool();
-        if (useApiPool && !error.message?.includes('No healthy')) {
+        // Se falhou com API Pool, sempre tenta fallback para local
+        const usedApiPool = await this.shouldUseApiPool();
+        if (usedApiPool) {
           try {
-            logger.warn('⚠️ Fallback para Ollama local após falha na API');
+            logger.warn('⚠️ Todos os endpoints API falharam, tentando Ollama local como fallback...');
             const response = await this.ollama.chat(requestParams);
+            logger.success('✅ Fallback para Ollama local bem-sucedido');
             resolve(response);
             return;
           } catch (fallbackError) {
             logger.error('❌ Fallback para Ollama local também falhou:', fallbackError.message);
+            // Use the more informative error message
+            const combinedError = new Error(`API pool failed: ${error.message}. Local fallback failed: ${fallbackError.message}`);
+            reject(combinedError);
+            return;
           }
         }
         
@@ -294,10 +299,10 @@ ${structuredText}`;
       return response.message.content;
     } catch (error) {
       // Fallback para local se a API falhar
-      const useApiPool = await this.shouldUseApiPool();
-      if (useApiPool && !error.message?.includes('No healthy')) {
+      const usedApiPool = await this.shouldUseApiPool();
+      if (usedApiPool) {
         try {
-          logger.warn('⚠️ Fallback para Ollama local na geração de resposta');
+          logger.warn('⚠️ Todos os endpoints API falharam, tentando Ollama local como fallback na geração de resposta...');
           const response = await this.ollama.chat({
             model: CONFIG.llm.model,
             messages: [{ role: 'user', content: prompt }],
@@ -305,9 +310,11 @@ ${structuredText}`;
               temperature: temperature
             }
           });
+          logger.success('✅ Fallback para Ollama local bem-sucedido na geração de resposta');
           return response.message.content;
         } catch (fallbackError) {
           logger.error('❌ Fallback também falhou na geração de resposta:', fallbackError.message);
+          throw new Error(`API pool failed: ${error.message}. Local fallback failed: ${fallbackError.message}`);
         }
       }
       
@@ -345,10 +352,10 @@ ${structuredText}`;
       return response.message.content;
     } catch (error) {
       // Fallback para local se a API falhar
-      const useApiPool = await this.shouldUseApiPool();
-      if (useApiPool && !error.message?.includes('No healthy')) {
+      const usedApiPool = await this.shouldUseApiPool();
+      if (usedApiPool) {
         try {
-          logger.warn('⚠️ Fallback para Ollama local na análise de imagem');
+          logger.warn('⚠️ Todos os endpoints API falharam, tentando Ollama local como fallback na análise de imagem...');
           const visionModel = CONFIG.llm.imageModel || CONFIG.llm.visionModel || 'llava';
           const response = await this.ollama.chat({
             model: visionModel,
@@ -358,9 +365,11 @@ ${structuredText}`;
               images: [imagePath]
             }]
           });
+          logger.success('✅ Fallback para Ollama local bem-sucedido na análise de imagem');
           return response.message.content;
         } catch (fallbackError) {
           logger.error('❌ Fallback também falhou na análise de imagem:', fallbackError.message);
+          throw new Error(`API pool failed: ${error.message}. Local fallback failed: ${fallbackError.message}`);
         }
       }
       
@@ -371,11 +380,44 @@ ${structuredText}`;
 
   // ============ Métodos de gerenciamento da API Ollama ============
   async getOllamaApiStatus() {
-    if (!await this.ollamaApiPool.isEnabled()) {
-      return { enabled: false, message: 'Ollama API Pool não está habilitado' };
+    try {
+      const poolStatus = await this.ollamaApiPool.getPoolStatus();
+      
+      // If the pool is not enabled, return disabled status with reason
+      if (!poolStatus.enabled) {
+        return { 
+          enabled: false, 
+          mode: poolStatus.mode || 'local',
+          message: 'Ollama API Pool não está habilitado',
+          totalEndpoints: 0,
+          healthyEndpoints: 0,
+          strategy: poolStatus.strategy,
+          endpoints: []
+        };
+      }
+      
+      // If enabled but no clients, it means no endpoints are configured or enabled
+      if (poolStatus.totalEndpoints === 0) {
+        return {
+          ...poolStatus,
+          enabled: false,
+          message: 'Nenhum endpoint configurado ou habilitado'
+        };
+      }
+      
+      return poolStatus;
+    } catch (error) {
+      logger.error('Erro ao obter status do Ollama API Pool:', error);
+      return { 
+        enabled: false, 
+        mode: 'local',
+        message: `Erro ao obter status: ${error.message}`,
+        totalEndpoints: 0,
+        healthyEndpoints: 0,
+        strategy: 'queue_length',
+        endpoints: []
+      };
     }
-    
-    return await this.ollamaApiPool.getPoolStatus();
   }
 
   async listModels() {
@@ -430,13 +472,14 @@ ${structuredText}`;
       
       if (await this.shouldUseApiPool()) {
         logger.debug('📡 Usando OllamaAPI pool');
-        const client = await this.ollamaApiPool.getClient();
-        if (client) {
-          const response = await client.chat({
+        try {
+          const response = await this.ollamaApiPool.chat({
             model,
             messages: [{ role: 'user', content: prompt }]
           });
           return response;
+        } catch (apiError) {
+          logger.warn('⚠️ Todos os endpoints API falharam, tentando Ollama local como fallback...', apiError.message);
         }
       }
       
@@ -452,6 +495,119 @@ ${structuredText}`;
       logger.error('❌ Erro em chatWithModel:', error);
       throw error;
     }
+  }
+
+  // Method for generating text (used by AudioTranscriber)
+  async generateText(prompt, temperature = 0.7) {
+    try {
+      const useApiPool = await this.shouldUseApiPool();
+      let response;
+      
+      const requestParams = {
+        model: CONFIG.llm.model,
+        messages: [{ role: 'user', content: prompt }],
+        options: {
+          temperature: temperature
+        },
+        stream: false
+      };
+      
+      if (useApiPool) {
+        logger.debug('🔄 Usando Ollama API Pool para geração de texto');
+        response = await this.ollamaApiPool.chat(requestParams);
+        return response.message.content;
+      } else {
+        logger.debug('🔄 Usando Ollama local para geração de texto');
+        response = await this.ollama.chat(requestParams);
+        return response.message.content;
+      }
+    } catch (error) {
+      // Fallback para local se a API falhar
+      const usedApiPool = await this.shouldUseApiPool();
+      if (usedApiPool) {
+        try {
+          logger.warn('⚠️ Todos os endpoints API falharam, tentando Ollama local como fallback na geração de texto...');
+          const response = await this.ollama.chat({
+            model: CONFIG.llm.model,
+            messages: [{ role: 'user', content: prompt }],
+            options: {
+              temperature: temperature
+            }
+          });
+          logger.success('✅ Fallback para Ollama local bem-sucedido na geração de texto');
+          return response.message.content;
+        } catch (fallbackError) {
+          logger.error('❌ Fallback também falhou na geração de texto:', fallbackError.message);
+          throw new Error(`API pool failed: ${error.message}. Local fallback failed: ${fallbackError.message}`);
+        }
+      }
+      
+      logger.error('Erro ao gerar texto LLM:', error);
+      throw error;
+    }
+  }
+
+  // Method for image analysis (used by WhatsAppBot)
+  async generateImageAnalysis(prompt, imagePath) {
+    try {
+      const useApiPool = await this.shouldUseApiPool();
+      let response;
+      
+      const visionModel = CONFIG.llm.imageModel || CONFIG.llm.visionModel || 'llava';
+      
+      if (useApiPool) {
+        logger.debug('🔄 Usando Ollama API Pool para análise de imagem');
+        response = await this.ollamaApiPool.generate({
+          model: visionModel,
+          prompt: prompt,
+          images: [imagePath],
+          stream: false
+        });
+        return response.response.trim();
+      } else {
+        logger.debug('🔄 Usando Ollama local para análise de imagem');
+        response = await this.ollama.generate({
+          model: visionModel,
+          prompt: prompt,
+          images: [imagePath],
+          stream: false
+        });
+        return response.response.trim();
+      }
+    } catch (error) {
+      // Fallback para local se a API falhar
+      const usedApiPool = await this.shouldUseApiPool();
+      if (usedApiPool) {
+        try {
+          logger.warn('⚠️ Todos os endpoints API falharam, tentando Ollama local como fallback na análise de imagem...');
+          const visionModel = CONFIG.llm.imageModel || CONFIG.llm.visionModel || 'llava';
+          const response = await this.ollama.generate({
+            model: visionModel,
+            prompt: prompt,
+            images: [imagePath],
+            stream: false
+          });
+          logger.success('✅ Fallback para Ollama local bem-sucedido na análise de imagem');
+          return response.response.trim();
+        } catch (fallbackError) {
+          logger.error('❌ Fallback também falhou na análise de imagem:', fallbackError.message);
+          throw new Error(`API pool failed: ${error.message}. Local fallback failed: ${fallbackError.message}`);
+        }
+      }
+      
+      logger.error('Erro ao analisar imagem:', error);
+      throw error;
+    }
+  }
+
+  async onConfigurationChanged() {
+    logger.info('🔄 Configuração alterada, reinicializando OllamaAPIPool...');
+    await this.ollamaApiPool.reinitialize();
+  }
+
+  destroy() {
+    logger.info('🗑️ Destruindo LLMService...');
+    this.ollamaApiPool.destroy();
   }
 }
 

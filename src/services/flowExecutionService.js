@@ -215,9 +215,13 @@ class FlowExecutionService {
      */
     async startFlowExecution(userId, identifier, trigger, initialData = {}) {
         try {
+            logger.info(`🚀 [TESTE] Iniciando execução de flow: ${identifier} para usuário: ${userId}`);
+            
             // Primeiro tentar encontrar o flow por ID
             let flow = this.loadedFlows.get(identifier);
             let flowId = identifier; // Assumir que identifier é o flowId se encontrado diretamente
+            
+            logger.info(`🚀 [TESTE] Flow encontrado por ID: ${flow ? 'SIM' : 'NÃO'}`);
             
             // Se não encontrou por ID, tentar por alias
             if (!flow) {
@@ -228,16 +232,26 @@ class FlowExecutionService {
                         break;
                     }
                 }
+                logger.info(`🚀 [TESTE] Flow encontrado por alias: ${flow ? 'SIM' : 'NÃO'}`);
             }
             
             if (!flow) {
                 throw new Error(`Fluxo '${identifier}' não encontrado`);
             }
+            
+            logger.info(`🚀 [TESTE] Flow carregado: ${flow.name || flow.id}`);
+            
+            logger.info(`🚀 [TESTE] Procurando nó de início...`);
 
             // Encontrar nó de início apropriado
             const startNode = this.findStartNode(flow, trigger);
             if (!startNode) {
                 throw new Error('Nenhum nó de início encontrado para este gatilho');
+            }
+            
+            // Validate start node has outputs
+            if (!startNode.outputs || startNode.outputs.length === 0) {
+                throw new Error(`Nó de início ${startNode.id} não tem saídas configuradas`);
             }
 
             // Criar estado de execução para o usuário
@@ -250,7 +264,8 @@ class FlowExecutionService {
                 startTime: new Date(),
                 status: 'running',
                 waitingForInput: false,
-                inputTimeout: null
+                inputTimeout: null,
+                initialData // Preservar dados iniciais para acesso posterior
             };
 
             // Inicializar variáveis
@@ -263,8 +278,17 @@ class FlowExecutionService {
 
             logger.info(`🚀 Iniciando execução do fluxo '${flowId}' para usuário ${userId}`);
 
-            // Executar primeiro nó
-            await this.executeNode(executionState, startNode);
+            // Executar primeiro nó (start) with error handling
+            try {
+                await this.executeNode(executionState, startNode);
+                return true; // Indicar sucesso
+            } catch (nodeError) {
+                logger.error(`❌ Erro ao executar nó inicial ${startNode.id}:`, nodeError);
+                // Clean up execution state
+                this.activeFlows.delete(userId);
+                this.userVariables.delete(userId);
+                throw nodeError;
+            }
 
         } catch (error) {
             logger.error(`❌ Erro ao iniciar execução do fluxo: ${error.message}`);
@@ -280,6 +304,11 @@ class FlowExecutionService {
      */
     findStartNode(flow, trigger) {
         const startNodes = flow.startNodes.map(id => flow.nodes.get(id));
+        
+        // Para testes manuais, retornar qualquer nó de início
+        if (trigger === 'manual') {
+            return startNodes[0] || null;
+        }
         
         // Procurar nó de início específico para o gatilho
         for (const node of startNodes) {
@@ -307,6 +336,14 @@ class FlowExecutionService {
     async executeNode(executionState, node) {
         try {
             logger.info(`🔄 Executando nó ${node.id} (${node.type}) para usuário ${executionState.userId}`);
+            
+            // Log extra para debug do teste
+            if (executionState.initialData && executionState.initialData.isTestSession) {
+                logger.info(`🧪 [TESTE] Executando nó: ${node.id} (tipo: ${node.type})`);
+                if (node.data) {
+                    logger.debug(`🧪 [TESTE] Dados do nó: ${JSON.stringify(node.data)}`);
+                }
+            }
 
             // Adicionar ao histórico
             executionState.history.push({
@@ -386,7 +423,18 @@ class FlowExecutionService {
             }
 
         } catch (error) {
-            logger.error(`❌ Erro ao executar nó ${node.id}: ${error.message}`);
+            logger.error(`❌ Erro ao executar nó ${node.id} (tipo: ${node.type}): ${error.message}`);
+            
+            // Log extra para debug do teste
+            if (executionState.initialData && executionState.initialData.isTestSession) {
+                logger.error(`🧪 [TESTE] Erro detalhado no nó ${node.id}:`, {
+                    nodeType: node.type,
+                    nodeData: node.data,
+                    errorMessage: error.message,
+                    errorStack: error.stack
+                });
+            }
+            
             await this.handleExecutionError(executionState, error);
         }
     }
@@ -459,7 +507,10 @@ class FlowExecutionService {
                        executionState.variables.get('userInput') || 
                        executionState.variables.get('opcaoAdicional') || '';
         
-        const conditionValue = node.data.value;
+        // Ensure userInput is a string to prevent evaluation errors
+        userInput = String(userInput || '');
+        
+        const conditionValue = String(node.data.value || '');
         let conditionMet = false;
 
         switch (node.data.condition) {
@@ -477,10 +528,14 @@ class FlowExecutionService {
                 break;
             case 'regex':
                 try {
-                    const regex = new RegExp(conditionValue, 'i');
-                    conditionMet = regex.test(userInput);
+                    if (conditionValue) {
+                        const regex = new RegExp(conditionValue, 'i');
+                        conditionMet = regex.test(userInput);
+                    } else {
+                        logger.warn(`Regex vazia em condição: ${node.id}`);
+                    }
                 } catch (e) {
-                    logger.warn(`Regex inválida em condição: ${conditionValue}`);
+                    logger.warn(`Regex inválida em condição: ${conditionValue}`, e);
                 }
                 break;
         }
@@ -691,11 +746,59 @@ class FlowExecutionService {
     }
 
     /**
+     * Alias mais amigável para processUserInput, usado pela API de teste
+     */
+    async processFlowMessage(userId, message) {
+        const executionState = this.activeFlows.get(userId);
+        
+        if (!executionState) {
+            return null; // Não há fluxo ativo
+        }
+
+        // Capturar mensagens que seriam enviadas para construir resposta
+        const originalSendMessage = this.sendWhatsAppMessage;
+        let responseMessage = null;
+        
+        // Interceptar mensagens durante o processamento
+        this.sendWhatsAppMessage = async (uid, msg) => {
+            if (uid === userId) {
+                responseMessage = msg;
+            }
+        };
+
+        try {
+            const processed = await this.processUserInput(userId, message);
+            return processed ? responseMessage : null;
+        } finally {
+            // Restaurar função original
+            this.sendWhatsAppMessage = originalSendMessage;
+        }
+    }
+
+    /**
      * Obtém o nó atual da execução
      */
     getCurrentNode(executionState) {
         const flow = this.loadedFlows.get(executionState.flowId);
         return flow.nodes.get(executionState.currentNodeId);
+    }
+
+    /**
+     * Obtém o estado atual do fluxo para um usuário
+     */
+    getCurrentFlowState(userId) {
+        const executionState = this.activeFlows.get(userId);
+        
+        if (!executionState) {
+            return null;
+        }
+
+        return {
+            flowId: executionState.flowId,
+            currentNodeId: executionState.currentNodeId,
+            waitingForInput: executionState.waitingForInput,
+            variables: Object.fromEntries(executionState.variables)
+        };
     }
 
     /**
@@ -716,6 +819,13 @@ class FlowExecutionService {
      * Envia mensagem via WhatsApp
      */
     async sendWhatsAppMessage(userId, message) {
+        // Check if this is a test session and skip WhatsApp sending to avoid Puppeteer errors
+        const executionState = this.activeFlows.get(userId);
+        if (executionState && executionState.initialData && executionState.initialData.isTestSession) {
+            logger.info(`🧪 [TESTE] Simulando envio de mensagem para ${userId}: "${message}"`);
+            return; // Skip actual WhatsApp sending in test mode
+        }
+        
         const client = this.bot.getClient();
         if (client) {
             await client.sendMessage(userId, message);
@@ -878,8 +988,23 @@ class FlowExecutionService {
      */
     async executeLinkedInNode(executionState, node) {
         try {
+            // Skip LinkedIn scraping in test sessions
+            if (executionState.initialData && executionState.initialData.isTestSession) {
+                logger.info('🧪 Pulando execução LinkedIn no modo teste');
+                executionState.variables.set(node.data.outputVariable || 'linkedinData', {
+                    success: true,
+                    mockData: true,
+                    message: 'Dados simulados para teste'
+                });
+                return { nextNodeId: node.outputs[0] };
+            }
+
             const LinkedInScraper = await import('./linkedinScraper.js');
             const profileUrl = this.replaceVariables(node.data.profileUrl, executionState.variables);
+            
+            if (!profileUrl || !profileUrl.includes('linkedin.com')) {
+                throw new Error('URL do LinkedIn inválida ou não fornecida');
+            }
             
             const profileData = await LinkedInScraper.fetchProfileStructured(profileUrl);
             executionState.variables.set(node.data.outputVariable || 'linkedinData', profileData);
@@ -887,6 +1012,16 @@ class FlowExecutionService {
             return { nextNodeId: node.outputs[0] };
         } catch (error) {
             logger.error('Erro no nó LinkedIn:', error);
+            // In test mode, don't fail the flow, just log and continue
+            if (executionState.initialData && executionState.initialData.isTestSession) {
+                logger.warn('⚠️ Erro no LinkedIn ignorado no modo teste');
+                executionState.variables.set(node.data.outputVariable || 'linkedinData', {
+                    success: false,
+                    error: error.message,
+                    mockData: true
+                });
+                return { nextNodeId: node.outputs[0] };
+            }
             throw error;
         }
     }

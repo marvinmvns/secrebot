@@ -976,6 +976,11 @@ class RestAPI {
       res.render('flow-manager');
     });
 
+    // Rota para o testador de fluxos
+    this.app.get('/flow-tester', (req, res) => {
+      res.render('flow-tester');
+    });
+
     // ===== FLOW BUILDER APIs COMPLETAS =====
     
     // API para salvar fluxo
@@ -1263,6 +1268,173 @@ class RestAPI {
         res.status(500).json({ 
           success: false, 
           error: error.message 
+        });
+      }
+    });
+
+    // === APIs de Teste de Flow ===
+    
+    // Iniciar sessão de teste de flow
+    this.app.post('/api/flow/test/start', async (req, res) => {
+      try {
+        const { flowId } = req.body;
+        
+        if (!flowId) {
+          return res.status(400).json({
+            success: false,
+            error: 'ID do flow é obrigatório'
+          });
+        }
+
+        // Criar sessão de teste única
+        const testSessionId = `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Iniciar flow no FlowExecutionService
+        if (this.flowExecutionService) {
+          try {
+            logger.info(`🧪 [API] Iniciando teste de flow ${flowId} com sessão ${testSessionId}`);
+            const started = await this.flowExecutionService.startFlowExecution(
+              testSessionId, 
+              flowId, 
+              'manual', 
+              { isTestSession: true }
+            );
+            
+            if (started) {
+              res.json({
+                success: true,
+                sessionId: testSessionId,
+                message: 'Sessão de teste iniciada com sucesso'
+              });
+            } else {
+              res.status(400).json({
+                success: false,
+                error: 'Não foi possível iniciar o flow para teste'
+              });
+            }
+          } catch (error) {
+            logger.error('❌ Erro ao iniciar execução do flow:', error);
+            res.status(500).json({
+              success: false,
+              error: `Erro ao iniciar flow: ${error.message}`
+            });
+          }
+        } else {
+          res.status(500).json({
+            success: false,
+            error: 'FlowExecutionService não disponível'
+          });
+        }
+        
+      } catch (error) {
+        logger.error('❌ Erro ao iniciar teste de flow:', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
+    // Enviar mensagem de teste para o flow
+    this.app.post('/api/flow/test/message', async (req, res) => {
+      try {
+        const { sessionId, message } = req.body;
+        
+        if (!sessionId || !message) {
+          return res.status(400).json({
+            success: false,
+            error: 'SessionId e message são obrigatórios'
+          });
+        }
+
+        // Processar mensagem no flow
+        if (this.flowExecutionService) {
+          const response = await this.flowExecutionService.processFlowMessage(sessionId, message);
+          
+          res.json({
+            success: true,
+            response: response || null,
+            sessionActive: await this.flowExecutionService.hasActiveFlow(sessionId)
+          });
+        } else {
+          res.status(500).json({
+            success: false,
+            error: 'FlowExecutionService não disponível'
+          });
+        }
+        
+      } catch (error) {
+        logger.error('❌ Erro ao processar mensagem de teste:', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
+    // Parar sessão de teste
+    this.app.post('/api/flow/test/stop', async (req, res) => {
+      try {
+        const { sessionId } = req.body;
+        
+        if (!sessionId) {
+          return res.status(400).json({
+            success: false,
+            error: 'SessionId é obrigatório'
+          });
+        }
+
+        // Parar flow
+        if (this.flowExecutionService) {
+          const stopped = await this.flowExecutionService.stopFlowExecution(sessionId);
+          
+          res.json({
+            success: true,
+            stopped: stopped,
+            message: 'Sessão de teste finalizada'
+          });
+        } else {
+          res.status(500).json({
+            success: false,
+            error: 'FlowExecutionService não disponível'
+          });
+        }
+        
+      } catch (error) {
+        logger.error('❌ Erro ao parar teste de flow:', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
+    // Status da sessão de teste
+    this.app.get('/api/flow/test/status/:sessionId', async (req, res) => {
+      try {
+        const { sessionId } = req.params;
+        
+        if (this.flowExecutionService) {
+          const hasActive = await this.flowExecutionService.hasActiveFlow(sessionId);
+          const currentNode = await this.flowExecutionService.getCurrentFlowState(sessionId);
+          
+          res.json({
+            success: true,
+            sessionActive: hasActive,
+            currentNode: currentNode || null
+          });
+        } else {
+          res.status(500).json({
+            success: false,
+            error: 'FlowExecutionService não disponível'
+          });
+        }
+        
+      } catch (error) {
+        logger.error('❌ Erro ao verificar status de teste:', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
         });
       }
     });

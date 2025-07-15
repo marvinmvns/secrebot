@@ -123,8 +123,26 @@ export class ApplicationFactory {
         llmService,
         transcriber,
         ttsService,
-        toggleVoicePreference: () => false
+        toggleVoicePreference: () => false,
+        setFlowService: () => {},
+        setFlowExecutionService: () => {}
       };
+      
+      // Criar FlowService e FlowExecutionService mesmo com bot mock
+      try {
+        const flowService = new FlowService(scheduler.db);
+        await flowService.init();
+        
+        const flowExecutionService = new FlowExecutionService(mockBot, llmService);
+        await flowExecutionService.init(flowService);
+        
+        this.services.set('flowService', flowService);
+        this.services.set('flowExecutionService', flowExecutionService);
+        logger.info('FlowService e FlowExecutionService inicializados com bot mock');
+      } catch (flowError) {
+        logger.error('Erro ao inicializar FlowService com bot mock:', flowError);
+      }
+      
       this.services.set('whatsAppBot', mockBot);
       return mockBot;
     }

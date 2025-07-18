@@ -1289,22 +1289,24 @@ class RestAPI {
         // Criar sessão de teste única
         const testSessionId = `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
-        // Iniciar flow no FlowExecutionService
+        // Iniciar flow no FlowExecutionService com captura de mensagens
         if (this.flowExecutionService) {
           try {
             logger.info(`🧪 [API] Iniciando teste de flow ${flowId} com sessão ${testSessionId}`);
-            const started = await this.flowExecutionService.startFlowExecution(
+            const result = await this.flowExecutionService.startFlowExecutionWithCapture(
               testSessionId, 
               flowId, 
               'manual', 
               { isTestSession: true }
             );
             
-            if (started) {
+            if (result.started) {
               res.json({
                 success: true,
                 sessionId: testSessionId,
-                message: 'Sessão de teste iniciada com sucesso'
+                message: 'Sessão de teste iniciada com sucesso',
+                initialMessages: result.messages || [],
+                sessionActive: result.sessionActive
               });
             } else {
               res.status(400).json({

@@ -12,6 +12,8 @@ class FlowExecutionService {
         this.loadedFlows = new Map(); // flowId -> flowData
         this.userVariables = new Map(); // userId -> variables
         this.executionHistory = new Map(); // userId -> history
+        this.llmQueue = new Map(); // userId -> llmRequest info
+        this.llmProcessing = new Set(); // userIds currently being processed
     }
 
     /**
@@ -297,6 +299,43 @@ class FlowExecutionService {
     }
 
     /**
+     * Inicia execução de fluxo e captura mensagens geradas durante execução inicial
+     * Específico para testes, onde precisamos capturar as mensagens do bot
+     */
+    async startFlowExecutionWithCapture(userId, identifier, trigger, initialData = {}) {
+        const responseMessages = [];
+        
+        // Interceptar mensagens durante execução
+        const originalSendMessage = this.sendWhatsAppMessage;
+        this.sendWhatsAppMessage = async (uid, msg) => {
+            if (uid === userId) {
+                logger.info(`🧪 [CAPTURE-START] Capturando mensagem inicial: "${msg}"`);
+                responseMessages.push(msg);
+            }
+            return await originalSendMessage.call(this, uid, msg);
+        };
+
+        try {
+            const started = await this.startFlowExecution(userId, identifier, trigger, initialData);
+            
+            // Restaurar função original
+            this.sendWhatsAppMessage = originalSendMessage;
+            
+            logger.info(`🧪 [CAPTURE-START] Execução iniciada: ${started}, Mensagens capturadas: ${responseMessages.length}`);
+            
+            return {
+                started,
+                messages: responseMessages,
+                sessionActive: this.activeFlows.has(userId)
+            };
+        } catch (error) {
+            // Restaurar função original mesmo em caso de erro
+            this.sendWhatsAppMessage = originalSendMessage;
+            throw error;
+        }
+    }
+
+    /**
      * Encontra o nó de início apropriado baseado no gatilho
      * @param {Object} flow - Fluxo processado
      * @param {string} trigger - Gatilho
@@ -443,22 +482,45 @@ class FlowExecutionService {
      * Executa nó de início
      */
     async executeStartNode(executionState, node) {
+        // Debug log para sessões de teste
+        if (executionState.initialData && executionState.initialData.isTestSession) {
+            logger.info(`🧪 [TESTE] StartNode outputs: ${JSON.stringify(node.outputs)}`);
+            logger.info(`🧪 [TESTE] StartNode outputs[0]: ${node.outputs[0]}`);
+        }
+        
+        if (!node.outputs || node.outputs.length === 0) {
+            logger.error(`❌ Start node ${node.id} não tem outputs definidos`);
+            return { end: true };
+        }
+        
         return { nextNodeId: node.outputs[0] };
     }
 
     /**
-     * Executa nó de mensagem
+     * Executa nó de mensagem com error handling robusto
      */
     async executeMessageNode(executionState, node) {
         const message = this.replaceVariables(node.data.text, executionState.variables);
+        
+        // Debug log para sessões de teste
+        if (executionState.initialData && executionState.initialData.isTestSession) {
+            logger.info(`🧪 [TESTE] MessageNode enviando: "${message}"`);
+            logger.info(`🧪 [TESTE] MessageNode delay: ${node.data.delay || 0} segundos`);
+        }
         
         // Aplicar delay se configurado
         if (node.data.delay && node.data.delay > 0) {
             await new Promise(resolve => setTimeout(resolve, node.data.delay * 1000));
         }
 
-        // Enviar mensagem via WhatsApp
-        await this.sendWhatsAppMessage(executionState.userId, message);
+        // Enviar mensagem via WhatsApp - mas não falhar se envio falhar
+        const messageSent = await this.sendWhatsAppMessage(executionState.userId, message);
+        
+        if (!messageSent) {
+            logger.warn(`⚠️ Falha ao enviar mensagem via WhatsApp, mas continuando flow para ${executionState.userId}`);
+            // Salvar mensagem não enviada para possível reenvio
+            executionState.variables.set('lastUnsentMessage', message);
+        }
 
         // Verificar se deve aguardar entrada do usuário
         if (node.data.waitForInput) {
@@ -600,33 +662,165 @@ class FlowExecutionService {
     }
 
     /**
-     * Executa nó de LLM
+     * Executa nó de LLM com error handling robusto
      */
     async executeLlmNode(executionState, node) {
-        let prompt = node.data.prompt || '';
-        
-        // Substituir variáveis no prompt
-        prompt = this.replaceVariables(prompt, executionState.variables);
-        
-        // Adicionar contexto se habilitado
-        if (node.data.context) {
-            const history = executionState.history
-                .filter(h => h.nodeType === 'message')
-                .map(h => h.data.text)
-                .join('\n');
+        try {
+            let prompt = node.data.prompt || '';
             
-            if (history) {
-                prompt = `Contexto da conversa:\n${history}\n\nPrompt atual: ${prompt}`;
+            // Debug log para sessões de teste
+            if (executionState.initialData && executionState.initialData.isTestSession) {
+                logger.info(`🧪 [TESTE] LLM Node executando prompt: "${prompt}"`);
+            }
+            
+            // Substituir variáveis no prompt
+            prompt = this.replaceVariables(prompt, executionState.variables);
+            
+            // Adicionar contexto se habilitado
+            if (node.data.context) {
+                const history = executionState.history
+                    .filter(h => h.nodeType === 'message')
+                    .map(h => h.data.text)
+                    .join('\n');
+                
+                if (history) {
+                    prompt = `Contexto da conversa:\n${history}\n\nPrompt atual: ${prompt}`;
+                }
+            }
+
+            logger.info(`🤖 Enviando prompt para LLM (usuário: ${executionState.userId}): "${prompt.substring(0, 100)}..."`);
+
+            // Verificar se já há uma requisição LLM em andamento para este usuário
+            if (this.llmProcessing.has(executionState.userId)) {
+                logger.info(`⏳ Usuário ${executionState.userId} já tem requisição LLM em andamento - enfileirando...`);
+                
+                // Adicionar à fila e aguardar processamento
+                this.llmQueue.set(executionState.userId, {
+                    prompt,
+                    timestamp: new Date(),
+                    executionState,
+                    node
+                });
+                
+                // Enviar mensagem de status se não for sessão de teste
+                if (!executionState.initialData?.isTestSession) {
+                    await this.sendWhatsAppMessage(
+                        executionState.userId, 
+                        "🤖 Sua solicitação foi enfileirada e será processada em breve..."
+                    );
+                }
+                
+                return { wait: true }; // Pausar execução até LLM responder
+            }
+
+            // Marcar usuário como processando LLM
+            this.llmProcessing.add(executionState.userId);
+            
+            try {
+                // Chamar LLM sem timeout - permite tempo ilimitado para resposta
+                logger.info(`⏳ LLM em processamento para usuário ${executionState.userId} - aguardando resposta...`);
+                
+                // Enviar mensagem de status se não for sessão de teste e demorar mais que 5 segundos
+                const statusTimeout = setTimeout(async () => {
+                    if (!executionState.initialData?.isTestSession) {
+                        await this.sendWhatsAppMessage(
+                            executionState.userId, 
+                            "🤖 Processando sua solicitação... Por favor, aguarde..."
+                        );
+                    }
+                }, 5000);
+                
+                const response = await this.llmService.getAssistantResponse(executionState.userId, prompt);
+                
+                clearTimeout(statusTimeout);
+                logger.info(`🤖 Resposta LLM recebida (usuário: ${executionState.userId}): "${response.substring(0, 100)}..."`);
+                
+                // Salvar resposta como variável
+                if (node.data.outputVariable) {
+                    executionState.variables.set(node.data.outputVariable, response);
+                }
+                
+                // Tentar enviar resposta - mas não falhar se envio falhar
+                const messageSent = await this.sendWhatsAppMessage(executionState.userId, response);
+                
+                if (!messageSent) {
+                    logger.warn(`⚠️ Falha ao enviar resposta LLM via WhatsApp, mas continuando flow para ${executionState.userId}`);
+                    // Save response in variables even if sending failed
+                    executionState.variables.set('lastLlmResponse', response);
+                    executionState.variables.set('lastLlmError', 'Message delivery failed');
+                } else {
+                    logger.info(`✅ Resposta LLM enviada com sucesso para ${executionState.userId}`);
+                    executionState.variables.set('lastLlmResponse', response);
+                }
+                
+                // Processar fila se houver outras requisições aguardando
+                await this.processLlmQueue(executionState.userId);
+                
+                return { nextNodeId: node.outputs[0] };
+                
+            } finally {
+                // Sempre remover usuário da lista de processamento
+                this.llmProcessing.delete(executionState.userId);
+            }
+            
+        } catch (error) {
+            logger.error(`❌ Erro no nó LLM: ${error.message}`);
+            
+            // Debug log para sessões de teste
+            if (executionState.initialData && executionState.initialData.isTestSession) {
+                logger.error(`🧪 [TESTE] Erro detalhado no LLM:`, {
+                    prompt: node.data.prompt,
+                    errorMessage: error.message,
+                    errorStack: error.stack
+                });
+            }
+            
+            // Em vez de parar o flow, enviar mensagem de erro e continuar
+            const errorMessage = node.data.errorMessage || 'Desculpe, houve um problema ao processar sua solicitação. Vamos continuar...';
+            await this.sendWhatsAppMessage(executionState.userId, errorMessage);
+            
+            // Salvar erro como variável para possível uso posterior
+            executionState.variables.set('lastLlmError', error.message);
+            
+            // Continuar para próximo nó se existir
+            if (node.outputs && node.outputs.length > 0) {
+                return { nextNodeId: node.outputs[0] };
+            } else {
+                return { end: true };
             }
         }
+    }
 
-        // Chamar LLM
-        const response = await this.llmService.getAssistantResponse(executionState.userId, prompt);
+    /**
+     * Processa fila de requisições LLM
+     */
+    async processLlmQueue(userId) {
+        // Verificar se há requisições na fila para este usuário
+        const queuedRequest = this.llmQueue.get(userId);
+        if (!queuedRequest) {
+            return; // Nenhuma requisição na fila
+        }
         
-        // Enviar resposta
-        await this.sendWhatsAppMessage(executionState.userId, response);
-
-        return { nextNodeId: node.outputs[0] };
+        logger.info(`🔄 Processando requisição LLM enfileirada para usuário ${userId}`);
+        
+        // Remover da fila
+        this.llmQueue.delete(userId);
+        
+        // Continuar execução do nó LLM
+        try {
+            await this.executeNode(queuedRequest.executionState, queuedRequest.node);
+        } catch (error) {
+            logger.error(`❌ Erro ao processar fila LLM para ${userId}: ${error.message}`);
+        }
+    }
+    
+    /**
+     * Limpa fila LLM para um usuário (em caso de erro ou finalização de flow)
+     */
+    clearLlmQueue(userId) {
+        this.llmQueue.delete(userId);
+        this.llmProcessing.delete(userId);
+        logger.info(`🧹 Fila LLM limpa para usuário ${userId}`);
     }
 
     /**
@@ -749,30 +943,82 @@ class FlowExecutionService {
      * Alias mais amigável para processUserInput, usado pela API de teste
      */
     async processFlowMessage(userId, message) {
+        logger.info(`🧪 [DEBUG] processFlowMessage called: userId=${userId}, message="${message}"`);
+        
         const executionState = this.activeFlows.get(userId);
         
         if (!executionState) {
+            logger.warn(`🧪 [DEBUG] No active flow for user: ${userId}`);
             return null; // Não há fluxo ativo
         }
+        
+        logger.info(`🧪 [DEBUG] Active flow found: ${executionState.flowId}`);
 
-        // Capturar mensagens que seriam enviadas para construir resposta
+        // Capturar TODAS as mensagens que seriam enviadas durante a execução
         const originalSendMessage = this.sendWhatsAppMessage;
-        let responseMessage = null;
+        const responseMessages = [];
         
         // Interceptar mensagens durante o processamento
         this.sendWhatsAppMessage = async (uid, msg) => {
             if (uid === userId) {
-                responseMessage = msg;
+                logger.info(`🧪 [CAPTURE] Capturando mensagem: "${msg}"`);
+                responseMessages.push(msg);
             }
+            
+            // Ainda chamar a função original para logging de teste
+            return await originalSendMessage.call(this, uid, msg);
         };
 
         try {
             const processed = await this.processUserInput(userId, message);
-            return processed ? responseMessage : null;
+            
+            logger.info(`🧪 [RESULT] Processed: ${processed}, Messages captured: ${responseMessages.length}`);
+            if (responseMessages.length > 0) {
+                logger.info(`🧪 [RESULT] Messages: ${JSON.stringify(responseMessages)}`);
+            }
+            
+            // Retornar todas as mensagens capturadas, separadas por linha
+            if (processed && responseMessages.length > 0) {
+                return responseMessages.join('\n\n');
+            }
+            
+            return null;
         } finally {
             // Restaurar função original
             this.sendWhatsAppMessage = originalSendMessage;
         }
+    }
+
+    /**
+     * Verifica se há um fluxo ativo para o usuário
+     */
+    hasActiveFlow(userId) {
+        const executionState = this.activeFlows.get(userId);
+        return !!executionState;
+    }
+
+    /**
+     * Obtém informações detalhadas sobre o estado atual do fluxo
+     */
+    getCurrentFlowState(userId) {
+        const executionState = this.activeFlows.get(userId);
+        
+        if (!executionState) {
+            return { active: false };
+        }
+
+        const currentNode = this.getCurrentNode(executionState);
+        
+        return {
+            active: true,
+            flowId: executionState.flowId,
+            currentNodeId: executionState.currentNodeId,
+            waitingForInput: executionState.waitingForInput,
+            variables: Object.fromEntries(executionState.variables),
+            nodeType: currentNode?.type,
+            nodeData: currentNode?.data,
+            isTestSession: executionState.initialData?.isTestSession || false
+        };
     }
 
     /**
@@ -816,20 +1062,50 @@ class FlowExecutionService {
     }
 
     /**
-     * Envia mensagem via WhatsApp
+     * Envia mensagem via WhatsApp com retry e error handling robusto
      */
-    async sendWhatsAppMessage(userId, message) {
+    async sendWhatsAppMessage(userId, message, retries = 3) {
         // Check if this is a test session and skip WhatsApp sending to avoid Puppeteer errors
         const executionState = this.activeFlows.get(userId);
         if (executionState && executionState.initialData && executionState.initialData.isTestSession) {
             logger.info(`🧪 [TESTE] Simulando envio de mensagem para ${userId}: "${message}"`);
-            return; // Skip actual WhatsApp sending in test mode
+            // Don't return early - allow intercepted functions in processFlowMessage to work
+            return true;
+        }
+
+        // Send to real WhatsApp with retry logic
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+                const client = this.bot.getClient();
+                if (!client) {
+                    logger.warn(`⚠️ Cliente WhatsApp não disponível (tentativa ${attempt}/${retries})`);
+                    if (attempt === retries) {
+                        logger.error(`❌ Cliente WhatsApp indisponível após ${retries} tentativas`);
+                        return false; // Don't throw, just return false
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Progressive delay
+                    continue;
+                }
+
+                await client.sendMessage(userId, message);
+                logger.info(`✅ Mensagem enviada via WhatsApp para ${userId} (tentativa ${attempt})`);
+                return true;
+                
+            } catch (error) {
+                logger.warn(`⚠️ Erro ao enviar mensagem WhatsApp (tentativa ${attempt}/${retries}): ${error.message}`);
+                
+                if (attempt === retries) {
+                    logger.error(`❌ Falha definitiva ao enviar mensagem WhatsApp para ${userId}: ${error.message}`);
+                    // Don't throw error - just log and continue flow
+                    return false;
+                }
+                
+                // Progressive delay between retries
+                await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            }
         }
         
-        const client = this.bot.getClient();
-        if (client) {
-            await client.sendMessage(userId, message);
-        }
+        return false;
     }
 
     /**
@@ -843,6 +1119,9 @@ class FlowExecutionService {
             if (executionState.inputTimeout) {
                 clearTimeout(executionState.inputTimeout);
             }
+            
+            // Limpar fila LLM
+            this.clearLlmQueue(userId);
 
             // Salvar histórico
             this.executionHistory.set(userId, {
@@ -872,6 +1151,9 @@ class FlowExecutionService {
             if (executionState.inputTimeout) {
                 clearTimeout(executionState.inputTimeout);
             }
+            
+            // Limpar fila LLM
+            this.clearLlmQueue(userId);
 
             // Salvar histórico
             this.executionHistory.set(userId, {
@@ -888,19 +1170,66 @@ class FlowExecutionService {
     }
 
     /**
-     * Trata erros durante execução
+     * Trata erros durante execução com recovery
      */
     async handleExecutionError(executionState, error) {
         logger.error(`❌ Erro na execução do fluxo: ${error.message}`);
         
-        // Enviar mensagem de erro para o usuário
-        await this.sendWhatsAppMessage(
-            executionState.userId, 
-            'Desculpe, ocorreu um erro durante o processamento. Tente novamente.'
-        );
+        // Salvar erro no histórico
+        executionState.history.push({
+            nodeId: 'error',
+            nodeType: 'error',
+            timestamp: new Date(),
+            error: error.message
+        });
+        
+        // Classificar tipo de erro
+        const isRecoverableError = this.isRecoverableError(error);
+        
+        if (isRecoverableError) {
+            logger.info(`🔄 Erro recuperável detectado, tentando continuar flow`);
+            
+            // Tentar enviar mensagem de erro (mas não falhar se não conseguir)
+            await this.sendWhatsAppMessage(
+                executionState.userId, 
+                'Houve um pequeno problema, mas vamos continuar...'
+            );
+            
+            // Não finalizar execução - permitir que o flow continue
+            executionState.variables.set('lastError', error.message);
+            executionState.variables.set('errorRecovery', true);
+            
+        } else {
+            logger.error(`❌ Erro não recuperável, finalizando execução`);
+            
+            // Tentar enviar mensagem de erro
+            await this.sendWhatsAppMessage(
+                executionState.userId, 
+                'Desculpe, ocorreu um erro durante o processamento. Tente novamente.'
+            );
 
-        // Finalizar execução
-        await this.endFlowExecution(executionState.userId);
+            // Finalizar execução apenas para erros não recuperáveis
+            await this.endFlowExecution(executionState.userId);
+        }
+    }
+    
+    /**
+     * Determina se um erro é recuperável
+     */
+    isRecoverableError(error) {
+        const recoverableErrors = [
+            'network',
+            'timeout',
+            'connection',
+            'whatsapp',
+            'client',
+            'rate limit',
+            'temporarily',
+            'unavailable'
+        ];
+        
+        const errorMessage = error.message.toLowerCase();
+        return recoverableErrors.some(keyword => errorMessage.includes(keyword));
     }
 
     /**
@@ -1027,37 +1356,76 @@ class FlowExecutionService {
     }
 
     /**
-     * Executa nó do Telegram
+     * Executa nó do Telegram com error handling robusto
      */
     async executeTelegramNode(executionState, node) {
         try {
-            const TelegramIntegrationService = await import('./telegramIntegrationService.js');
             const chatId = this.replaceVariables(node.data.chatId, executionState.variables);
             const message = this.replaceVariables(node.data.message, executionState.variables);
             
+            // Debug log para sessões de teste
+            if (executionState.initialData && executionState.initialData.isTestSession) {
+                logger.info(`🧪 [TESTE] Telegram Node simulando envio para ${chatId}: "${message}"`);
+                executionState.variables.set('telegramSent', true);
+                return { nextNodeId: node.outputs[0] };
+            }
+            
             // Se houver token específico, usar esse bot, senão usar o principal
             if (node.data.botToken) {
-                // Implementar envio com bot específico
+                // Implementar envio com bot específico com retry
                 const fetch = await import('node-fetch');
                 const botToken = this.replaceVariables(node.data.botToken, executionState.variables);
                 
-                await fetch.default(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chat_id: chatId,
-                        text: message
-                    })
-                });
+                let success = false;
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                    try {
+                        const response = await fetch.default(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                chat_id: chatId,
+                                text: message
+                            })
+                        });
+                        
+                        if (response.ok) {
+                            logger.info(`✅ Mensagem Telegram enviada para ${chatId} (tentativa ${attempt})`);
+                            success = true;
+                            break;
+                        } else {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                    } catch (err) {
+                        logger.warn(`⚠️ Erro ao enviar Telegram (tentativa ${attempt}/3): ${err.message}`);
+                        if (attempt === 3) {
+                            throw err;
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+                    }
+                }
+                
+                executionState.variables.set('telegramSent', success);
             } else {
-                // Usar integração principal (precisa implementar)
-                logger.info(`Envio Telegram para ${chatId}: ${message}`);
+                // Usar integração principal (simular por enquanto)
+                logger.info(`📱 Envio Telegram para ${chatId}: ${message}`);
+                executionState.variables.set('telegramSent', true);
             }
             
             return { nextNodeId: node.outputs[0] };
+            
         } catch (error) {
-            logger.error('Erro no nó Telegram:', error);
-            throw error;
+            logger.error('❌ Erro no nó Telegram:', error);
+            
+            // Em vez de parar o flow, salvar erro e continuar
+            executionState.variables.set('telegramError', error.message);
+            executionState.variables.set('telegramSent', false);
+            
+            // Continuar para próximo nó se existir
+            if (node.outputs && node.outputs.length > 0) {
+                return { nextNodeId: node.outputs[0] };
+            } else {
+                return { end: true };
+            }
         }
     }
 

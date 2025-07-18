@@ -209,6 +209,7 @@ class FlowService {
         
         // SEMPRE verificar existência direto no MongoDB flows collection
         while (await this.flowDataService.flowExists(finalId)) {
+            logger.debug(`🔍 ID ${finalId} já existe, tentando próximo...`);
             finalId = `${baseId}-${counter}`;
             counter++;
             
@@ -218,6 +219,8 @@ class FlowService {
                 break;
             }
         }
+        
+        logger.debug(`✅ ID único confirmado: ${finalId}`);
         
         logger.debug(`🆔 ID único gerado para flow '${flowName}': ${finalId}`);
         return finalId;
@@ -470,17 +473,44 @@ class FlowService {
                 };
             }
 
-            // Criar cópia do fluxo
+            // Criar cópia do fluxo manualmente para evitar problemas com _id
             const duplicatedFlow = {
-                ...originalFlow,
-                name: newName || `${originalFlow.name} (Cópia)`,
-                description: `Cópia de: ${originalFlow.description}`,
-                id: undefined, // Será gerado automaticamente
-                _id: undefined // Remove o ID do MongoDB também
+                name: originalFlow.name,
+                description: originalFlow.description,
+                alias: originalFlow.alias,
+                nodes: originalFlow.nodes ? JSON.parse(JSON.stringify(originalFlow.nodes)) : [],
+                connections: originalFlow.connections ? JSON.parse(JSON.stringify(originalFlow.connections)) : [],
+                version: originalFlow.version,
+                metadata: originalFlow.metadata ? JSON.parse(JSON.stringify(originalFlow.metadata)) : {}
             };
+            
+            // Atualizar metadados da cópia
+            duplicatedFlow.name = newName || `${originalFlow.name} (Cópia)`;
+            duplicatedFlow.description = `Cópia de: ${originalFlow.description || originalFlow.name}`;
+            duplicatedFlow.createdAt = new Date().toISOString();
+            duplicatedFlow.lastModified = new Date().toISOString();
+            
+            // Gerar novo ID único para a cópia
+            const newId = await this.generateUniqueId(duplicatedFlow.name);
+            logger.info(`🆔 ID gerado para duplicação: ${newId} (tipo: ${typeof newId})`);
+            
+            if (!newId || newId === null || newId === undefined) {
+                throw new Error(`Falha ao gerar ID único: ${newId}`);
+            }
+            
+            duplicatedFlow.id = newId;
+            
+            // Gerar novo alias se não existir
+            if (!duplicatedFlow.alias) {
+                duplicatedFlow.alias = this.generateAlias(duplicatedFlow.name);
+            }
+            
+            logger.info(`🔧 Dados do flow duplicado - ID: ${duplicatedFlow.id}, Nome: ${duplicatedFlow.name}`);
 
-            // Salvar a cópia na base flows
-            return await this.saveFlow(duplicatedFlow);
+            // Usar o método regular saveFlow que funciona bem
+            const result = await this.saveFlow(duplicatedFlow);
+            
+            return result;
 
         } catch (error) {
             logger.error(`❌ Erro ao duplicar fluxo ${flowId}:`, error);

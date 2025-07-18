@@ -135,7 +135,7 @@ class FlowTester {
             
             if (data.success) {
                 this.testSessionId = data.sessionId;
-                this.isTestActive = true;
+                this.isTestActive = data.sessionActive || true;
                 
                 // Atualizar UI
                 this.updateTestStatus(true);
@@ -146,8 +146,20 @@ class FlowTester {
                 
                 this.addMessage('🚀 Teste iniciado! O fluxo foi ativado.', 'system');
                 
-                // Aguardar um pouco para ver se há resposta automática
-                setTimeout(() => this.checkForBotResponse(), 1000);
+                // Exibir mensagens iniciais capturadas durante a execução do fluxo
+                if (data.initialMessages && data.initialMessages.length > 0) {
+                    data.initialMessages.forEach(message => {
+                        this.addMessage(message, 'bot');
+                    });
+                }
+                
+                // Verificar se a sessão ainda está ativa após execução inicial
+                if (!data.sessionActive) {
+                    setTimeout(() => {
+                        this.addMessage('🏁 Fluxo finalizado automaticamente.', 'system');
+                        this.stopTest();
+                    }, 500);
+                }
                 
             } else {
                 throw new Error(data.error || 'Erro ao iniciar teste');
@@ -296,7 +308,7 @@ class FlowTester {
         }
         
         messageDiv.innerHTML = `
-            <div>${text}</div>
+            <div class="message-content">${text}</div>
             <div class="message-time">${timeString}</div>
         `;
         

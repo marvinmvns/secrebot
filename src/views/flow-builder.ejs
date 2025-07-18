@@ -264,6 +264,134 @@
             stroke-width: 2;
             stroke-dasharray: 5,5;
         }
+        
+        /* Garantir que inputs sejam focáveis */
+        .modal input, .modal textarea, .modal select {
+            pointer-events: auto !important;
+            z-index: 1058 !important;
+            position: relative;
+        }
+        
+        /* Loading spinner no botão */
+        .btn .fa-spinner {
+            animation: fa-spin 2s infinite linear;
+        }
+        
+        @keyframes fa-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Responsive improvements */
+        @media (max-width: 768px) {
+            .flow-container {
+                height: 100vh;
+            }
+            
+            .flow-header {
+                padding: 0.75rem;
+            }
+            
+            .flow-header .d-flex {
+                flex-direction: column;
+                align-items: flex-start !important;
+            }
+            
+            .flow-header h1 {
+                font-size: 1.2rem;
+                margin-bottom: 0.5rem;
+            }
+            
+            .toolbar {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.25rem;
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .btn-toolbar {
+                padding: 0.4rem 0.6rem;
+                font-size: 0.8rem;
+            }
+            
+            .flow-sidebar {
+                width: 250px;
+                padding: 0.5rem;
+            }
+            
+            .flow-sidebar h5 {
+                font-size: 1rem;
+            }
+            
+            .node-item {
+                padding: 0.5rem;
+                margin-bottom: 0.25rem;
+            }
+            
+            .node-item strong {
+                font-size: 0.9rem;
+            }
+            
+            .node-item small {
+                font-size: 0.75rem;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .flow-sidebar {
+                width: 200px;
+                padding: 0.25rem;
+            }
+            
+            .flow-header {
+                padding: 0.5rem;
+            }
+            
+            .flow-header h1 {
+                font-size: 1rem;
+            }
+            
+            .btn-toolbar {
+                padding: 0.3rem 0.5rem;
+                font-size: 0.7rem;
+            }
+            
+            .btn-toolbar i {
+                margin-right: 0.25rem;
+            }
+            
+            .node-item {
+                padding: 0.4rem;
+            }
+            
+            .flow-node {
+                min-width: 150px;
+                padding: 0.75rem;
+                font-size: 0.85rem;
+            }
+            
+            .modal-dialog {
+                margin: 0.25rem;
+            }
+        }
+        
+        /* Mobile touch improvements */
+        @media (hover: none) and (pointer: coarse) {
+            .node-item:hover {
+                border-color: #e9ecef;
+                box-shadow: none;
+            }
+            
+            .node-item:active {
+                border-color: #667eea;
+                box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+            }
+            
+            .flow-node {
+                cursor: default;
+            }
+        }
     </style>
 </head>
 <body>
@@ -463,31 +591,7 @@
         </div>
     </div>
     
-    <!-- Modais -->
-    <div class="modal fade" id="saveModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Salvar Fluxo</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label for="flowName">Nome do Fluxo</label>
-                        <input type="text" id="flowName" class="form-control" placeholder="Meu Fluxo WhatsApp">
-                    </div>
-                    <div class="form-group">
-                        <label for="flowDescription">Descrição</label>
-                        <textarea id="flowDescription" class="form-control" rows="3" placeholder="Descrição do fluxo..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary" onclick="performSave()">Salvar</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Os modais são criados dinamicamente via JavaScript -->
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/flow-builder.js"></script>

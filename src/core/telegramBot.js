@@ -287,19 +287,15 @@ class TelegramBotService {
                 break;
 
             case 'config':
-                if (features.model_management) {
-                    keyboard.push([{ text: '🤖 Modelos IA', callback_data: 'config_ai_models' }]);
-                }
-                if (features.whisper_model_management) {
-                    keyboard.push([{ text: '🎤 Modelos Whisper', callback_data: 'config_whisper_models' }]);
-                }
-                if (features.service_management) {
-                    keyboard.push([{ text: '🔄 Reiniciar Serviços', callback_data: 'config_restart_services' }]);
-                }
                 if (features.voice_response_toggle) {
                     keyboard.push([{ text: '🔊 Configurar Resposta Voz', callback_data: 'config_voice_response' }]);
                 }
-                keyboard.push([{ text: '🔧 Feature Toggles', callback_data: 'config_features' }]);
+                keyboard.push([{ text: '🎤 Endpoints Whisper API', callback_data: 'config_whisper_endpoints' }]);
+                keyboard.push([{ text: '🤖 Endpoints Ollama API', callback_data: 'config_ollama_endpoints' }]);
+                keyboard.push([{ text: '📊 Status Todos Endpoints', callback_data: 'config_endpoints_status' }]);
+                if (features.system_resources) {
+                    keyboard.push([{ text: '⚡ Recursos Sistema', callback_data: 'config_system_resources' }]);
+                }
                 break;
         }
 
@@ -397,14 +393,20 @@ class TelegramBotService {
         const userId = ctx.from.id;
 
         switch (configAction) {
-            case 'config_ai_models':
-                await this.showAIModels(chatId);
+            case 'config_whisper_endpoints':
+                await this.showWhisperEndpoints(chatId);
                 break;
-            case 'config_whisper_models':
-                await this.showWhisperModels(chatId);
+            case 'config_ollama_endpoints':
+                await this.showOllamaEndpoints(chatId);
                 break;
-            case 'config_features':
-                await this.showFeatureToggles(chatId, userId);
+            case 'config_endpoints_status':
+                await this.showEndpointsStatus(chatId);
+                break;
+            case 'config_voice_response':
+                await this.toggleVoicePreference(chatId, userId);
+                break;
+            case 'config_system_resources':
+                await this.showSystemResources(chatId);
                 break;
             case 'action_tts_config':
                 await this.handleTTSConfig(chatId, userId);
@@ -533,11 +535,13 @@ class TelegramBotService {
     }
 
     // Métodos auxiliares de configuração
+    // DEPRECATED: Função removida do menu config - use showOllamaEndpoints
     async showAIModels(chatId) {
         const message = '🤖 <b>Modelos de IA Disponíveis</b>\n\n📊 <i>Esta funcionalidade estará disponível em breve!</i>\n\nVocê poderá visualizar e selecionar diferentes modelos de IA para suas consultas.';
         await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
     }
 
+    // DEPRECATED: Função removida do menu config - use showWhisperEndpoints
     async showWhisperModels(chatId) {
         const message = '🎤 <b>Modelos de Áudio Disponíveis</b>\n\n📊 <i>Esta funcionalidade estará disponível em breve!</i>\n\nVocê poderá escolher diferentes modelos para transcrição de áudio.';
         await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
@@ -774,6 +778,197 @@ class TelegramBotService {
     buildEnhancedWelcomeMessage() {
         return TELEGRAM_MESSAGES.welcome;
     }
+
+    // === Novos Métodos para Gerenciamento de Endpoints ===
+
+    async showWhisperEndpoints(chatId) {
+        try {
+            await this.bot.telegram.sendMessage(chatId, '🎤 Carregando endpoints Whisper API...', { parse_mode: 'HTML' });
+            
+            // Inject transcriber with access to whisperApiPool 
+            const transcriber = this.integrationService?.getTranscriber?.() || null;
+            const whisperPool = transcriber?.whisperApiPool;
+            
+            if (!whisperPool) {
+                await this.bot.telegram.sendMessage(chatId, '❌ <b>WHISPER API NÃO DISPONÍVEL</b>\n\n⚠️ O pool de APIs Whisper não está configurado.', { parse_mode: 'HTML' });
+                return;
+            }
+
+            const status = await whisperPool.getPoolStatus();
+            
+            let message = '🎤 <b>ENDPOINTS WHISPER API</b>\n\n';
+            message += `📊 <b>Resumo Geral:</b>\n`;
+            message += `• Total de Endpoints: ${status.totalEndpoints}\n`;
+            message += `• Endpoints Saudáveis: ${status.healthyEndpoints}\n`;
+            message += `• Estratégia de Balanceamento: ${status.strategy}\n\n`;
+            
+            if (status.endpoints.length === 0) {
+                message += '📭 <i>Nenhum endpoint configurado</i>\n';
+            } else {
+                message += '📋 <b>Lista de Endpoints:</b>\n\n';
+                
+                status.endpoints.forEach((endpoint, index) => {
+                    message += `${index + 1}. <b>${endpoint.url}</b>\n`;
+                    message += `   🟢 Status: ${endpoint.healthy ? 'Saudável' : '🔴 Indisponível'}\n`;
+                    message += `   ⭐ Prioridade: ${endpoint.priority}\n`;
+                    if (endpoint.queueLength !== undefined) {
+                        message += `   📊 Fila: ${endpoint.queueLength} itens\n`;
+                    }
+                    if (endpoint.error) {
+                        message += `   ❌ Erro: ${endpoint.error}\n`;
+                    }
+                    message += '\n';
+                });
+            }
+            
+            await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
+            
+        } catch (err) {
+            logger.error(`❌ Erro ao listar endpoints Whisper para ${chatId}`, err);
+            await this.bot.telegram.sendMessage(chatId, `❌ <b>ERRO AO LISTAR ENDPOINTS</b>\n\n🚫 <b>Erro:</b> ${err.message}`, { parse_mode: 'HTML' });
+        }
+    }
+
+    async showOllamaEndpoints(chatId) {
+        try {
+            await this.bot.telegram.sendMessage(chatId, '🤖 Carregando endpoints Ollama API...', { parse_mode: 'HTML' });
+            
+            // Access through llmService
+            const ollamaPool = this.llmService?.ollamaApiPool;
+            
+            if (!ollamaPool) {
+                await this.bot.telegram.sendMessage(chatId, '❌ <b>OLLAMA API NÃO DISPONÍVEL</b>\n\n⚠️ O pool de APIs Ollama não está configurado.', { parse_mode: 'HTML' });
+                return;
+            }
+
+            const status = await ollamaPool.getPoolStatus();
+            
+            let message = '🤖 <b>ENDPOINTS OLLAMA API</b>\n\n';
+            message += `📊 <b>Resumo Geral:</b>\n`;
+            message += `• Modo: ${status.mode}\n`;
+            message += `• Habilitado: ${status.enabled ? 'Sim' : 'Não'}\n`;
+            message += `• Total de Endpoints: ${status.totalEndpoints}\n`;
+            message += `• Endpoints Saudáveis: ${status.healthyEndpoints}\n`;
+            message += `• Estratégia de Balanceamento: ${status.strategy}\n\n`;
+            
+            if (status.endpoints.length === 0) {
+                message += '📭 <i>Nenhum endpoint configurado</i>\n';
+            } else {
+                message += '📋 <b>Lista de Endpoints:</b>\n\n';
+                
+                status.endpoints.forEach((endpoint, index) => {
+                    message += `${index + 1}. <b>${endpoint.url}</b>\n`;
+                    message += `   🏷️ Tipo: ${endpoint.type}\n`;
+                    message += `   🟢 Status: ${endpoint.healthy ? 'Saudável' : '🔴 Indisponível'}\n`;
+                    message += `   ⭐ Prioridade: ${endpoint.priority}\n`;
+                    if (endpoint.runningModels !== undefined) {
+                        message += `   🧠 Modelos Ativos: ${endpoint.runningModels}\n`;
+                    }
+                    if (endpoint.currentModel) {
+                        message += `   📋 Modelo Atual: ${endpoint.currentModel}\n`;
+                    }
+                    if (endpoint.error) {
+                        message += `   ❌ Erro: ${endpoint.error}\n`;
+                    }
+                    message += '\n';
+                });
+            }
+            
+            await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
+            
+        } catch (err) {
+            logger.error(`❌ Erro ao listar endpoints Ollama para ${chatId}`, err);
+            await this.bot.telegram.sendMessage(chatId, `❌ <b>ERRO AO LISTAR ENDPOINTS</b>\n\n🚫 <b>Erro:</b> ${err.message}`, { parse_mode: 'HTML' });
+        }
+    }
+
+    async showEndpointsStatus(chatId) {
+        try {
+            await this.bot.telegram.sendMessage(chatId, '📊 Carregando status de todos os endpoints...', { parse_mode: 'HTML' });
+            
+            let message = '📊 <b>STATUS COMPLETO DOS ENDPOINTS</b>\n\n';
+            
+            // Status do Whisper API
+            const transcriber = this.integrationService?.getTranscriber?.() || null;
+            const whisperPool = transcriber?.whisperApiPool;
+            
+            if (whisperPool) {
+                try {
+                    const whisperStatus = await whisperPool.getPoolStatus();
+                    message += '🎤 <b>WHISPER API</b>\n';
+                    message += `• Endpoints: ${whisperStatus.healthyEndpoints}/${whisperStatus.totalEndpoints} saudáveis\n`;
+                    message += `• Estratégia: ${whisperStatus.strategy}\n`;
+                    
+                    let totalQueue = 0;
+                    whisperStatus.endpoints.forEach(endpoint => {
+                        if (endpoint.queueLength) totalQueue += endpoint.queueLength;
+                    });
+                    message += `• Total na Fila: ${totalQueue} itens\n\n`;
+                    
+                } catch (err) {
+                    message += '🎤 <b>WHISPER API</b>\n';
+                    message += `❌ Erro ao obter status: ${err.message}\n\n`;
+                }
+            } else {
+                message += '🎤 <b>WHISPER API</b>\n';
+                message += '⚠️ Pool não configurado\n\n';
+            }
+            
+            // Status do Ollama API
+            const ollamaPool = this.llmService?.ollamaApiPool;
+            if (ollamaPool) {
+                try {
+                    const ollamaStatus = await ollamaPool.getPoolStatus();
+                    message += '🤖 <b>OLLAMA API</b>\n';
+                    message += `• Modo: ${ollamaStatus.mode}\n`;
+                    message += `• Habilitado: ${ollamaStatus.enabled ? 'Sim' : 'Não'}\n`;
+                    message += `• Endpoints: ${ollamaStatus.healthyEndpoints}/${ollamaStatus.totalEndpoints} saudáveis\n`;
+                    message += `• Estratégia: ${ollamaStatus.strategy}\n`;
+                    
+                    let totalRunningModels = 0;
+                    ollamaStatus.endpoints.forEach(endpoint => {
+                        if (endpoint.runningModels) totalRunningModels += endpoint.runningModels;
+                    });
+                    message += `• Total Modelos Ativos: ${totalRunningModels}\n\n`;
+                    
+                } catch (err) {
+                    message += '🤖 <b>OLLAMA API</b>\n';
+                    message += `❌ Erro ao obter status: ${err.message}\n\n`;
+                }
+            } else {
+                message += '🤖 <b>OLLAMA API</b>\n';
+                message += '⚠️ Pool não configurado\n\n';
+            }
+            
+            // Status do sistema
+            try {
+                const si = await import('systeminformation');
+                const cpuInfo = await si.cpu();
+                const memInfo = await si.mem();
+                const loadInfo = await si.currentLoad();
+                
+                message += '💻 <b>SISTEMA</b>\n';
+                message += `• CPU: ${cpuInfo.manufacturer} ${cpuInfo.brand}\n`;
+                message += `• Carga CPU: ${loadInfo.currentLoad.toFixed(1)}%\n`;
+                message += `• Memória: ${(memInfo.used / 1024 / 1024 / 1024).toFixed(1)}GB / ${(memInfo.total / 1024 / 1024 / 1024).toFixed(1)}GB\n`;
+                message += `• Uso Memória: ${((memInfo.used / memInfo.total) * 100).toFixed(1)}%\n\n`;
+                
+            } catch (err) {
+                message += '💻 <b>SISTEMA</b>\n';
+                message += `❌ Erro ao obter info do sistema: ${err.message}\n\n`;
+            }
+            
+            message += `🔄 Atualizado em: ${new Date().toLocaleString('pt-BR')}\n`;
+            
+            await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
+            
+        } catch (err) {
+            logger.error(`❌ Erro ao obter status dos endpoints para ${chatId}`, err);
+            await this.bot.telegram.sendMessage(chatId, `❌ <b>ERRO AO OBTER STATUS</b>\n\n🚫 <b>Erro:</b> ${err.message}`, { parse_mode: 'HTML' });
+        }
+    }
+
+    // === Fim dos Métodos de Gerenciamento de Endpoints ===
 
 }
 

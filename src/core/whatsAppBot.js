@@ -448,29 +448,17 @@ class WhatsAppBot {
         return true;
       case '5.2':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
-        await this.handleMessage({ ...msg, body: COMMANDS.MODELOS });
+        await this.handleMessage({ ...msg, body: COMMANDS.LISTAR_ENDPOINTS_WHISPER });
         return true;
       case '5.3':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
-        await this.handleMessage({ ...msg, body: COMMANDS.TROCAR_MODELO });
+        await this.handleMessage({ ...msg, body: COMMANDS.LISTAR_ENDPOINTS_OLLAMA });
         return true;
       case '5.4':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
-        await this.handleMessage({ ...msg, body: COMMANDS.REINICIAR_OLLAMA });
+        await this.handleMessage({ ...msg, body: COMMANDS.STATUS_ENDPOINTS });
         return true;
       case '5.5':
-        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
-        await this.handleMessage({ ...msg, body: COMMANDS.MODELOS_WHISPER });
-        return true;
-      case '5.6':
-        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
-        await this.handleMessage({ ...msg, body: COMMANDS.TROCAR_MODELO_WHISPER });
-        return true;
-      case '5.7':
-        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
-        await this.handleMessage({ ...msg, body: COMMANDS.REINICIAR_WHISPER });
-        return true;
-      case '5.8':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
         await this.handleMessage({ ...msg, body: COMMANDS.RECURSO });
         return true;
@@ -824,12 +812,9 @@ class WhatsAppBot {
           [COMMANDS.CALORIAS]: async () => {
               await this.sendResponse(contactId, ERROR_MESSAGES.IMAGE_REQUIRED);
           },
-          [COMMANDS.MODELOS]: () => this.handleModelosCommand(contactId),
-          [COMMANDS.TROCAR_MODELO]: () => this.handleTrocarModeloCommand(contactId),
-          [COMMANDS.MODELOS_WHISPER]: () => this.handleModelosWhisperCommand(contactId),
-          [COMMANDS.TROCAR_MODELO_WHISPER]: () => this.handleTrocarModeloWhisperCommand(contactId),
-          [COMMANDS.REINICIAR_OLLAMA]: () => this.handleReiniciarOllamaCommand(contactId),
-          [COMMANDS.REINICIAR_WHISPER]: () => this.handleReiniciarWhisperCommand(contactId)
+          [COMMANDS.LISTAR_ENDPOINTS_WHISPER]: () => this.handleListarEndpointsWhisperCommand(contactId),
+          [COMMANDS.LISTAR_ENDPOINTS_OLLAMA]: () => this.handleListarEndpointsOllamaCommand(contactId),
+          [COMMANDS.STATUS_ENDPOINTS]: () => this.handleStatusEndpointsCommand(contactId)
       };
 
       const sortedHandlers = Object.entries(commandHandlers).sort((a, b) => b[0].length - a[0].length);
@@ -852,6 +837,7 @@ class WhatsAppBot {
       await this.sendResponse(contactId, message, true);
   }
 
+  // DEPRECATED: Função removida do menu 5.2 - use handleListarEndpointsOllamaCommand
   async handleModelosCommand(contactId) {
     try {
       await this.sendResponse(contactId, '🤖 Carregando lista de modelos IA...', true);
@@ -909,6 +895,7 @@ class WhatsAppBot {
     }
   }
 
+  // DEPRECATED: Função removida do menu 5.3 - funcionalidade não incluída na nova versão
   async handleTrocarModeloCommand(contactId) {
     try {
       await this.sendResponse(contactId, '🤖 Carregando modelos disponíveis...', true);
@@ -960,6 +947,7 @@ class WhatsAppBot {
     }
   }
 
+  // DEPRECATED: Função removida do menu 5.5 - use handleListarEndpointsWhisperCommand
   async handleModelosWhisperCommand(contactId) {
     try {
       await this.sendResponse(contactId, '🎤 *MODELOS WHISPER DISPONÍVEIS*\n\n⏳ Carregando lista...', true);
@@ -1014,6 +1002,7 @@ class WhatsAppBot {
     }
   }
 
+  // DEPRECATED: Função removida do menu 5.6 - funcionalidade não incluída na nova versão
   async handleTrocarModeloWhisperCommand(contactId) {
     try {
       await this.sendResponse(contactId, '🎤 *TROCAR MODELO WHISPER*\n\n⏳ Preparando lista de modelos...', true);
@@ -1514,8 +1503,14 @@ async handleRecursoCommand(contactId) {
                   throw llmError;
               }
               
-              logger.verbose(`✅ Resumo gerado com ${summary.length} caracteres`);
+              logger.verbose(`✅ Resumo gerado com ${summary?.length || 0} caracteres`);
               logger.flow('📤 Enviando resumo final ao usuário');
+              
+              if (!summary || summary.trim() === '') {
+                  await this.sendResponse(contactId, '❌ Não foi possível gerar o resumo do vídeo. O LLM retornou uma resposta vazia. Tente novamente.');
+                  logger.error(`❌ LLM retornou resumo vazio para ${contactId}`);
+                  return;
+              }
               
               let finalResponse = `📑 *Resumo do Vídeo*\n\n${summary}`;
               if (truncated) {
@@ -2749,6 +2744,7 @@ usuario@email.com:senha
     }
   }
 
+  // DEPRECATED: Função removida do menu 5.4 - funcionalidade não incluída na nova versão
   async handleReiniciarOllamaCommand(contactId) {
     try {
       await this.sendResponse(contactId, '🔄 *REINICIAR APLICAÇÃO (OLLAMA)*\n\n⚠️ **ATENÇÃO:** Esta operação irá:\n• Reiniciar toda a aplicação SecreBot\n• Descarregar todos os modelos Ollama\n• Limpar todas as conexões ativas\n• Recarregar configurações\n\n⏳ A aplicação será reiniciada em 10 segundos...\n\n📱 **Você receberá uma confirmação** quando o sistema voltar online.', true);
@@ -2830,6 +2826,7 @@ usuario@email.com:senha
     }
   }
 
+  // DEPRECATED: Função removida do menu 5.7 - funcionalidade não incluída na nova versão
   async handleReiniciarWhisperCommand(contactId) {
     try {
       await this.sendResponse(contactId, '🎤 *REINICIAR WHISPER*\n\n⚠️ **Atenção:** Esta operação irá:\n• Limpar cache de transcrições\n• Reinicializar serviço Whisper\n• Resetar modos de transcrição\n\n⏳ Iniciando processo...', true);
@@ -3194,6 +3191,194 @@ usuario@email.com:senha
     }
   }
   // --- Fim Métodos de Flow Command ---
+
+  // === Novos Métodos para Gerenciamento de Endpoints ===
+  
+  async handleListarEndpointsWhisperCommand(contactId) {
+    try {
+      await this.sendResponse(contactId, '🎤 Carregando endpoints Whisper API...', true);
+      
+      const whisperPool = this.transcriber?.whisperApiPool;
+      if (!whisperPool) {
+        await this.sendResponse(contactId, '❌ *WHISPER API NÃO DISPONÍVEL*\n\n⚠️ O pool de APIs Whisper não está configurado.\n\n🔙 Para voltar ao menu: !voltar');
+        return;
+      }
+
+      const status = await whisperPool.getPoolStatus();
+      
+      let message = '🎤 *ENDPOINTS WHISPER API*\n\n';
+      message += `📊 **Resumo Geral:**\n`;
+      message += `• Total de Endpoints: ${status.totalEndpoints}\n`;
+      message += `• Endpoints Saudáveis: ${status.healthyEndpoints}\n`;
+      message += `• Estratégia de Balanceamento: ${status.strategy}\n\n`;
+      
+      if (status.endpoints.length === 0) {
+        message += '📭 *Nenhum endpoint configurado*\n';
+      } else {
+        message += '📋 **Lista de Endpoints:**\n\n';
+        
+        status.endpoints.forEach((endpoint, index) => {
+          message += `${index + 1}. **${endpoint.url}**\n`;
+          message += `   🟢 Status: ${endpoint.healthy ? 'Saudável' : '🔴 Indisponível'}\n`;
+          message += `   ⭐ Prioridade: ${endpoint.priority}\n`;
+          if (endpoint.queueLength !== undefined) {
+            message += `   📊 Fila: ${endpoint.queueLength} itens\n`;
+          }
+          if (endpoint.error) {
+            message += `   ❌ Erro: ${endpoint.error}\n`;
+          }
+          message += '\n';
+        });
+      }
+      
+      message += `🔙 Para voltar ao menu: !voltar`;
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao listar endpoints Whisper para ${contactId}`, err);
+      await this.sendResponse(contactId, `❌ *ERRO AO LISTAR ENDPOINTS*\n\n🚫 **Erro:** ${err.message}\n\n🔙 Para voltar ao menu: !voltar`);
+    }
+  }
+
+  async handleListarEndpointsOllamaCommand(contactId) {
+    try {
+      await this.sendResponse(contactId, '🤖 Carregando endpoints Ollama API...', true);
+      
+      const ollamaPool = this.llmService?.ollamaApiPool;
+      if (!ollamaPool) {
+        await this.sendResponse(contactId, '❌ *OLLAMA API NÃO DISPONÍVEL*\n\n⚠️ O pool de APIs Ollama não está configurado.\n\n🔙 Para voltar ao menu: !voltar');
+        return;
+      }
+
+      const status = await ollamaPool.getPoolStatus();
+      
+      let message = '🤖 *ENDPOINTS OLLAMA API*\n\n';
+      message += `📊 **Resumo Geral:**\n`;
+      message += `• Modo: ${status.mode}\n`;
+      message += `• Habilitado: ${status.enabled ? 'Sim' : 'Não'}\n`;
+      message += `• Total de Endpoints: ${status.totalEndpoints}\n`;
+      message += `• Endpoints Saudáveis: ${status.healthyEndpoints}\n`;
+      message += `• Estratégia de Balanceamento: ${status.strategy}\n\n`;
+      
+      if (status.endpoints.length === 0) {
+        message += '📭 *Nenhum endpoint configurado*\n';
+      } else {
+        message += '📋 **Lista de Endpoints:**\n\n';
+        
+        status.endpoints.forEach((endpoint, index) => {
+          message += `${index + 1}. **${endpoint.url}**\n`;
+          message += `   🏷️ Tipo: ${endpoint.type}\n`;
+          message += `   🟢 Status: ${endpoint.healthy ? 'Saudável' : '🔴 Indisponível'}\n`;
+          message += `   ⭐ Prioridade: ${endpoint.priority}\n`;
+          if (endpoint.runningModels !== undefined) {
+            message += `   🧠 Modelos Ativos: ${endpoint.runningModels}\n`;
+          }
+          if (endpoint.currentModel) {
+            message += `   📋 Modelo Atual: ${endpoint.currentModel}\n`;
+          }
+          if (endpoint.error) {
+            message += `   ❌ Erro: ${endpoint.error}\n`;
+          }
+          message += '\n';
+        });
+      }
+      
+      message += `🔙 Para voltar ao menu: !voltar`;
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao listar endpoints Ollama para ${contactId}`, err);
+      await this.sendResponse(contactId, `❌ *ERRO AO LISTAR ENDPOINTS*\n\n🚫 **Erro:** ${err.message}\n\n🔙 Para voltar ao menu: !voltar`);
+    }
+  }
+
+  async handleStatusEndpointsCommand(contactId) {
+    try {
+      await this.sendResponse(contactId, '📊 Carregando status de todos os endpoints...', true);
+      
+      let message = '📊 *STATUS COMPLETO DOS ENDPOINTS*\n\n';
+      
+      // Status do Whisper API
+      const whisperPool = this.transcriber?.whisperApiPool;
+      if (whisperPool) {
+        try {
+          const whisperStatus = await whisperPool.getPoolStatus();
+          message += '🎤 **WHISPER API**\n';
+          message += `• Endpoints: ${whisperStatus.healthyEndpoints}/${whisperStatus.totalEndpoints} saudáveis\n`;
+          message += `• Estratégia: ${whisperStatus.strategy}\n`;
+          
+          let totalQueue = 0;
+          whisperStatus.endpoints.forEach(endpoint => {
+            if (endpoint.queueLength) totalQueue += endpoint.queueLength;
+          });
+          message += `• Total na Fila: ${totalQueue} itens\n\n`;
+          
+        } catch (err) {
+          message += '🎤 **WHISPER API**\n';
+          message += `❌ Erro ao obter status: ${err.message}\n\n`;
+        }
+      } else {
+        message += '🎤 **WHISPER API**\n';
+        message += '⚠️ Pool não configurado\n\n';
+      }
+      
+      // Status do Ollama API
+      const ollamaPool = this.llmService?.ollamaApiPool;
+      if (ollamaPool) {
+        try {
+          const ollamaStatus = await ollamaPool.getPoolStatus();
+          message += '🤖 **OLLAMA API**\n';
+          message += `• Modo: ${ollamaStatus.mode}\n`;
+          message += `• Habilitado: ${ollamaStatus.enabled ? 'Sim' : 'Não'}\n`;
+          message += `• Endpoints: ${ollamaStatus.healthyEndpoints}/${ollamaStatus.totalEndpoints} saudáveis\n`;
+          message += `• Estratégia: ${ollamaStatus.strategy}\n`;
+          
+          let totalRunningModels = 0;
+          ollamaStatus.endpoints.forEach(endpoint => {
+            if (endpoint.runningModels) totalRunningModels += endpoint.runningModels;
+          });
+          message += `• Total Modelos Ativos: ${totalRunningModels}\n\n`;
+          
+        } catch (err) {
+          message += '🤖 **OLLAMA API**\n';
+          message += `❌ Erro ao obter status: ${err.message}\n\n`;
+        }
+      } else {
+        message += '🤖 **OLLAMA API**\n';
+        message += '⚠️ Pool não configurado\n\n';
+      }
+      
+      // Status do sistema
+      try {
+        const cpuInfo = await si.cpu();
+        const memInfo = await si.mem();
+        const loadInfo = await si.currentLoad();
+        
+        message += '💻 **SISTEMA**\n';
+        message += `• CPU: ${cpuInfo.manufacturer} ${cpuInfo.brand}\n`;
+        message += `• Carga CPU: ${loadInfo.currentLoad.toFixed(1)}%\n`;
+        message += `• Memória: ${(memInfo.used / 1024 / 1024 / 1024).toFixed(1)}GB / ${(memInfo.total / 1024 / 1024 / 1024).toFixed(1)}GB\n`;
+        message += `• Uso Memória: ${((memInfo.used / memInfo.total) * 100).toFixed(1)}%\n\n`;
+        
+      } catch (err) {
+        message += '💻 **SISTEMA**\n';
+        message += `❌ Erro ao obter info do sistema: ${err.message}\n\n`;
+      }
+      
+      message += `🔄 Atualizado em: ${new Date().toLocaleString('pt-BR')}\n`;
+      message += `🔙 Para voltar ao menu: !voltar`;
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao obter status dos endpoints para ${contactId}`, err);
+      await this.sendResponse(contactId, `❌ *ERRO AO OBTER STATUS*\n\n🚫 **Erro:** ${err.message}\n\n🔙 Para voltar ao menu: !voltar`);
+    }
+  }
+  
+  // === Fim dos Métodos de Gerenciamento de Endpoints ===
 }
 
 export default WhatsAppBot;

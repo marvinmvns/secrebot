@@ -102,6 +102,18 @@
             font-family: monospace;
             font-size: 0.85rem;
         }
+        .processing-badge {
+            animation: pulse-orange 2s infinite;
+        }
+        @keyframes pulse-orange {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        .endpoint-card.processing {
+            border-color: #fd7e14;
+            background-color: #fff8f0;
+        }
     </style>
 </head>
 <body>
@@ -249,6 +261,11 @@
             loadConfiguration();
             loadCurrentStatus();
             setupEventListeners();
+            
+            // Auto-refresh status every 10 seconds
+            setInterval(() => {
+                loadCurrentStatus();
+            }, 10000);
         });
 
         function setupEventListeners() {
@@ -468,8 +485,19 @@
 
                 if (status.healthy) {
                     indicator.className = 'status-indicator healthy';
-                    card.className = 'endpoint-card active';
-                    statusText.innerHTML = `<i class="fas fa-check-circle text-success"></i> Online`;
+                    
+                    // Update card class based on processing status
+                    const isProcessing = status.processing && status.processing.activeRequests > 0;
+                    card.className = isProcessing ? 'endpoint-card processing' : 'endpoint-card active';
+                    
+                    // Check for processing status
+                    let statusHtml = `<i class="fas fa-check-circle text-success"></i> Online`;
+                    if (isProcessing) {
+                        statusHtml += ` <span class="badge bg-warning text-dark ms-2 processing-badge">
+                            <i class="fas fa-cog fa-spin"></i> ${status.processing.activeRequests} processando
+                        </span>`;
+                    }
+                    statusText.innerHTML = statusHtml;
                     
                     if (status.runningModels !== undefined) {
                         let modelInfoHtml = `
@@ -481,6 +509,21 @@
                         // Add current model info for RKLLama
                         if (status.type === 'RKLLama' && status.currentModel) {
                             modelInfoHtml += `<br>Modelo atual: ${status.currentModel}`;
+                        }
+                        
+                        // Add processing statistics
+                        if (status.processing) {
+                            const proc = status.processing;
+                            modelInfoHtml += `<br>Processamento: ${proc.totalRequests || 0} total | `;
+                            if (proc.averageResponseTime) {
+                                modelInfoHtml += `Média: ${Math.round(proc.averageResponseTime)}ms | `;
+                            }
+                            modelInfoHtml += `Ativos: ${proc.activeRequests || 0}`;
+                            
+                            // Show recent activity indicator
+                            if (proc.recentRequests > 0) {
+                                modelInfoHtml += ` <span class="badge bg-info ms-1">${proc.recentRequests} recentes</span>`;
+                            }
                         }
                         
                         modelInfo.innerHTML = modelInfoHtml;

@@ -16,10 +16,43 @@ class OllamaAPIClient {
     this.isHealthy = true;
     this.loadScore = 0;
     this.runningModels = [];
+    // Request tracking for processing status
+    this.activeRequests = 0;
+    this.totalRequests = 0;
+    this.requestHistory = [];
+  }
+
+  // ============ Request Tracking ============
+  _startRequest(type = 'unknown') {
+    this.activeRequests++;
+    this.totalRequests++;
+    const requestId = `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.requestHistory.unshift({
+      id: requestId,
+      type,
+      startTime: Date.now(),
+      endTime: null,
+      duration: null
+    });
+    // Keep only last 10 requests in history
+    if (this.requestHistory.length > 10) {
+      this.requestHistory = this.requestHistory.slice(0, 10);
+    }
+    return requestId;
+  }
+
+  _endRequest(requestId) {
+    this.activeRequests = Math.max(0, this.activeRequests - 1);
+    const request = this.requestHistory.find(r => r.id === requestId);
+    if (request) {
+      request.endTime = Date.now();
+      request.duration = request.endTime - request.startTime;
+    }
   }
 
   // ============ Generate Completion ============
   async generate(options = {}) {
+    const requestId = this._startRequest('generate');
     try {
       logger.debug(`🔄 Gerando completion via API: ${this.baseURL}`);
       
@@ -36,11 +69,14 @@ class OllamaAPIClient {
     } catch (error) {
       logger.error(`❌ Falha na geração via ${this.baseURL}:`, error.message);
       throw new Error(`Generation failed: ${error.response?.data?.error || error.message}`);
+    } finally {
+      this._endRequest(requestId);
     }
   }
 
   // ============ Generate Chat Completion ============
   async chat(options = {}) {
+    const requestId = this._startRequest('chat');
     try {
       logger.debug(`🔄 Gerando chat completion via API: ${this.baseURL}`);
       
@@ -57,6 +93,8 @@ class OllamaAPIClient {
     } catch (error) {
       logger.error(`❌ Falha no chat via ${this.baseURL}:`, error.message);
       throw new Error(`Chat failed: ${error.response?.data?.error || error.message}`);
+    } finally {
+      this._endRequest(requestId);
     }
   }
 
@@ -279,11 +317,47 @@ class OllamaAPIClient {
   }
 
   getLoadScore() {
+    // Calcula score baseado em múltiplos fatores:
+    // - Requisições ativas (peso 2x)
+    // - Modelos em execução (peso 1x)
+    // - Tempo médio de resposta (normalizado por 1000ms)
+    const processingStatus = this.getProcessingStatus();
+    const activeRequestsScore = this.activeRequests * 2;
+    const runningModelsScore = this.runningModels.length;
+    const avgTimeScore = processingStatus.averageResponseTime / 1000;
+    
+    this.loadScore = activeRequestsScore + runningModelsScore + avgTimeScore;
     return this.loadScore;
+  }
+
+  // ============ Processing Status ============
+  getProcessingStatus() {
+    const recentRequests = this.requestHistory.filter(r => 
+      r.endTime && (Date.now() - r.endTime) < 300000 // Last 5 minutes
+    );
+    
+    const avgDuration = recentRequests.length > 0 
+      ? recentRequests.reduce((sum, req) => sum + (req.duration || 0), 0) / recentRequests.length 
+      : 0;
+
+    return {
+      activeRequests: this.activeRequests,
+      totalRequests: this.totalRequests,
+      recentRequests: recentRequests.length,
+      averageResponseTime: Math.round(avgDuration),
+      requestHistory: this.requestHistory.map(r => ({
+        type: r.type,
+        startTime: new Date(r.startTime).toISOString(),
+        endTime: r.endTime ? new Date(r.endTime).toISOString() : null,
+        duration: r.duration,
+        active: !r.endTime
+      }))
+    };
   }
 
   // ============ Streaming Support ============
   async generateStream(options = {}) {
+    const requestId = this._startRequest('generateStream');
     try {
       logger.debug(`🔄 Gerando completion com stream via API: ${this.baseURL}`);
       
@@ -303,10 +377,13 @@ class OllamaAPIClient {
     } catch (error) {
       logger.error(`❌ Falha no stream via ${this.baseURL}:`, error.message);
       throw new Error(`Stream generation failed: ${error.response?.data?.error || error.message}`);
+    } finally {
+      this._endRequest(requestId);
     }
   }
 
   async chatStream(options = {}) {
+    const requestId = this._startRequest('chatStream');
     try {
       logger.debug(`🔄 Gerando chat com stream via API: ${this.baseURL}`);
       
@@ -326,6 +403,8 @@ class OllamaAPIClient {
     } catch (error) {
       logger.error(`❌ Falha no chat stream via ${this.baseURL}:`, error.message);
       throw new Error(`Chat stream failed: ${error.response?.data?.error || error.message}`);
+    } finally {
+      this._endRequest(requestId);
     }
   }
 

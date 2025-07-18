@@ -232,6 +232,151 @@ class RestAPI {
       res.render('index', { messages, stats, commands: COMMANDS });
     });
 
+    // API para dados do sistema em tempo real
+    this.app.get('/api/system/stats', async (req, res) => {
+      try {
+        const [cpu, mem, load, osInfo, time] = await Promise.all([
+          si.cpu(),
+          si.mem(),
+          si.currentLoad(),
+          si.osInfo(),
+          si.time()
+        ]);
+
+        // Status dos endpoints com informações de processamento
+        let whisperStatus = { active: 0, total: 0, processing: { totalQueue: 0, totalActiveRequests: 0 } };
+        let ollamaStatus = { active: 0, total: 0, processing: { totalQueue: 0, totalActiveRequests: 0 } };
+
+        try {
+          if (this.bot.transcriber && this.bot.transcriber.whisperApiPool) {
+            const whisperPoolStatus = await this.bot.transcriber.whisperApiPool.getPoolStatus();
+            whisperStatus = {
+              active: whisperPoolStatus.healthyEndpoints || 0,
+              total: whisperPoolStatus.totalEndpoints || 0,
+              processing: {
+                totalQueue: whisperPoolStatus.endpoints?.reduce((sum, ep) => sum + (ep.queueLength || 0), 0) || 0,
+                totalActiveRequests: whisperPoolStatus.endpoints?.reduce((sum, ep) => sum + (ep.activeRequests || 0), 0) || 0
+              }
+            };
+          }
+        } catch (error) {
+          logger.warn('Erro ao obter status Whisper:', error.message);
+        }
+
+        try {
+          if (this.bot.llmService && this.bot.llmService.ollamaApiPool) {
+            const ollamaPoolStatus = await this.bot.llmService.ollamaApiPool.getPoolStatus();
+            ollamaStatus = {
+              active: ollamaPoolStatus.healthyEndpoints || 0,
+              total: ollamaPoolStatus.totalEndpoints || 0,
+              processing: {
+                totalQueue: ollamaPoolStatus.endpoints?.reduce((sum, ep) => sum + (ep.processing?.activeRequests || 0), 0) || 0,
+                totalActiveRequests: ollamaPoolStatus.endpoints?.reduce((sum, ep) => sum + (ep.processing?.activeRequests || 0), 0) || 0
+              }
+            };
+          }
+        } catch (error) {
+          logger.warn('Erro ao obter status Ollama:', error.message);
+        }
+
+        const systemStats = {
+          cpu: {
+            usage: Math.round(load.currentLoad || 0),
+            cores: cpu.cores,
+            manufacturer: cpu.manufacturer,
+            brand: cpu.brand
+          },
+          memory: {
+            total: Math.round(mem.total / 1024 / 1024 / 1024 * 100) / 100, // GB
+            used: Math.round(mem.used / 1024 / 1024 / 1024 * 100) / 100, // GB
+            free: Math.round(mem.free / 1024 / 1024 / 1024 * 100) / 100, // GB
+            percentage: Math.round((mem.used / mem.total) * 100)
+          },
+          system: {
+            platform: osInfo.platform,
+            distro: osInfo.distro,
+            release: osInfo.release,
+            uptime: Math.round(time.uptime / 3600), // hours
+            hostname: osInfo.hostname
+          },
+          endpoints: {
+            whisper: whisperStatus,
+            ollama: ollamaStatus
+          },
+          timestamp: new Date().toISOString()
+        };
+
+        res.json(systemStats);
+      } catch (error) {
+        logger.error('Erro ao obter estatísticas do sistema:', error);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    });
+
+    // API para estatísticas detalhadas de processamento
+    this.app.get('/api/processing/stats', async (req, res) => {
+      try {
+        let whisperProcessing = { queues: [], totalQueue: 0, totalActiveRequests: 0, totalProcessedToday: 0 };
+        let ollamaProcessing = { queues: [], totalQueue: 0, totalActiveRequests: 0, totalProcessedToday: 0 };
+
+        // Informações detalhadas do Whisper
+        try {
+          if (this.bot.transcriber && this.bot.transcriber.whisperApiPool) {
+            const whisperPoolStatus = await this.bot.transcriber.whisperApiPool.getPoolStatus();
+            if (whisperPoolStatus.endpoints) {
+              whisperProcessing.queues = whisperPoolStatus.endpoints.map((ep, index) => ({
+                id: index,
+                url: ep.url || 'unknown',
+                healthy: ep.healthy || false,
+                queueLength: ep.queueLength || 0,
+                activeRequests: ep.activeRequests || 0,
+                avgProcessingTime: ep.avgProcessingTime || 0,
+                totalProcessed: ep.totalProcessed || 0
+              }));
+              whisperProcessing.totalQueue = whisperProcessing.queues.reduce((sum, q) => sum + q.queueLength, 0);
+              whisperProcessing.totalActiveRequests = whisperProcessing.queues.reduce((sum, q) => sum + q.activeRequests, 0);
+              whisperProcessing.totalProcessedToday = whisperProcessing.queues.reduce((sum, q) => sum + q.totalProcessed, 0);
+            }
+          }
+        } catch (error) {
+          logger.warn('Erro ao obter estatísticas detalhadas Whisper:', error.message);
+        }
+
+        // Informações detalhadas do Ollama
+        try {
+          if (this.bot.llmService && this.bot.llmService.ollamaApiPool) {
+            const ollamaPoolStatus = await this.bot.llmService.ollamaApiPool.getPoolStatus();
+            if (ollamaPoolStatus.endpoints) {
+              ollamaProcessing.queues = ollamaPoolStatus.endpoints.map((ep, index) => ({
+                id: index,
+                url: ep.url || 'unknown',
+                healthy: ep.healthy || false,
+                type: ep.type || 'Ollama',
+                activeRequests: ep.processing?.activeRequests || 0,
+                totalRequests: ep.processing?.totalRequests || 0,
+                runningModels: ep.runningModels || 0,
+                loadScore: ep.loadScore || 0,
+                currentModel: ep.currentModel || null
+              }));
+              ollamaProcessing.totalActiveRequests = ollamaProcessing.queues.reduce((sum, q) => sum + q.activeRequests, 0);
+              ollamaProcessing.totalProcessedToday = ollamaProcessing.queues.reduce((sum, q) => sum + q.totalRequests, 0);
+            }
+          }
+        } catch (error) {
+          logger.warn('Erro ao obter estatísticas detalhadas Ollama:', error.message);
+        }
+
+        res.json({
+          whisper: whisperProcessing,
+          ollama: ollamaProcessing,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        logger.error('Erro ao obter estatísticas de processamento:', error);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+      }
+    });
+
     this.app.get('/messages/new', (req, res) => {
       res.render('new', { message: null });
     });

@@ -21,7 +21,12 @@ export const COMMANDS = {
   LISTAR_ENDPOINTS_OLLAMA: '!listarendpointsollama',
   STATUS_ENDPOINTS: '!statusendpoints',
   SAIR: '!sair',
-  FLOW_SAIR: '!flow sair'
+  FLOW_SAIR: '!flow sair',
+  FLOW_STOP: '!flow stop',
+  FLOW_RESTART: '!flow restart',
+  FLOW_VOLTAR: '!flow voltar',
+  FLOW_STATUS: '!flow status',
+  FLOW_LIST: '!flow list'
 };
 
 export const NUMERIC_SHORTCUTS = {

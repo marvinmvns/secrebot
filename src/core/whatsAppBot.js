@@ -658,20 +658,33 @@ class WhatsAppBot {
 
     // Verificar se o usuário tem fluxo ativo
     if (await this.hasActiveFlow(contactId)) {
-      // Se há flow ativo, só permite comandos específicos de flow para sair
+      // Comandos específicos para controle de flow
       if (lowerText.startsWith('!flow')) {
         const parts = text.split(' ');
         const command = parts[1]?.toLowerCase();
         
-        // Apenas comandos de saída são permitidos durante flow ativo
-        if (command === 'sair' || command === 'stop' || command === 'status') {
+        // Permitir comandos de controle de flow
+        if (command === 'stop' || command === 'sair' || command === 'status' || command === 'restart' || command === 'voltar') {
           await this.handleFlowCommand(msg, contactId, text);
           return;
         } else {
-          // Informar que está em um flow e como sair
-          await this.sendResponse(contactId, '⚠️ Você está em um flow ativo.\n\n🚪 Para sair, use: !flow sair\n📊 Para ver status: !flow status');
+          // Informar sobre comandos disponíveis durante flow ativo
+          await this.sendResponse(contactId, '⚠️ Durante um flow ativo, use:\n\n🔄 !flow restart - Reiniciar flow\n↩️ !flow voltar - Voltar ao início\n🛑 !flow stop - Encerrar flow\n📊 !flow status - Ver status');
           return;
         }
+      }
+      
+      // Comandos de navegação universais sempre disponíveis
+      if (lowerText === 'voltar' || lowerText === 'voltar menu' || lowerText === 'menu' || lowerText === 'início' || lowerText === 'inicio') {
+        // Permitir acesso ao menu principal mesmo durante flow
+        await this.sendResponse(contactId, `📋 *MENU PRINCIPAL* (Flow ativo: ${this.flowExecutionService.getActiveFlowInfo(contactId)?.flowName || 'Desconhecido'})\n\n${MENU_MESSAGE}\n\n🔄 Para voltar ao flow: envie qualquer mensagem\n🛑 Para encerrar flow: !flow stop`);
+        return;
+      }
+      
+      // Permitir comando de ajuda durante flow
+      if (lowerText === '!ajuda' || lowerText === 'ajuda' || lowerText === 'help') {
+        await this.sendResponse(contactId, '🆘 *AJUDA DURANTE FLOW ATIVO*\n\n🔄 !flow restart - Reiniciar do início\n↩️ !flow voltar - Voltar ao passo anterior\n🛑 !flow stop - Encerrar flow\n📊 !flow status - Ver informações\n📋 menu - Ver menu principal\n\n💡 Qualquer outra mensagem será processada pelo flow ativo.');
+        return;
       }
       
       // Tentar processar como entrada do flow
@@ -680,8 +693,8 @@ class WhatsAppBot {
         return;
       }
       
-      // Se não foi processado pelo flow, informar como sair
-      await this.sendResponse(contactId, '⚠️ Você está em um flow ativo.\n\n🚪 Para sair, use: !flow sair\n📊 Para ver status: !flow status');
+      // Se não foi processado pelo flow, oferecer opções de navegação
+      await this.sendResponse(contactId, `🤖 *Flow ativo:* ${this.flowExecutionService.getActiveFlowInfo(contactId)?.flowName || 'Desconhecido'}\n\n✨ Opções disponíveis:\n🔄 !flow restart - Reiniciar\n📋 menu - Ver menu principal\n🛑 !flow stop - Encerrar\n\n💭 Ou continue a conversa do flow...`);
       return;
     }
 
@@ -3003,6 +3016,12 @@ usuario@email.com:senha
       case 'sair':
         await this.handleFlowSair(contactId);
         break;
+      case 'restart':
+        await this.handleFlowRestart(contactId);
+        break;
+      case 'voltar':
+        await this.handleFlowVoltar(contactId);
+        break;
       case 'status':
         await this.handleFlowStatus(contactId);
         break;
@@ -3080,6 +3099,76 @@ usuario@email.com:senha
     }
   }
 
+  async handleFlowRestart(contactId) {
+    try {
+      // Verificar se há flow ativo
+      const hasActive = await this.hasActiveFlow(contactId);
+      if (!hasActive) {
+        await this.sendResponse(contactId, '❌ Nenhum flow ativo para reiniciar.');
+        return;
+      }
+
+      // Obter informações do flow atual
+      const flowInfo = this.flowExecutionService.getActiveFlowInfo(contactId);
+      if (!flowInfo) {
+        await this.sendResponse(contactId, '❌ Não foi possível obter informações do flow ativo.');
+        return;
+      }
+
+      // Parar o flow atual
+      const stopped = await this.stopFlow(contactId);
+      if (stopped) {
+        // Reiniciar o mesmo flow
+        const restarted = await this.startFlow(contactId, flowInfo.flowId);
+        if (restarted) {
+          await this.sendResponse(contactId, `🔄 Flow "${flowInfo.flowName}" reiniciado com sucesso!`);
+        } else {
+          await this.sendResponse(contactId, `❌ Não foi possível reiniciar o flow "${flowInfo.flowName}".`);
+        }
+      } else {
+        await this.sendResponse(contactId, '❌ Não foi possível parar o flow atual para reiniciar.');
+      }
+    } catch (error) {
+      logger.error('Erro ao reiniciar flow:', error);
+      await this.sendResponse(contactId, `❌ Erro ao reiniciar flow: ${error.message}`);
+    }
+  }
+
+  async handleFlowVoltar(contactId) {
+    try {
+      // Verificar se há flow ativo
+      const hasActive = await this.hasActiveFlow(contactId);
+      if (!hasActive) {
+        await this.sendResponse(contactId, '❌ Nenhum flow ativo.');
+        return;
+      }
+
+      // Para implementação simples, reiniciar o flow (voltar ao início)
+      // Em uma versão mais avançada, poderíamos implementar histórico de nós
+      const flowInfo = this.flowExecutionService.getActiveFlowInfo(contactId);
+      if (!flowInfo) {
+        await this.sendResponse(contactId, '❌ Não foi possível obter informações do flow ativo.');
+        return;
+      }
+
+      // Reiniciar o flow (voltar ao início)
+      const stopped = await this.stopFlow(contactId);
+      if (stopped) {
+        const restarted = await this.startFlow(contactId, flowInfo.flowId);
+        if (restarted) {
+          await this.sendResponse(contactId, `↩️ Voltando ao início do flow "${flowInfo.flowName}"...`);
+        } else {
+          await this.sendResponse(contactId, `❌ Não foi possível voltar ao início do flow "${flowInfo.flowName}".`);
+        }
+      } else {
+        await this.sendResponse(contactId, '❌ Não foi possível processar o comando voltar.');
+      }
+    } catch (error) {
+      logger.error('Erro ao voltar no flow:', error);
+      await this.sendResponse(contactId, `❌ Erro ao voltar no flow: ${error.message}`);
+    }
+  }
+
   async handleFlowStatus(contactId) {
     try {
       const hasActive = await this.hasActiveFlow(contactId);
@@ -3131,12 +3220,19 @@ usuario@email.com:senha
   async sendFlowHelp(contactId) {
     const help = `🔄 *Comandos de Flow*\n\n` +
       `• !flow start <alias|flowId> - Iniciar um flow\n` +
-      `• !flow stop - Parar flow ativo\n` +
+      `• !flow stop - Encerrar flow ativo\n` +
       `• !flow sair - Sair do flow ativo\n` +
+      `• !flow restart - Reiniciar flow do início\n` +
+      `• !flow voltar - Voltar ao início do flow\n` +
       `• !flow status - Ver status do flow\n` +
       `• !flow list - Listar flows disponíveis\n\n` +
+      `🎯 *Durante um flow ativo:*\n` +
+      `• menu - Ver menu principal sem sair do flow\n` +
+      `• ajuda - Ver opções de navegação\n` +
+      `• Apenas "!flow stop" encerra definitivamente\n\n` +
       `💡 *Exemplos:*\n` +
       `   !flow start jiu-jitsu\n` +
+      `   !flow restart\n` +
       `   !flow start atendimento-academia-jiu-jitsu`;
     
     await this.sendResponse(contactId, help);

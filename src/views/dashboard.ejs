@@ -1,41 +1,482 @@
+<!-- Sistema e Hardware -->
 <div class="row mb-4">
   <div class="col-12">
-    <h2>Estatísticas de Agendamentos</h2>
-    <div class="row text-center">
-      <div class="col-sm-3">
-        <div class="p-2 bg-light rounded">
-          <strong>Total</strong>
-          <div><%= stats.total %></div>
+    <h2><i class="fas fa-server text-primary"></i> Monitoramento do Sistema</h2>
+    <div class="row">
+      <!-- CPU Card -->
+      <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body text-center">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <h6 class="card-title text-muted mb-0">CPU</h6>
+              <i class="fas fa-microchip text-primary fa-lg"></i>
+            </div>
+            <div class="position-relative mb-3">
+              <canvas id="cpuChart" width="120" height="120"></canvas>
+              <div class="position-absolute top-50 start-50 translate-middle">
+                <h3 class="mb-0" id="cpuUsage">--</h3>
+                <small class="text-muted">%</small>
+              </div>
+            </div>
+            <small class="text-muted" id="cpuInfo">Carregando...</small>
+          </div>
         </div>
       </div>
-      <div class="col-sm-3">
-        <div class="p-2 bg-light rounded">
-          <strong>Pendentes</strong>
-          <div><%= stats.pending %></div>
+
+      <!-- Memory Card -->
+      <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body text-center">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <h6 class="card-title text-muted mb-0">Memória</h6>
+              <i class="fas fa-memory text-success fa-lg"></i>
+            </div>
+            <div class="position-relative mb-3">
+              <canvas id="memoryChart" width="120" height="120"></canvas>
+              <div class="position-absolute top-50 start-50 translate-middle">
+                <h3 class="mb-0" id="memoryUsage">--</h3>
+                <small class="text-muted">%</small>
+              </div>
+            </div>
+            <small class="text-muted" id="memoryInfo">Carregando...</small>
+          </div>
         </div>
       </div>
-      <div class="col-sm-3">
-        <div class="p-2 bg-light rounded">
-          <strong>Enviados</strong>
-          <div><%= stats.sent %></div>
+
+      <!-- Whisper Endpoints Card -->
+      <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body text-center">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <h6 class="card-title text-muted mb-0">Whisper API</h6>
+              <i class="fas fa-microphone text-warning fa-lg"></i>
+            </div>
+            <div class="mb-2">
+              <h3 class="mb-1">
+                <span id="whisperActive" class="text-success">--</span>
+                /
+                <span id="whisperTotal" class="text-muted">--</span>
+              </h3>
+              <small class="text-muted">Endpoints Ativos</small>
+            </div>
+            <div class="mb-2">
+              <div class="d-flex justify-content-between">
+                <small class="text-muted">Fila:</small>
+                <small id="whisperQueue" class="text-info">--</small>
+              </div>
+              <div class="d-flex justify-content-between">
+                <small class="text-muted">Processando:</small>
+                <small id="whisperProcessing" class="text-warning">--</small>
+              </div>
+            </div>
+            <div class="progress" style="height: 8px;">
+              <div id="whisperProgress" class="progress-bar bg-warning" role="progressbar" style="width: 0%"></div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="col-sm-3">
-        <div class="p-2 bg-light rounded">
-          <strong>Falhos</strong>
-          <div><%= stats.failed %></div>
+
+      <!-- Ollama Endpoints Card -->
+      <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body text-center">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <h6 class="card-title text-muted mb-0">Ollama API</h6>
+              <i class="fas fa-brain text-info fa-lg"></i>
+            </div>
+            <div class="mb-2">
+              <h3 class="mb-1">
+                <span id="ollamaActive" class="text-success">--</span>
+                /
+                <span id="ollamaTotal" class="text-muted">--</span>
+              </h3>
+              <small class="text-muted">Endpoints Ativos</small>
+            </div>
+            <div class="mb-2">
+              <div class="d-flex justify-content-between">
+                <small class="text-muted">Modelos:</small>
+                <small id="ollamaModels" class="text-info">--</small>
+              </div>
+              <div class="d-flex justify-content-between">
+                <small class="text-muted">Processando:</small>
+                <small id="ollamaProcessing" class="text-warning">--</small>
+              </div>
+            </div>
+            <div class="progress" style="height: 8px;">
+              <div id="ollamaProgress" class="progress-bar bg-info" role="progressbar" style="width: 0%"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-    <h3 class="mt-4">Próximos Agendamentos</h3>
-    <ul class="list-group">
-      <% if (stats.upcoming.length === 0) { %>
-        <li class="list-group-item">Nenhum agendamento</li>
-      <% } else { %>
-        <% stats.upcoming.forEach(function(item){ %>
-          <li class="list-group-item"><%= new Date(item.scheduledTime).toLocaleString('pt-BR') %> - <%= item.message %></li>
-        <% }) %>
-      <% } %>
-    </ul>
   </div>
 </div>
+
+<!-- Informações do Sistema -->
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <h6 class="card-title mb-3"><i class="fas fa-info-circle text-primary"></i> Informações do Sistema</h6>
+        <div class="row">
+          <div class="col-md-3">
+            <small class="text-muted">Hostname:</small><br>
+            <strong id="systemHostname">--</strong>
+          </div>
+          <div class="col-md-3">
+            <small class="text-muted">Sistema:</small><br>
+            <strong id="systemOS">--</strong>
+          </div>
+          <div class="col-md-3">
+            <small class="text-muted">Uptime:</small><br>
+            <strong id="systemUptime">--</strong>
+          </div>
+          <div class="col-md-3">
+            <small class="text-muted">Última Atualização:</small><br>
+            <strong id="lastUpdate">--</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Estatísticas de Processamento -->
+<div class="row mb-4">
+  <div class="col-12">
+    <h2><i class="fas fa-cogs text-info"></i> Filas de Processamento</h2>
+    <div class="row">
+      <!-- Whisper Processing -->
+      <div class="col-md-6 mb-3">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-warning text-dark">
+            <h6 class="mb-0"><i class="fas fa-microphone"></i> Whisper API - Filas</h6>
+          </div>
+          <div class="card-body">
+            <div id="whisperQueuesContainer" class="processing-queues">
+              <div class="text-center py-3">
+                <div class="spinner-border text-warning" role="status">
+                  <span class="visually-hidden">Carregando...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Ollama Processing -->
+      <div class="col-md-6 mb-3">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-info text-white">
+            <h6 class="mb-0"><i class="fas fa-brain"></i> Ollama API - Processamento</h6>
+          </div>
+          <div class="card-body">
+            <div id="ollamaQueuesContainer" class="processing-queues">
+              <div class="text-center py-3">
+                <div class="spinner-border text-info" role="status">
+                  <span class="visually-hidden">Carregando...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Estatísticas de Agendamentos -->
+<div class="row mb-4">
+  <div class="col-12">
+    <h2><i class="fas fa-calendar-alt text-success"></i> Estatísticas de Agendamentos</h2>
+    <div class="row text-center">
+      <div class="col-sm-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <i class="fas fa-list-ul text-primary fa-2x mb-2"></i>
+            <h4><%= stats.total %></h4>
+            <small class="text-muted">Total</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <i class="fas fa-clock text-warning fa-2x mb-2"></i>
+            <h4><%= stats.pending %></h4>
+            <small class="text-muted">Pendentes</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <i class="fas fa-check-circle text-success fa-2x mb-2"></i>
+            <h4><%= stats.sent %></h4>
+            <small class="text-muted">Enviados</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <i class="fas fa-exclamation-triangle text-danger fa-2x mb-2"></i>
+            <h4><%= stats.failed %></h4>
+            <small class="text-muted">Falhos</small>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="card border-0 shadow-sm mt-4">
+      <div class="card-body">
+        <h6 class="card-title"><i class="fas fa-calendar-day text-primary"></i> Próximos Agendamentos</h6>
+        <ul class="list-group list-group-flush">
+          <% if (stats.upcoming.length === 0) { %>
+            <li class="list-group-item border-0 text-center py-4">
+              <i class="fas fa-calendar-times text-muted fa-2x mb-2"></i><br>
+              <span class="text-muted">Nenhum agendamento próximo</span>
+            </li>
+          <% } else { %>
+            <% stats.upcoming.forEach(function(item){ %>
+              <li class="list-group-item border-0 d-flex justify-content-between align-items-center">
+                <div>
+                  <i class="fas fa-clock text-warning me-2"></i>
+                  <%= new Date(item.scheduledTime).toLocaleString('pt-BR') %>
+                </div>
+                <small class="text-muted"><%= item.message.substring(0, 50) %><%= item.message.length > 50 ? '...' : '' %></small>
+              </li>
+            <% }) %>
+          <% } %>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let cpuChart, memoryChart;
+
+// Initialize charts
+function initCharts() {
+  const chartConfig = (color, data = 0) => ({
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [data, 100 - data],
+        backgroundColor: [color, '#e9ecef'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '70%',
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  });
+
+  const cpuCtx = document.getElementById('cpuChart').getContext('2d');
+  cpuChart = new Chart(cpuCtx, chartConfig('#007bff'));
+
+  const memoryCtx = document.getElementById('memoryChart').getContext('2d');
+  memoryChart = new Chart(memoryCtx, chartConfig('#28a745'));
+}
+
+// Update system stats
+async function updateSystemStats() {
+  try {
+    const response = await fetch('/api/system/stats');
+    const data = await response.json();
+
+    // Update CPU
+    document.getElementById('cpuUsage').textContent = data.cpu.usage;
+    document.getElementById('cpuInfo').textContent = `${data.cpu.cores} cores | ${data.cpu.brand}`;
+    cpuChart.data.datasets[0].data = [data.cpu.usage, 100 - data.cpu.usage];
+    cpuChart.update('none');
+
+    // Update Memory
+    document.getElementById('memoryUsage').textContent = data.memory.percentage;
+    document.getElementById('memoryInfo').textContent = `${data.memory.used}GB / ${data.memory.total}GB`;
+    memoryChart.data.datasets[0].data = [data.memory.percentage, 100 - data.memory.percentage];
+    memoryChart.update('none');
+
+    // Update Whisper endpoints
+    document.getElementById('whisperActive').textContent = data.endpoints.whisper.active;
+    document.getElementById('whisperTotal').textContent = data.endpoints.whisper.total;
+    document.getElementById('whisperQueue').textContent = data.endpoints.whisper.processing?.totalQueue || 0;
+    document.getElementById('whisperProcessing').textContent = data.endpoints.whisper.processing?.totalActiveRequests || 0;
+    const whisperPercent = data.endpoints.whisper.total > 0 ? 
+      (data.endpoints.whisper.active / data.endpoints.whisper.total) * 100 : 0;
+    document.getElementById('whisperProgress').style.width = whisperPercent + '%';
+
+    // Update Ollama endpoints
+    document.getElementById('ollamaActive').textContent = data.endpoints.ollama.active;
+    document.getElementById('ollamaTotal').textContent = data.endpoints.ollama.total;
+    document.getElementById('ollamaModels').textContent = data.endpoints.ollama.processing?.totalQueue || 0;
+    document.getElementById('ollamaProcessing').textContent = data.endpoints.ollama.processing?.totalActiveRequests || 0;
+    const ollamaPercent = data.endpoints.ollama.total > 0 ? 
+      (data.endpoints.ollama.active / data.endpoints.ollama.total) * 100 : 0;
+    document.getElementById('ollamaProgress').style.width = ollamaPercent + '%';
+
+    // Update system info
+    document.getElementById('systemHostname').textContent = data.system.hostname || '--';
+    document.getElementById('systemOS').textContent = `${data.system.distro} ${data.system.release}`;
+    document.getElementById('systemUptime').textContent = `${data.system.uptime}h`;
+    document.getElementById('lastUpdate').textContent = new Date(data.timestamp).toLocaleTimeString('pt-BR');
+
+  } catch (error) {
+    console.error('Erro ao atualizar estatísticas:', error);
+  }
+}
+
+// Update processing queues details
+async function updateProcessingQueues() {
+  try {
+    const response = await fetch('/api/processing/stats');
+    const data = await response.json();
+
+    // Update Whisper queues
+    const whisperContainer = document.getElementById('whisperQueuesContainer');
+    if (data.whisper.queues.length === 0) {
+      whisperContainer.innerHTML = '<div class="text-center text-muted py-3">Nenhum endpoint Whisper configurado</div>';
+    } else {
+      whisperContainer.innerHTML = data.whisper.queues.map(queue => `
+        <div class="queue-item p-2 mb-2 border rounded ${queue.healthy ? 'border-success bg-light' : 'border-danger bg-light'}">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <strong>${queue.url}</strong>
+              <span class="badge ${queue.healthy ? 'bg-success' : 'bg-danger'} ms-2">
+                ${queue.healthy ? 'Online' : 'Offline'}
+              </span>
+            </div>
+            <div class="text-end">
+              <div><small class="text-muted">Fila:</small> <span class="badge bg-info">${queue.queueLength}</span></div>
+              <div><small class="text-muted">Ativo:</small> <span class="badge bg-warning">${queue.activeRequests}</span></div>
+            </div>
+          </div>
+          ${queue.healthy ? `
+            <div class="mt-2">
+              <small class="text-muted">
+                Tempo médio: ${queue.avgProcessingTime}ms | 
+                Total processado: ${queue.totalProcessed}
+              </small>
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+    // Update Ollama queues
+    const ollamaContainer = document.getElementById('ollamaQueuesContainer');
+    if (data.ollama.queues.length === 0) {
+      ollamaContainer.innerHTML = '<div class="text-center text-muted py-3">Nenhum endpoint Ollama configurado</div>';
+    } else {
+      ollamaContainer.innerHTML = data.ollama.queues.map(queue => `
+        <div class="queue-item p-2 mb-2 border rounded ${queue.healthy ? 'border-success bg-light' : 'border-danger bg-light'}">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <strong>${queue.url}</strong>
+              <span class="badge ${queue.type === 'RKLLama' ? 'bg-info' : 'bg-primary'} ms-1">${queue.type}</span>
+              <span class="badge ${queue.healthy ? 'bg-success' : 'bg-danger'} ms-1">
+                ${queue.healthy ? 'Online' : 'Offline'}
+              </span>
+            </div>
+            <div class="text-end">
+              <div><small class="text-muted">Ativo:</small> <span class="badge bg-warning">${queue.activeRequests}</span></div>
+              <div><small class="text-muted">Total:</small> <span class="badge bg-secondary">${queue.totalRequests}</span></div>
+            </div>
+          </div>
+          ${queue.healthy ? `
+            <div class="mt-2">
+              <small class="text-muted">
+                Modelos: ${queue.runningModels} | 
+                Score: ${queue.loadScore}
+                ${queue.currentModel ? ` | Atual: ${queue.currentModel}` : ''}
+              </small>
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+  } catch (error) {
+    console.error('Erro ao atualizar filas de processamento:', error);
+    document.getElementById('whisperQueuesContainer').innerHTML = 
+      '<div class="alert alert-warning">Erro ao carregar dados</div>';
+    document.getElementById('ollamaQueuesContainer').innerHTML = 
+      '<div class="alert alert-warning">Erro ao carregar dados</div>';
+  }
+}
+
+// Initialize everything when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  initCharts();
+  updateSystemStats();
+  updateProcessingQueues();
+  
+  // Update every 5 seconds
+  setInterval(() => {
+    updateSystemStats();
+    updateProcessingQueues();
+  }, 5000);
+});
+</script>
+
+<style>
+.card {
+  transition: transform 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+}
+
+.progress {
+  border-radius: 10px;
+}
+
+.progress-bar {
+  border-radius: 10px;
+}
+
+#cpuChart, #memoryChart {
+  max-width: 120px;
+  max-height: 120px;
+}
+
+.processing-queues {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.queue-item {
+  transition: all 0.2s ease;
+}
+
+.queue-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.processing-queues::-webkit-scrollbar {
+  width: 6px;
+}
+
+.processing-queues::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.processing-queues::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 10px;
+}
+
+.processing-queues::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+</style>

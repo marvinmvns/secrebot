@@ -10,6 +10,7 @@ class OllamaAPIPool {
     this.currentIndex = 0;
     this.lastHealthCheck = 0;
     this.healthCheckInterval = null;
+    this.requestCount = 0; // Para tracking de balanceamento
     this.initialize();
   }
 
@@ -140,8 +141,11 @@ class OllamaAPIPool {
     );
   }
 
-  selectClientByStrategy(healthyClients) {
-    const strategy = CONFIG.ollamaApi.loadBalancing.strategy;
+  async selectClientByStrategy(healthyClients) {
+    const effectiveConfig = await this.getEffectiveConfig();
+    const strategy = effectiveConfig.ollamaApi.loadBalancing.strategy;
+    
+    logger.debug(`🎯 Aplicando estratégia: ${strategy} para ${healthyClients.length} clientes`);
     
     switch (strategy) {
       case 'round_robin':
@@ -162,10 +166,11 @@ class OllamaAPIPool {
   selectRoundRobin(clients) {
     if (clients.length === 0) return null;
     
-    const client = clients[this.currentIndex % clients.length];
+    const selectedIndex = this.currentIndex % clients.length;
+    const client = clients[selectedIndex];
     this.currentIndex = (this.currentIndex + 1) % clients.length;
     
-    logger.debug(`🔄 Round-robin selecionou: ${client.baseURL}`);
+    logger.debug(`🔄 Round-robin selecionou: ${client.baseURL} (índice: ${selectedIndex}/${clients.length})`);
     return client;
   }
 
@@ -180,13 +185,24 @@ class OllamaAPIPool {
   selectByLoad(clients) {
     if (clients.length === 0) return null;
     
+    // Log informações de todos os clientes para debug
+    const clientStats = clients.map(c => ({
+      url: c.baseURL,
+      type: c.constructor.name,
+      activeRequests: c.activeRequests,
+      totalRequests: c.totalRequests,
+      runningModels: c.runningModels?.length || 0,
+      loadScore: c.getLoadScore()
+    }));
+    logger.debug('📊 Estatísticas de clientes para seleção:', clientStats);
+    
     const client = clients.reduce((best, current) => {
       const bestScore = best.getLoadScore();
       const currentScore = current.getLoadScore();
       return currentScore < bestScore ? current : best;
     });
 
-    logger.debug(`📊 Load balancing selecionou: ${client.baseURL} (score: ${client.getLoadScore()})`);
+    logger.debug(`📊 Load balancing selecionou: ${client.baseURL} (score: ${client.getLoadScore()}, ativo: ${client.activeRequests})`);
     return client;
   }
 
@@ -198,12 +214,25 @@ class OllamaAPIPool {
       throw new Error('No healthy Ollama API endpoints available');
     }
 
-    // Update load information for all healthy clients
+    // Atualiza informações de carga para todos os clientes saudáveis
+    logger.debug('📊 Atualizando informações de carga para balanceamento...');
     await Promise.allSettled(
-      healthyClients.map(client => client.listRunningModels().catch(() => {}))
+      healthyClients.map(async (client) => {
+        try {
+          await client.listRunningModels();
+          const processingStatus = client.getProcessingStatus();
+          logger.debug(`📊 ${client.baseURL}: ativo=${processingStatus.activeRequests}, total=${processingStatus.totalRequests}, score=${client.getLoadScore()}`);
+        } catch (error) {
+          logger.debug(`⚠️ Erro ao obter status de ${client.baseURL}: ${error.message}`);
+        }
+      })
     );
 
-    return this.selectClientByStrategy(healthyClients);
+    const selectedClient = await this.selectClientByStrategy(healthyClients);
+    const effectiveConfig = await this.getEffectiveConfig();
+    logger.info(`🎯 Cliente selecionado: ${selectedClient.baseURL} (estratégia: ${effectiveConfig.ollamaApi.loadBalancing.strategy})`);
+    
+    return selectedClient;
   }
 
   // ============ Generate Methods ============
@@ -251,8 +280,49 @@ class OllamaAPIPool {
   async generate(options = {}) {
     logger.service('🤖 Iniciando geração via Ollama API...');
     
-    // Always use fallback method to try all available endpoints
-    return await this.generateWithFallback(options);
+    // Use balanceamento adequado baseado na estratégia configurada
+    return await this.generateWithLoadBalancing(options);
+  }
+
+  async generateWithLoadBalancing(options = {}) {
+    this.requestCount++;
+    const effectiveConfig = await this.getEffectiveConfig();
+    
+    logger.info(`🎯 Requisição #${this.requestCount} - Iniciando balanceamento (estratégia: ${effectiveConfig.ollamaApi.loadBalancing.strategy})`);
+    
+    const selectedClient = await this.selectBestClient();
+    
+    if (!selectedClient) {
+      logger.warn('⚠️ Nenhum endpoint Ollama API saudável disponível');
+      throw new Error('No healthy Ollama API endpoints available');
+    }
+
+    const startTime = Date.now();
+    try {
+      const processingStatus = selectedClient.getProcessingStatus();
+      logger.info(`🎯 Req #${this.requestCount}: Usando ${selectedClient.baseURL} (ativo: ${processingStatus.activeRequests}, score: ${selectedClient.getLoadScore()})`);
+      
+      const result = await selectedClient.generate(options);
+      
+      const duration = Date.now() - startTime;
+      logger.success(`✅ Req #${this.requestCount}: Geração bem-sucedida via ${selectedClient.baseURL} em ${duration}ms`);
+      return result;
+      
+    } catch (error) {
+      selectedClient.retryCount++;
+      const duration = Date.now() - startTime;
+      logger.warn(`⚠️ Req #${this.requestCount}: Falha via ${selectedClient.baseURL} após ${duration}ms: ${error.message}`);
+      
+      // Se falhar, marca como não saudável e tenta com fallback
+      if (selectedClient.retryCount >= selectedClient.endpoint.maxRetries) {
+        selectedClient.isHealthy = false;
+        logger.error(`❌ Endpoint ${selectedClient.baseURL} marcado como não saudável após ${selectedClient.retryCount} falhas`);
+      }
+      
+      // Fallback para outros endpoints disponíveis
+      logger.info(`🔄 Req #${this.requestCount}: Tentando fallback para outros endpoints...`);
+      return await this.generateWithFallback(options);
+    }
   }
 
   // ============ Chat Methods ============
@@ -300,8 +370,49 @@ class OllamaAPIPool {
   async chat(options = {}) {
     logger.service('💬 Iniciando chat via Ollama API...');
     
-    // Always use fallback method to try all available endpoints
-    return await this.chatWithFallback(options);
+    // Use balanceamento adequado baseado na estratégia configurada
+    return await this.chatWithLoadBalancing(options);
+  }
+
+  async chatWithLoadBalancing(options = {}) {
+    this.requestCount++;
+    const effectiveConfig = await this.getEffectiveConfig();
+    
+    logger.info(`🎯 Chat #${this.requestCount} - Iniciando balanceamento (estratégia: ${effectiveConfig.ollamaApi.loadBalancing.strategy})`);
+    
+    const selectedClient = await this.selectBestClient();
+    
+    if (!selectedClient) {
+      logger.warn('⚠️ Nenhum endpoint Ollama API saudável disponível');
+      throw new Error('No healthy Ollama API endpoints available');
+    }
+
+    const startTime = Date.now();
+    try {
+      const processingStatus = selectedClient.getProcessingStatus();
+      logger.info(`🎯 Chat #${this.requestCount}: Usando ${selectedClient.baseURL} (ativo: ${processingStatus.activeRequests}, score: ${selectedClient.getLoadScore()})`);
+      
+      const result = await selectedClient.chat(options);
+      
+      const duration = Date.now() - startTime;
+      logger.success(`✅ Chat #${this.requestCount}: Chat bem-sucedido via ${selectedClient.baseURL} em ${duration}ms`);
+      return result;
+      
+    } catch (error) {
+      selectedClient.retryCount++;
+      const duration = Date.now() - startTime;
+      logger.warn(`⚠️ Chat #${this.requestCount}: Falha via ${selectedClient.baseURL} após ${duration}ms: ${error.message}`);
+      
+      // Se falhar, marca como não saudável e tenta com fallback
+      if (selectedClient.retryCount >= selectedClient.endpoint.maxRetries) {
+        selectedClient.isHealthy = false;
+        logger.error(`❌ Endpoint ${selectedClient.baseURL} marcado como não saudável após ${selectedClient.retryCount} falhas`);
+      }
+      
+      // Fallback para outros endpoints disponíveis
+      logger.info(`🔄 Chat #${this.requestCount}: Tentando fallback para outros endpoints...`);
+      return await this.chatWithFallback(options);
+    }
   }
 
   // ============ Model Management Methods ============
@@ -435,6 +546,14 @@ class OllamaAPIPool {
         const runningModels = await client.listRunningModels();
         const clientType = this.isRKLlamaEndpoint(client.endpoint) ? 'RKLLama' : 'Ollama';
         
+        const processingStatus = client.getProcessingStatus ? client.getProcessingStatus() : {
+          activeRequests: 0,
+          totalRequests: 0,
+          recentRequests: 0,
+          averageResponseTime: 0,
+          requestHistory: []
+        };
+
         status.endpoints.push({
           url: client.baseURL,
           type: clientType,
@@ -443,12 +562,21 @@ class OllamaAPIPool {
           runningModels: runningModels.models?.length || 0,
           loadScore: client.getLoadScore(),
           retryCount: client.retryCount,
-          lastHealthCheck: new Date(client.lastHealthCheck).toISOString(),
+          lastHealthCheck: client.lastHealthCheck ? new Date(client.lastHealthCheck).toISOString() : 'never',
           version: health.version,
-          currentModel: health.currentModel || null
+          currentModel: health.currentModel || null,
+          processing: processingStatus
         });
       } catch (error) {
         const clientType = this.isRKLlamaEndpoint(client.endpoint) ? 'RKLLama' : 'Ollama';
+        const processingStatus = client.getProcessingStatus ? client.getProcessingStatus() : {
+          activeRequests: 0,
+          totalRequests: 0,
+          recentRequests: 0,
+          averageResponseTime: 0,
+          requestHistory: []
+        };
+
         status.endpoints.push({
           url: client.baseURL,
           type: clientType,
@@ -456,7 +584,8 @@ class OllamaAPIPool {
           priority: client.endpoint.priority,
           error: error.message,
           retryCount: client.retryCount,
-          lastHealthCheck: new Date(client.lastHealthCheck).toISOString()
+          lastHealthCheck: client.lastHealthCheck ? new Date(client.lastHealthCheck).toISOString() : 'never',
+          processing: processingStatus
         });
       }
     }

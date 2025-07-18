@@ -17,12 +17,9 @@ export const COMMANDS = {
   RESUMIRVIDEO2: '!resumirvideo2',
   IMPORTAR_AGENDA: '!importaragenda',
   VOLTAR: '!voltar',
-  MODELOS: '!modelos',
-  TROCAR_MODELO: '!trocarmodelo',
-  MODELOS_WHISPER: '!modeloswhisper',
-  TROCAR_MODELO_WHISPER: '!trocarmodelwhisper',
-  REINICIAR_OLLAMA: '!reiniciarollama',
-  REINICIAR_WHISPER: '!reiniciarwhisper',
+  LISTAR_ENDPOINTS_WHISPER: '!listarendpointswhisper',
+  LISTAR_ENDPOINTS_OLLAMA: '!listarendpointsollama',
+  STATUS_ENDPOINTS: '!statusendpoints',
   SAIR: '!sair',
   FLOW_SAIR: '!flow sair'
 };
@@ -60,13 +57,10 @@ export const NUMERIC_SHORTCUTS = {
   
   // Configurações
   '5.1': COMMANDS.VOZ,
-  '5.2': COMMANDS.MODELOS,
-  '5.3': COMMANDS.TROCAR_MODELO,
-  '5.4': COMMANDS.REINICIAR_OLLAMA,
-  '5.5': COMMANDS.MODELOS_WHISPER,
-  '5.6': COMMANDS.TROCAR_MODELO_WHISPER,
-  '5.7': COMMANDS.REINICIAR_WHISPER,
-  '5.8': COMMANDS.RECURSO,
+  '5.2': COMMANDS.LISTAR_ENDPOINTS_WHISPER,
+  '5.3': COMMANDS.LISTAR_ENDPOINTS_OLLAMA,
+  '5.4': COMMANDS.STATUS_ENDPOINTS,
+  '5.5': COMMANDS.RECURSO,
   
   // Suporte & Sistema
   '6.1': COMMANDS.AJUDA,

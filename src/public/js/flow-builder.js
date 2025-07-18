@@ -1051,16 +1051,88 @@ document.addEventListener('DOMContentLoaded', () => {
     if (flowId) {
         loadFlowById(flowId);
     }
+    
+    // Adicionar handler global para garantir que modais não travem
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            // Fechar todos os modais abertos se Escape for pressionado
+            const openModals = document.querySelectorAll('.modal.show');
+            openModals.forEach(modal => {
+                const modalInstance = bootstrap.Modal.getInstance(modal);
+                if (modalInstance) {
+                    modalInstance.hide();
+                }
+            });
+        }
+    });
+    
+    // Remover qualquer backdrop órfão após 30 segundos (fallback de segurança)
+    setInterval(() => {
+        const orphanBackdrops = document.querySelectorAll('.modal-backdrop');
+        orphanBackdrops.forEach(backdrop => {
+            const activeModals = document.querySelectorAll('.modal.show');
+            if (activeModals.length === 0) {
+                backdrop.remove();
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+            }
+        });
+    }, 30000);
 });
 
 function saveFlow() {
-    // Preencher modal com dados atuais
-    document.getElementById('flowName').value = flowBuilder.flowData.name || '';
-    document.getElementById('flowDescription').value = flowBuilder.flowData.description || '';
+    // Criar modal dinamicamente (igual ao modal de carregar)
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Salvar Fluxo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group mb-3">
+                        <label for="dynamicFlowName" class="form-label">Nome do Fluxo</label>
+                        <input type="text" id="dynamicFlowName" class="form-control" placeholder="Meu Fluxo WhatsApp" required value="${flowBuilder.flowData.name || ''}">
+                    </div>
+                    <div class="form-group mb-3">
+                        <label for="dynamicFlowDescription" class="form-label">Descrição</label>
+                        <textarea id="dynamicFlowDescription" class="form-control" rows="3" placeholder="Descrição do fluxo...">${flowBuilder.flowData.description || ''}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="performDynamicSave()">Salvar</button>
+                </div>
+            </div>
+        </div>
+    `;
     
-    const modal = new bootstrap.Modal(document.getElementById('saveModal'));
-    modal.show();
+    // Adicionar ao DOM
+    document.body.appendChild(modal);
+    
+    // Criar instância do Bootstrap Modal
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+    
+    // Focar no campo nome após modal abrir
+    modal.addEventListener('shown.bs.modal', () => {
+        const nameInput = document.getElementById('dynamicFlowName');
+        if (nameInput) {
+            nameInput.focus();
+            nameInput.select();
+        }
+    });
+    
+    // Remover modal do DOM após fechar
+    modal.addEventListener('hidden.bs.modal', () => {
+        modal.remove();
+    });
 }
+
+// Função removida - usando modais dinâmicos agora
 
 function loadFlow() {
     // Mostrar lista de fluxos salvos
@@ -1210,43 +1282,168 @@ function goBack() {
     window.history.back();
 }
 
-function performSave() {
-    const name = document.getElementById('flowName').value;
-    const description = document.getElementById('flowDescription').value;
+function performDynamicSave() {
+    const nameInput = document.getElementById('dynamicFlowName');
+    const descInput = document.getElementById('dynamicFlowDescription');
     
-    if (!name.trim()) {
-        alert('Por favor, informe um nome para o fluxo.');
+    if (!nameInput || !descInput) {
+        alert('Erro: Elementos do formulário não encontrados.');
         return;
     }
     
-    flowBuilder.flowData.name = name;
-    flowBuilder.flowData.description = description;
+    const name = nameInput.value;
+    const description = descInput.value;
     
-    const flowData = flowBuilder.serializeFlow();
+    if (!name.trim()) {
+        alert('Por favor, informe um nome para o fluxo.');
+        nameInput.focus();
+        return;
+    }
     
-    // Salvar no backend
-    fetch('/api/flow/save', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(flowData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Fluxo salvo com sucesso!');
-            document.getElementById('flow-status').textContent = 'Salvo';
-            
-            // Fechar modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('saveModal'));
-            modal.hide();
-        } else {
-            alert('Erro ao salvar fluxo: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Erro:', error);
-        alert('Erro ao comunicar com o servidor.');
-    });
+    // Encontrar o modal dinâmico atual
+    const currentModal = nameInput.closest('.modal');
+    const saveButton = currentModal.querySelector('.btn-primary');
+    const cancelButton = currentModal.querySelector('.btn-secondary');
+    
+    if (saveButton) {
+        const originalText = saveButton.innerHTML;
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+        
+        if (cancelButton) cancelButton.disabled = true;
+        
+        flowBuilder.flowData.name = name.trim();
+        flowBuilder.flowData.description = description.trim();
+        
+        const flowData = flowBuilder.serializeFlow();
+        
+        console.log('Salvando fluxo:', flowData);
+        
+        // Salvar no backend
+        fetch('/api/flow/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(flowData)
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Response data:', data);
+            if (data.success) {
+                alert('Fluxo salvo com sucesso!');
+                document.getElementById('flow-status').textContent = 'Salvo';
+                
+                // Fechar modal usando Bootstrap
+                const modalInstance = bootstrap.Modal.getInstance(currentModal);
+                if (modalInstance) {
+                    modalInstance.hide();
+                }
+            } else {
+                throw new Error(data.error || 'Erro desconhecido no servidor');
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao salvar fluxo:', error);
+            alert('Erro ao salvar fluxo: ' + error.message);
+        })
+        .finally(() => {
+            // Restaurar botões
+            if (saveButton) {
+                saveButton.disabled = false;
+                saveButton.innerHTML = originalText;
+            }
+            if (cancelButton) {
+                cancelButton.disabled = false;
+            }
+        });
+    }
 }
+
+function performSave() {
+    const nameInput = document.getElementById('flowName');
+    const descInput = document.getElementById('flowDescription');
+    
+    if (!nameInput || !descInput) {
+        alert('Erro: Elementos do formulário não encontrados.');
+        return;
+    }
+    
+    const name = nameInput.value;
+    const description = descInput.value;
+    
+    if (!name.trim()) {
+        alert('Por favor, informe um nome para o fluxo.');
+        nameInput.focus();
+        return;
+    }
+    
+    // Desabilitar botão e mostrar loading
+    const saveButton = document.querySelector('#saveModal .btn-primary');
+    const cancelButton = document.querySelector('#saveModal .btn-secondary');
+    
+    if (saveButton) {
+        const originalText = saveButton.innerHTML;
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+        
+        if (cancelButton) cancelButton.disabled = true;
+        
+        flowBuilder.flowData.name = name.trim();
+        flowBuilder.flowData.description = description.trim();
+        
+        const flowData = flowBuilder.serializeFlow();
+        
+        console.log('Salvando fluxo:', flowData);
+        
+        // Salvar no backend
+        fetch('/api/flow/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(flowData)
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Response data:', data);
+            if (data.success) {
+                alert('Fluxo salvo com sucesso!');
+                document.getElementById('flow-status').textContent = 'Salvo';
+                
+                // Fechar modal forçadamente
+                closeModal();
+            } else {
+                throw new Error(data.error || 'Erro desconhecido no servidor');
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao salvar fluxo:', error);
+            alert('Erro ao salvar fluxo: ' + error.message);
+        })
+        .finally(() => {
+            // Restaurar botões
+            if (saveButton) {
+                saveButton.disabled = false;
+                saveButton.innerHTML = originalText;
+            }
+            if (cancelButton) {
+                cancelButton.disabled = false;
+            }
+        });
+    }
+}
+
+// Função removida - usando modais dinâmicos do Bootstrap agora

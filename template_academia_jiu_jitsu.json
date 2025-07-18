@@ -22,10 +22,10 @@
       "x": 100,
       "y": 200,
       "data": {
-        "trigger": "keyword",
+        "trigger": "manual",
         "value": "academia",
-        "label": "Início - Palavra-chave 'academia'",
-        "description": "Gatilho principal que inicia o atendimento quando o usuário escreve 'academia', 'jiu-jitsu' ou palavras relacionadas"
+        "label": "Início - Manual para teste",
+        "description": "Gatilho manual para teste do flow-tester"
       }
     },
     {
@@ -323,6 +323,46 @@
       }
     },
     {
+      "id": "msg_entrada_invalida",
+      "type": "message",
+      "x": 1800,
+      "y": 750,
+      "data": {
+        "text": "❌ **OPÇÃO INVÁLIDA**\n\nDesculpe, não entendi sua escolha.\n\nPor favor, digite apenas o **número** da opção desejada:\n\n1️⃣ Informações sobre modalidades\n2️⃣ Preços e planos\n3️⃣ Agendar aula experimental GRÁTIS\n4️⃣ Localização e horários\n5️⃣ Benefícios do Jiu-Jitsu\n6️⃣ Falar com instrutor\n\nExemplo: Digite apenas **1** para ver as modalidades.\n\nTente novamente! 😊",
+        "delay": 2,
+        "label": "Entrada Inválida",
+        "description": "Informa sobre entrada inválida e solicita nova tentativa"
+      }
+    },
+    {
+      "id": "input_choice_retry",
+      "type": "message",
+      "x": 1800,
+      "y": 900,
+      "data": {
+        "text": "Aguardando sua nova escolha...",
+        "delay": 1,
+        "label": "Aguardar Nova Escolha",
+        "description": "Aguarda nova tentativa de escolha do usuário",
+        "waitForInput": true,
+        "inputVariable": "userChoiceRetry",
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "var_store_retry",
+      "type": "variable",
+      "x": 2000,
+      "y": 900,
+      "data": {
+        "action": "set",
+        "name": "userChoice",
+        "value": "{{userChoiceRetry}}",
+        "label": "Armazenar Nova Escolha",
+        "description": "Substitui a escolha anterior pela nova tentativa"
+      }
+    },
+    {
       "id": "msg_despedida_interesse",
       "type": "message",
       "x": 2100,
@@ -587,7 +627,22 @@
     {
       "id": "conn_38",
       "from": "condition_menu_choice_6",
-      "to": "msg_despedida_interesse"
+      "to": "msg_entrada_invalida"
+    },
+    {
+      "id": "conn_39",
+      "from": "msg_entrada_invalida",
+      "to": "input_choice_retry"
+    },
+    {
+      "id": "conn_40",
+      "from": "input_choice_retry",
+      "to": "var_store_retry"
+    },
+    {
+      "id": "conn_41",
+      "from": "var_store_retry",
+      "to": "condition_menu_choice"
     }
   ],
   "templateInstructions": {

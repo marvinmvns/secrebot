@@ -87,6 +87,62 @@ class FlowManager {
         
         const html = flows.map(flow => this.createFlowCard(flow)).join('');
         container.innerHTML = html;
+        
+        // Adicionar event listeners para os botões de ação
+        this.setupFlowActionListeners();
+    }
+    
+    setupFlowActionListeners() {
+        const actionButtons = document.querySelectorAll('.flow-action-btn');
+        
+        actionButtons.forEach((button, index) => {
+            console.log(`Configurando listener para botão ${index}:`, {
+                action: button.getAttribute('data-action'),
+                flowId: button.getAttribute('data-flow-id'),
+                flowName: button.getAttribute('data-flow-name')
+            });
+            
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const action = button.getAttribute('data-action');
+                const flowId = button.getAttribute('data-flow-id');
+                const flowName = button.getAttribute('data-flow-name');
+                
+                console.log(`Ação ${action} chamada para flow ${flowId}, nome: ${flowName}`);
+                
+                // Adicionar indicador visual de que o botão foi clicado
+                button.style.opacity = '0.5';
+                setTimeout(() => {
+                    button.style.opacity = '1';
+                }, 200);
+                
+                switch (action) {
+                    case 'edit':
+                        this.editFlow(flowId);
+                        break;
+                    case 'duplicate':
+                        this.duplicateFlow(flowId);
+                        break;
+                    case 'export':
+                        this.exportFlow(flowId);
+                        break;
+                    case 'test':
+                        this.testFlow(flowId);
+                        break;
+                    case 'delete':
+                        console.log('Chamando deleteFlow...');
+                        this.deleteFlow(flowId, flowName);
+                        break;
+                    default:
+                        console.error('Ação desconhecida:', action);
+                        alert('Ação desconhecida: ' + action);
+                }
+            });
+        });
+        
+        console.log(`Event listeners adicionados para ${actionButtons.length} botões`);
     }
     
     createFlowCard(flow) {
@@ -140,28 +196,34 @@ class FlowManager {
                     
                     <div class="col-md-4 text-end">
                         <div class="btn-group" role="group">
-                            <button class="btn btn-outline-primary btn-sm" 
-                                    onclick="flowManager.editFlow('${flow.id}')" 
+                            <button class="btn btn-outline-primary btn-sm flow-action-btn" 
+                                    data-action="edit"
+                                    data-flow-id="${flow.id}"
                                     title="Editar">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button class="btn btn-outline-success btn-sm" 
-                                    onclick="flowManager.duplicateFlow('${flow.id}')" 
+                            <button class="btn btn-outline-success btn-sm flow-action-btn" 
+                                    data-action="duplicate"
+                                    data-flow-id="${flow.id}"
                                     title="Duplicar">
                                 <i class="fas fa-copy"></i>
                             </button>
-                            <button class="btn btn-outline-info btn-sm" 
-                                    onclick="flowManager.exportFlow('${flow.id}')" 
+                            <button class="btn btn-outline-info btn-sm flow-action-btn" 
+                                    data-action="export"
+                                    data-flow-id="${flow.id}"
                                     title="Exportar">
                                 <i class="fas fa-download"></i>
                             </button>
-                            <button class="btn btn-outline-warning btn-sm" 
-                                    onclick="flowManager.testFlow('${flow.id}')" 
+                            <button class="btn btn-outline-warning btn-sm flow-action-btn" 
+                                    data-action="test"
+                                    data-flow-id="${flow.id}"
                                     title="Testar">
                                 <i class="fas fa-play"></i>
                             </button>
-                            <button class="btn btn-outline-danger btn-sm" 
-                                    onclick="flowManager.deleteFlow('${flow.id}', '${flow.name}')" 
+                            <button class="btn btn-outline-danger btn-sm flow-action-btn" 
+                                    data-action="delete"
+                                    data-flow-id="${flow.id}"
+                                    data-flow-name="${flow.name}"
                                     title="Excluir">
                                 <i class="fas fa-trash"></i>
                             </button>
@@ -218,15 +280,67 @@ class FlowManager {
     }
     
     deleteFlow(flowId, flowName) {
-        this.currentDeleteFlowId = flowId;
-        document.getElementById('delete-flow-name').textContent = flowName;
+        console.log('DeleteFlow chamado:', flowId, flowName);
         
-        const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
-        modal.show();
+        this.currentDeleteFlowId = flowId;
+        
+        const deleteNameElement = document.getElementById('delete-flow-name');
+        if (!deleteNameElement) {
+            console.error('Elemento delete-flow-name não encontrado');
+            this.showError('Erro: Elemento do modal não encontrado');
+            return;
+        }
+        deleteNameElement.textContent = flowName;
+        
+        const modalElement = document.getElementById('deleteModal');
+        if (!modalElement) {
+            console.error('Modal deleteModal não encontrado');
+            this.showError('Erro: Modal de delete não encontrado');
+            return;
+        }
+        
+        // Verificar se Bootstrap está disponível
+        if (typeof bootstrap === 'undefined') {
+            console.error('Bootstrap não está carregado');
+            this.showError('Erro: Bootstrap não está carregado');
+            return;
+        }
+        
+        try {
+            // Limpeza completa antes de abrir
+            this.cleanupModals();
+            
+            // Configurar modal com melhores opções
+            const modal = new bootstrap.Modal(modalElement, {
+                backdrop: 'static',
+                keyboard: true,
+                focus: true
+            });
+            
+            // Event listener para quando o modal é mostrado
+            modalElement.addEventListener('shown.bs.modal', this.handleModalShown.bind(this), { once: true });
+            
+            // Event listener para quando o modal é escondido
+            modalElement.addEventListener('hidden.bs.modal', this.handleModalHidden.bind(this), { once: true });
+            
+            console.log('Abrindo modal de delete...');
+            modal.show();
+            
+        } catch (error) {
+            console.error('Erro ao criar/abrir modal:', error);
+            this.showError('Erro ao abrir modal: ' + error.message);
+        }
     }
     
     async confirmDelete() {
         if (!this.currentDeleteFlowId) return;
+        
+        // Fechar modal imediatamente ao clicar em confirmar
+        const modalElement = document.getElementById('deleteModal');
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
         
         try {
             const response = await fetch(`/api/flow/${this.currentDeleteFlowId}`, {
@@ -247,24 +361,66 @@ class FlowManager {
         } catch (error) {
             console.error('Erro ao excluir fluxo:', error);
             this.showError('Erro ao comunicar com o servidor');
+        } finally {
+            // Limpar ID independente do resultado
+            this.currentDeleteFlowId = null;
         }
-        
-        // Fechar modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
-        modal.hide();
-        this.currentDeleteFlowId = null;
     }
     
     duplicateFlow(flowId) {
+        console.log('DuplicateFlow chamado:', flowId);
+        
         this.currentDuplicateFlowId = flowId;
         const flow = this.flows.find(f => f.id === flowId);
         
         if (flow) {
-            document.getElementById('duplicate-name').value = `${flow.name} (Cópia)`;
+            const duplicateNameElement = document.getElementById('duplicate-name');
+            if (duplicateNameElement) {
+                duplicateNameElement.value = `${flow.name} (Cópia)`;
+            } else {
+                console.error('Elemento duplicate-name não encontrado');
+                this.showError('Erro: Elemento do modal não encontrado');
+                return;
+            }
         }
         
-        const modal = new bootstrap.Modal(document.getElementById('duplicateModal'));
-        modal.show();
+        const modalElement = document.getElementById('duplicateModal');
+        if (!modalElement) {
+            console.error('Modal duplicateModal não encontrado');
+            this.showError('Erro: Modal não encontrado');
+            return;
+        }
+        
+        try {
+            // Limpeza completa antes de abrir
+            this.cleanupModals();
+            
+            const modal = new bootstrap.Modal(modalElement, {
+                backdrop: 'static',
+                keyboard: true,
+                focus: true
+            });
+            
+            // Event listeners
+            modalElement.addEventListener('shown.bs.modal', this.handleModalShown.bind(this), { once: true });
+            modalElement.addEventListener('hidden.bs.modal', this.handleModalHidden.bind(this), { once: true });
+            
+            console.log('Abrindo modal de duplicação...');
+            modal.show();
+            
+            // Focar no input após o modal abrir
+            modalElement.addEventListener('shown.bs.modal', () => {
+                const duplicateNameElement = document.getElementById('duplicate-name');
+                if (duplicateNameElement) {
+                    duplicateNameElement.focus();
+                    duplicateNameElement.select();
+                }
+            }, { once: true });
+            
+        } catch (error) {
+            console.error('Erro ao criar/abrir modal duplicate:', error);
+            this.showError('Erro ao abrir modal: ' + error.message);
+        }
     }
     
     async confirmDuplicate() {
@@ -302,8 +458,12 @@ class FlowManager {
         }
         
         // Fechar modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('duplicateModal'));
-        modal.hide();
+        const modalElement = document.getElementById('duplicateModal');
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
+        
         this.currentDuplicateFlowId = null;
     }
     
@@ -338,10 +498,15 @@ class FlowManager {
     }
     
     async testFlow(flowId) {
+        console.log('TestFlow chamado:', flowId);
+        
         try {
             // Carregar dados do fluxo
+            console.log('Carregando dados do fluxo...');
             const response = await fetch(`/api/flow/${flowId}`);
             const data = await response.json();
+            
+            console.log('Resposta do carregamento:', data.success);
             
             if (!data.success) {
                 this.showError('Erro ao carregar fluxo para teste');
@@ -349,6 +514,7 @@ class FlowManager {
             }
             
             // Testar fluxo
+            console.log('Enviando para teste...');
             const testResponse = await fetch('/api/flow/test', {
                 method: 'POST',
                 headers: {
@@ -358,6 +524,7 @@ class FlowManager {
             });
             
             const testData = await testResponse.json();
+            console.log('Resultado do teste:', testData);
             
             if (testData.success) {
                 this.showSuccess('Teste do fluxo iniciado! Verifique o WhatsApp.');
@@ -372,8 +539,40 @@ class FlowManager {
     }
     
     importFlow() {
-        const modal = new bootstrap.Modal(document.getElementById('importModal'));
-        modal.show();
+        const modalElement = document.getElementById('importModal');
+        if (!modalElement) {
+            console.error('Modal importModal não encontrado');
+            this.showError('Erro: Modal não encontrado');
+            return;
+        }
+        
+        try {
+            // Limpeza completa antes de abrir
+            this.cleanupModals();
+            
+            // Limpar input de arquivo
+            const fileInput = document.getElementById('import-file');
+            if (fileInput) {
+                fileInput.value = '';
+            }
+            
+            const modal = new bootstrap.Modal(modalElement, {
+                backdrop: 'static',
+                keyboard: true,
+                focus: true
+            });
+            
+            // Event listeners
+            modalElement.addEventListener('shown.bs.modal', this.handleModalShown.bind(this), { once: true });
+            modalElement.addEventListener('hidden.bs.modal', this.handleModalHidden.bind(this), { once: true });
+            
+            console.log('Abrindo modal de importação...');
+            modal.show();
+            
+        } catch (error) {
+            console.error('Erro ao criar/abrir modal import:', error);
+            this.showError('Erro ao abrir modal: ' + error.message);
+        }
     }
     
     async performImport() {
@@ -403,8 +602,11 @@ class FlowManager {
                 this.updateStatsDisplay();
                 
                 // Fechar modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('importModal'));
-                modal.hide();
+                const modalElement = document.getElementById('importModal');
+                const modal = bootstrap.Modal.getInstance(modalElement);
+                if (modal) {
+                    modal.hide();
+                }
             } else {
                 this.showError('Erro ao importar fluxo: ' + data.error);
             }
@@ -557,6 +759,74 @@ class FlowManager {
         }, 5000);
     }
     
+    handleModalShown() {
+        console.log('Modal mostrado com sucesso');
+        // Garantir z-index correto
+        const backdrop = document.querySelector('.modal-backdrop:last-of-type');
+        if (backdrop) {
+            backdrop.style.zIndex = '1050';
+        }
+    }
+    
+    handleModalHidden() {
+        console.log('Modal escondido');
+        // Limpeza após fechar
+        setTimeout(() => {
+            this.cleanupModals();
+        }, 100);
+    }
+    
+    cleanupModals() {
+        console.log('Iniciando limpeza de modais...');
+        
+        // Remover todos os backdrops órfãos
+        const orphanBackdrops = document.querySelectorAll('.modal-backdrop');
+        console.log(`Removendo ${orphanBackdrops.length} backdrops órfãos`);
+        orphanBackdrops.forEach(backdrop => {
+            backdrop.remove();
+        });
+        
+        // Limpar estado do body
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        document.body.style.marginRight = '';
+        
+        // Encontrar e limpar todas as instâncias de modal
+        const allModals = document.querySelectorAll('.modal');
+        allModals.forEach(modal => {
+            const existingInstance = bootstrap.Modal.getInstance(modal);
+            if (existingInstance) {
+                try {
+                    existingInstance.dispose();
+                } catch (e) {
+                    console.warn('Erro ao fazer dispose do modal:', e);
+                }
+            }
+            
+            // Reset modal state
+            modal.classList.remove('show', 'fade');
+            modal.style.display = 'none';
+            modal.style.zIndex = '';
+            modal.setAttribute('aria-hidden', 'true');
+            modal.removeAttribute('aria-modal');
+            modal.removeAttribute('role');
+            
+            // Remover event listeners
+            const newModal = modal.cloneNode(true);
+            modal.parentNode.replaceChild(newModal, modal);
+        });
+        
+        // Forçar re-adicionar classe fade
+        setTimeout(() => {
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.classList.add('fade');
+            });
+        }, 50);
+        
+        console.log('Limpeza completa de modais realizada');
+    }
+    
     debounce(func, wait) {
         let timeout;
         return function executedFunction(...args) {
@@ -574,7 +844,18 @@ class FlowManager {
 let flowManager;
 
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('Inicializando FlowManager...');
     flowManager = new FlowManager();
+    console.log('FlowManager inicializado:', flowManager);
+    
+    // Testar se as funções estão disponíveis globalmente
+    window.testFlowManagerFunctions = () => {
+        console.log('Testando funções do FlowManager:');
+        console.log('deleteFlow:', typeof flowManager.deleteFlow);
+        console.log('duplicateFlow:', typeof flowManager.duplicateFlow);
+        console.log('testFlow:', typeof flowManager.testFlow);
+        console.log('exportFlow:', typeof flowManager.exportFlow);
+    };
 });
 
 function refreshFlows() {

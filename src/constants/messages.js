@@ -91,18 +91,13 @@ export const SUBMENU_MESSAGES = {
 *RESPOSTAS*
 5.1 🔊 Alterar modo (Texto/Voz)
 
-*INTELIGÊNCIA ARTIFICIAL (IA)*
-5.2 🤖 Listar modelos de IA
-5.3 🔄 Trocar modelo de IA
-5.4 🚀 Reiniciar serviço de IA (Ollama)
-
-*TRANSCRIÇÃO DE ÁUDIO*
-5.5 🎤 Listar modelos de transcrição
-5.6 🔄 Trocar modelo de transcrição
-5.7 🚀 Reiniciar serviço de transcrição (Whisper)
+*GERENCIAMENTO DE ENDPOINTS*
+5.2 🎤 Listar endpoints Whisper API
+5.3 🤖 Listar endpoints Ollama API
+5.4 📊 Status de todos os endpoints
 
 *SISTEMA*
-5.8 ⚡ Ver recursos do sistema
+5.5 ⚡ Ver recursos do sistema
 
 0️⃣ Voltar ao Menu Principal`,
 
@@ -252,12 +247,9 @@ ${COMMANDS.LINKEDIN} test - Testar conexão
 
 ⚙️ *CONFIGURAÇÕES*
 ${COMMANDS.VOZ} - Alternar modo voz/texto
-${COMMANDS.MODELOS} - Listar modelos IA
-${COMMANDS.TROCAR_MODELO} - Trocar modelo IA
-${COMMANDS.MODELOS_WHISPER} - Listar modelos Whisper
-${COMMANDS.TROCAR_MODELO_WHISPER} - Trocar modelo Whisper
-${COMMANDS.REINICIAR_OLLAMA} - Reiniciar serviço IA
-${COMMANDS.REINICIAR_WHISPER} - Reiniciar Whisper
+${COMMANDS.LISTAR_ENDPOINTS_WHISPER} - Listar endpoints Whisper API
+${COMMANDS.LISTAR_ENDPOINTS_OLLAMA} - Listar endpoints Ollama API
+${COMMANDS.STATUS_ENDPOINTS} - Status de todos os endpoints
 ${COMMANDS.RECURSO} - Ver recursos do sistema
 
 🎤 *COMANDOS POR VOZ*
@@ -354,10 +346,9 @@ Sua função é analisar a transcrição de áudio do usuário e determinar qual
 • !voltar: voltar, cancelar, sair, parar
 • !resumir: resumir texto, resumir documento
 • !resumirvideo: resumir vídeo, análise de vídeo
-• !trocarmodelo: trocar modelo IA, mudar IA
-• !modelos: listar modelos
-• !modeloswhisper: listar modelos whisper
-• !trocarmodelwhisper: trocar modelo whisper
+• !listarendpointswhisper: listar endpoints whisper, endpoints whisper
+• !listarendpointsollama: listar endpoints ollama, endpoints ollama  
+• !statusendpoints: status endpoints, status de endpoints, verificar endpoints
 
 ## Instruções:
 1. Analise a intenção principal na transcrição.

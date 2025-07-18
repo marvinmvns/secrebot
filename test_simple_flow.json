@@ -1,0 +1,53 @@
+{
+  "name": "Simple Test Flow",
+  "description": "Minimal flow for testing",
+  "id": "simple-test",
+  "alias": "simple-test",
+  "version": "1.0",
+  "createdAt": "2024-01-01T00:00:00.000Z",
+  "lastModified": "2024-01-01T00:00:00.000Z",
+  "nodes": [
+    {
+      "id": "start_1",
+      "type": "start",
+      "x": 100,
+      "y": 200,
+      "data": {
+        "trigger": "manual",
+        "label": "Start"
+      }
+    },
+    {
+      "id": "msg_1",
+      "type": "message",
+      "x": 300,
+      "y": 200,
+      "data": {
+        "text": "Hello from simple test flow!",
+        "label": "Hello Message"
+      }
+    },
+    {
+      "id": "end_1",
+      "type": "end",
+      "x": 500,
+      "y": 200,
+      "data": {
+        "message": "Test completed!",
+        "label": "End"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn_1",
+      "from": "start_1",
+      "to": "msg_1"
+    },
+    {
+      "id": "conn_2",
+      "from": "msg_1",
+      "to": "end_1"
+    }
+  ]
+}

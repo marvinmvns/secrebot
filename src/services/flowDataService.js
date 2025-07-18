@@ -136,32 +136,102 @@ class FlowDataService {
      */
     async saveFlow(flowData) {
         try {
+            // Verificar se temos um ID válido
+            if (!flowData.id) {
+                throw new Error('FlowData deve ter um ID válido');
+            }
+            
+            // Criar uma cópia limpa dos dados removendo _id se existir
+            const cleanFlowData = { ...flowData };
+            delete cleanFlowData._id; // Remove _id para evitar conflitos
+            
+            logger.debug(`💾 Salvando flow com ID: ${flowData.id}`);
+            
             const flowDoc = {
                 _id: flowData.id,
-                ...flowData,
+                ...cleanFlowData,
                 lastModified: new Date(),
                 operationType: flowData.id ? 'update' : 'insert',
                 flowVersion: flowData.version || '1.0'
             };
 
-            const result = await this.collection.replaceOne(
-                { _id: flowData.id },
-                flowDoc,
-                { upsert: true }
-            );
+            // Verificar se o flow já existe para decidir entre insert ou update
+            const existingFlow = await this.collection.findOne({ _id: flowData.id });
+            let result;
+            let operation;
 
-            const operation = result.modifiedCount > 0 ? 'atualizado' : 'inserido';
+            if (existingFlow) {
+                // Update existing flow - use updateOne instead of replaceOne
+                const updateDoc = { ...flowDoc };
+                delete updateDoc._id; // Remove _id from update document
+                
+                result = await this.collection.updateOne(
+                    { _id: flowData.id },
+                    { $set: updateDoc }
+                );
+                operation = 'atualizado';
+            } else {
+                // Insert new flow
+                result = await this.collection.insertOne(flowDoc);
+                operation = 'inserido';
+            }
+
             logger.info(`💾 Flow '${flowData.name}' ${operation} na base flows (ID: ${flowData.id})`);
 
             return {
                 success: true,
                 flowId: flowData.id,
-                modified: result.modifiedCount > 0,
-                inserted: result.upsertedCount > 0,
+                modified: existingFlow ? true : false,
+                inserted: !existingFlow ? true : false,
                 operation: operation
             };
         } catch (error) {
             logger.error(`❌ Erro ao salvar flow '${flowData.name}' na base flows:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Método específico para inserir flows duplicados
+     */
+    async insertNewFlow(flowData) {
+        try {
+            // Verificar se temos um ID válido
+            if (!flowData.id) {
+                throw new Error('FlowData deve ter um ID válido');
+            }
+            
+            logger.debug(`💾 Inserindo novo flow com ID: ${flowData.id}`);
+            
+            // Construir documento do flow com todos os campos necessários
+            const flowDoc = {
+                _id: flowData.id,
+                id: flowData.id,
+                name: flowData.name,
+                description: flowData.description || '',
+                alias: flowData.alias || flowData.id,
+                nodes: flowData.nodes || [],
+                connections: flowData.connections || [],
+                version: flowData.version || '1.0',
+                createdAt: flowData.createdAt || new Date().toISOString(),
+                metadata: flowData.metadata || {},
+                lastModified: new Date(),
+                operationType: 'insert',
+                flowVersion: flowData.version || '1.0'
+            };
+
+            const result = await this.collection.insertOne(flowDoc);
+            logger.info(`💾 Flow '${flowData.name}' inserido na base flows (ID: ${flowData.id})`);
+
+            return {
+                success: true,
+                flowId: flowData.id,
+                modified: false,
+                inserted: true,
+                operation: 'inserido'
+            };
+        } catch (error) {
+            logger.error(`❌ Erro ao inserir flow '${flowData.name}' na base flows:`, error);
             throw error;
         }
     }

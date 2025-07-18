@@ -94,6 +94,51 @@
       box-shadow: 0 8px 25px rgba(37, 211, 102, 0.3);
       color: white;
     }
+    
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .main-content {
+        margin: 10px 0;
+        border-radius: 15px;
+      }
+      
+      .navbar-nav .dropdown-menu {
+        position: static;
+        float: none;
+        width: auto;
+        margin-top: 0;
+        background-color: transparent;
+        border: 0;
+        box-shadow: none;
+      }
+      
+      .modal-dialog {
+        margin: 0.5rem;
+        max-width: none;
+        width: calc(100% - 1rem);
+      }
+    }
+    
+    @media (max-width: 576px) {
+      .container {
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+      
+      .main-content {
+        padding: 15px !important;
+      }
+      
+      .navbar-brand {
+        font-size: 1.2rem;
+      }
+      
+      .nav-link {
+        padding: 6px 8px !important;
+        font-size: 0.9rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -153,6 +198,8 @@
               <li><a class="dropdown-item" href="/whisper-api-config"><i class="fas fa-microphone"></i> Whisper API</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="/flow-builder"><i class="fas fa-project-diagram"></i> Flow Builder</a></li>
+              <li><a class="dropdown-item" href="/flow-manager"><i class="fas fa-tasks"></i> Gerenciar Flows</a></li>
+              <li><a class="dropdown-item" href="/flow-tester"><i class="fas fa-vial"></i> Testar Flows</a></li>
             </ul>
           </li>
         </ul>

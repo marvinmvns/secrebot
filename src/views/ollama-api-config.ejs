@@ -260,6 +260,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadConfiguration();
             loadCurrentStatus();
+            loadSelectedModels();
             setupEventListeners();
             
             // Auto-refresh status every 10 seconds
@@ -441,6 +442,8 @@
                                 if (currentType === 'rkllama') {
                                     updateLoadModelButton(index);
                                 }
+                                // Auto-save model selection
+                                saveSelectedModel(index);
                             }
                         });
                     }
@@ -913,6 +916,105 @@
                 }
             } catch (error) {
                 showAlert('Erro ao salvar configuração: ' + error.message, 'danger');
+            }
+        }
+
+        async function loadSelectedModels() {
+            try {
+                const response = await fetch('/api/ollama-api/selected-models');
+                const result = await response.json();
+                
+                if (result.success) {
+                    result.selectedModels.forEach((selectedModel, index) => {
+                        if (selectedModel.model) {
+                            const modelSelect = document.getElementById(`endpoint_${index}_model`);
+                            if (modelSelect) {
+                                // Add the saved model as an option if it doesn't exist
+                                const existingOption = Array.from(modelSelect.options).find(
+                                    option => option.value === selectedModel.model
+                                );
+                                if (!existingOption) {
+                                    const option = document.createElement('option');
+                                    option.value = selectedModel.model;
+                                    option.textContent = selectedModel.model;
+                                    option.setAttribute('data-saved', 'true');
+                                    modelSelect.appendChild(option);
+                                }
+                                
+                                // Select the saved model
+                                modelSelect.value = selectedModel.model;
+                                
+                                // Update load model button for RKLLama
+                                if (selectedModel.type === 'rkllama') {
+                                    updateLoadModelButton(index);
+                                }
+                                
+                                // Show indicator that model was loaded from database
+                                const statusSpan = document.getElementById(`modelStatus_${index}`);
+                                if (statusSpan) {
+                                    statusSpan.innerHTML = `
+                                        <i class="fas fa-database text-success"></i> 
+                                        Modelo salvo carregado: ${selectedModel.model}
+                                        ${selectedModel.lastSelectedAt ? 
+                                            `<br><small>Última seleção: ${new Date(selectedModel.lastSelectedAt).toLocaleString('pt-BR')}</small>` : 
+                                            ''
+                                        }
+                                    `;
+                                    statusSpan.className = 'text-success';
+                                }
+                            }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Erro ao carregar modelos selecionados:', error);
+            }
+        }
+
+        async function saveSelectedModel(index) {
+            const url = document.getElementById(`endpoint_${index}_url`).value;
+            const type = document.getElementById(`endpoint_${index}_type`).value;
+            const model = document.getElementById(`endpoint_${index}_model`).value;
+            
+            if (!url.trim() || !model) {
+                return; // Don't save if URL or model is empty
+            }
+
+            try {
+                const response = await fetch('/api/ollama-api/save-selected-model', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        endpointIndex: index,
+                        url,
+                        type,
+                        model
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    const statusSpan = document.getElementById(`modelStatus_${index}`);
+                    if (statusSpan) {
+                        statusSpan.innerHTML = `<i class="fas fa-save text-success"></i> Modelo ${model} salvo automaticamente`;
+                        statusSpan.className = 'text-success';
+                        
+                        // Clear the message after 3 seconds
+                        setTimeout(() => {
+                            if (statusSpan.innerHTML.includes('salvo automaticamente')) {
+                                statusSpan.innerHTML = `Modelo selecionado: ${model}`;
+                                statusSpan.className = 'text-info';
+                            }
+                        }, 3000);
+                    }
+                    
+                    console.log(`Modelo ${model} salvo para endpoint ${index}`);
+                } else {
+                    console.error('Erro ao salvar modelo:', result.error);
+                }
+            } catch (error) {
+                console.error('Erro ao salvar modelo selecionado:', error);
             }
         }
 

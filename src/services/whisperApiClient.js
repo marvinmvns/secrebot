@@ -15,9 +15,69 @@ class WhisperAPIClient {
     this.isHealthy = true;
     this.queueLength = 0;
     this.avgProcessingTime = 0;
+    
+    // Request tracking for processing status
+    this.activeRequests = 0;
+    this.totalRequests = 0;
+    this.requestHistory = [];
+    this.totalProcessed = 0;
+  }
+
+  // ============ Request Tracking ============
+  _startRequest(type = 'transcribe') {
+    this.activeRequests++;
+    this.totalRequests++;
+    const requestId = `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    const request = {
+      id: requestId,
+      type,
+      startTime: new Date().toISOString(),
+      endTime: null,
+      duration: null,
+      active: true
+    };
+    
+    this.requestHistory.push(request);
+    
+    // Keep only last 10 requests in history
+    if (this.requestHistory.length > 10) {
+      this.requestHistory = this.requestHistory.slice(-10);
+    }
+    
+    return requestId;
+  }
+
+  _endRequest(requestId) {
+    this.activeRequests = Math.max(0, this.activeRequests - 1);
+    this.totalProcessed++;
+    
+    const request = this.requestHistory.find(r => r.id === requestId);
+    if (request) {
+      request.endTime = new Date().toISOString();
+      request.duration = new Date(request.endTime) - new Date(request.startTime);
+      request.active = false;
+    }
+  }
+
+  getProcessingStatus() {
+    const recent = this.requestHistory.filter(r => !r.active && r.duration !== null);
+    const avgResponseTime = recent.length > 0 
+      ? recent.reduce((sum, r) => sum + r.duration, 0) / recent.length 
+      : 0;
+
+    return {
+      activeRequests: this.activeRequests,
+      totalRequests: this.totalRequests,
+      totalProcessed: this.totalProcessed,
+      averageResponseTime: Math.round(avgResponseTime),
+      requestHistory: this.requestHistory.slice(-10)
+    };
   }
 
   async transcribeFile(filePath, options = {}) {
+    const requestId = this._startRequest('transcribe');
+    
     try {
       logger.debug(`🔄 Iniciando transcrição via API: ${this.baseURL}`);
       
@@ -50,14 +110,18 @@ class WhisperAPIClient {
       });
 
       logger.debug(`✅ Upload realizado com sucesso para ${this.baseURL}`);
+      this._endRequest(requestId);
       return response.data;
     } catch (error) {
+      this._endRequest(requestId);
       logger.error(`❌ Falha no upload para ${this.baseURL}:`, error.message);
       throw new Error(`Transcription upload failed: ${error.response?.data?.error || error.message}`);
     }
   }
 
   async transcribeBuffer(audioBuffer, filename, options = {}) {
+    const requestId = this._startRequest('transcribe');
+    
     try {
       logger.debug(`🔄 Iniciando transcrição via API (buffer): ${this.baseURL}`);
       
@@ -90,8 +154,10 @@ class WhisperAPIClient {
       });
 
       logger.debug(`✅ Upload realizado com sucesso (buffer) para ${this.baseURL}`);
+      this._endRequest(requestId);
       return response.data;
     } catch (error) {
+      this._endRequest(requestId);
       logger.error(`❌ Falha no upload (buffer) para ${this.baseURL}:`, error.message);
       throw new Error(`Transcription upload failed: ${error.response?.data?.error || error.message}`);
     }

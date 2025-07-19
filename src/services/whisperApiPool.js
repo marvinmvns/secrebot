@@ -112,8 +112,6 @@ class WhisperAPIPool {
     const effectiveConfig = await this.getEffectiveConfig();
     const strategy = effectiveConfig.whisperApi.loadBalancing.strategy;
     
-    // Log mais visível para debug
-    logger.info(`🎯 WHISPER Estratégia aplicada: ${strategy} para ${healthyClients.length} clientes`);
     logger.debug(`🎯 Aplicando estratégia: ${strategy} para ${healthyClients.length} clientes`);
     
     switch (strategy) {
@@ -135,15 +133,10 @@ class WhisperAPIPool {
   selectRoundRobin(clients) {
     if (clients.length === 0) return null;
     
-    // Encontra o índice do cliente na lista de clientes saudáveis
-    const healthyUrls = clients.map(c => c.baseURL);
-    let selectedIndex = this.currentIndex % clients.length;
-    
+    const selectedIndex = this.currentIndex % clients.length;
     const client = clients[selectedIndex];
     this.currentIndex = (this.currentIndex + 1) % clients.length;
     
-    // Log mais detalhado para debug
-    logger.info(`🔄 WHISPER Round-robin: currentIndex=${this.currentIndex-1}, selectedIndex=${selectedIndex}, total=${clients.length}, selecionado=${client.baseURL}`);
     logger.debug(`🔄 Round-robin selecionou: ${client.baseURL} (índice: ${selectedIndex}/${clients.length})`);
     return client;
   }
@@ -201,7 +194,7 @@ class WhisperAPIPool {
 
     const selectedClient = await this.selectClientByStrategy(healthyClients);
     const effectiveConfig = await this.getEffectiveConfig();
-    logger.info(`🎯 Cliente selecionado: ${selectedClient.baseURL} (estratégia: ${effectiveConfig.whisperApi.loadBalancing.strategy})`);
+    logger.debug(`🎯 Cliente selecionado: ${selectedClient.baseURL} (estratégia: ${effectiveConfig.whisperApi.loadBalancing.strategy})`);
     
     return selectedClient;
   }
@@ -259,7 +252,7 @@ class WhisperAPIPool {
     this.requestCount++;
     const effectiveConfig = await this.getEffectiveConfig();
     
-    logger.info(`🎯 Requisição #${this.requestCount} - Iniciando balanceamento (estratégia: ${effectiveConfig.whisperApi.loadBalancing.strategy})`);
+    logger.debug(`🎯 Req #${this.requestCount}: Iniciando balanceamento (estratégia: ${effectiveConfig.whisperApi.loadBalancing.strategy})`);
     
     const selectedClient = await this.selectBestClient();
     
@@ -270,18 +263,18 @@ class WhisperAPIPool {
 
     const startTime = Date.now();
     try {
-      logger.info(`🎯 Req #${this.requestCount}: Usando ${selectedClient.baseURL} (fila: ${selectedClient.queueLength}, score: ${selectedClient.getLoadScore()})`);
+      logger.info(`🎯 Usando ${selectedClient.baseURL} (fila: ${selectedClient.queueLength}, score: ${selectedClient.getLoadScore()})`);
       
       const result = await selectedClient.transcribeBufferAndWait(audioBuffer, filename, options);
       
       const duration = Date.now() - startTime;
-      logger.success(`✅ Req #${this.requestCount}: Transcrição bem-sucedida via ${selectedClient.baseURL} em ${duration}ms`);
+      logger.success(`✅ Transcrição bem-sucedida via ${selectedClient.baseURL} em ${duration}ms`);
       return result;
       
     } catch (error) {
       selectedClient.retryCount++;
       const duration = Date.now() - startTime;
-      logger.warn(`⚠️ Req #${this.requestCount}: Falha via ${selectedClient.baseURL} após ${duration}ms: ${error.message}`);
+      logger.warn(`⚠️ Falha via ${selectedClient.baseURL} após ${duration}ms: ${error.message}`);
       
       // Se falhar, marca como não saudável e tenta com fallback
       if (selectedClient.retryCount >= selectedClient.endpoint.maxRetries) {
@@ -290,7 +283,7 @@ class WhisperAPIPool {
       }
       
       // Fallback para outros endpoints disponíveis
-      logger.info(`🔄 Req #${this.requestCount}: Tentando fallback para outros endpoints...`);
+      logger.info(`🔄 Tentando fallback para outros endpoints...`);
       return await this.transcribeWithFallback(audioBuffer, filename, options);
     }
   }
@@ -307,13 +300,17 @@ class WhisperAPIPool {
       try {
         const health = await client.getHealth();
         const queueInfo = await client.getQueueEstimate();
+        const processingStatus = client.getProcessingStatus();
         
         status.endpoints.push({
           url: client.baseURL,
+          baseURL: client.baseURL, // Add both for compatibility
           healthy: client.isHealthy,
           priority: client.endpoint.priority,
           queueLength: queueInfo.queueLength,
+          activeRequests: processingStatus.activeRequests,
           avgProcessingTime: queueInfo.averageProcessingTime,
+          totalProcessed: processingStatus.totalProcessed,
           loadScore: client.getLoadScore(),
           retryCount: client.retryCount,
           lastHealthCheck: client.lastHealthCheck ? new Date(client.lastHealthCheck).toISOString() : 'never'
@@ -321,8 +318,14 @@ class WhisperAPIPool {
       } catch (error) {
         status.endpoints.push({
           url: client.baseURL,
+          baseURL: client.baseURL, // Add both for compatibility
           healthy: false,
           priority: client.endpoint.priority,
+          queueLength: 0,
+          activeRequests: 0,
+          avgProcessingTime: 0,
+          totalProcessed: 0,
+          loadScore: 0,
           error: error.message,
           retryCount: client.retryCount,
           lastHealthCheck: client.lastHealthCheck ? new Date(client.lastHealthCheck).toISOString() : 'never'

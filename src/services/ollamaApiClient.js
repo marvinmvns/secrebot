@@ -429,6 +429,30 @@ class OllamaAPIClient {
     return true;
   }
 
+  // ============ Preload Model ============
+  async preloadModel(modelName) {
+    try {
+      logger.debug(`🔄 Pré-carregando modelo ${modelName} via API: ${this.baseURL}`);
+      
+      // Make a minimal generate request to load the model into memory
+      const requestData = {
+        model: modelName,
+        prompt: 'test',
+        stream: false,
+        options: {
+          num_predict: 1
+        }
+      };
+
+      await this.axios.post('/api/generate', requestData);
+      logger.success(`✅ Modelo ${modelName} pré-carregado com sucesso para ${this.baseURL}`);
+      return true;
+    } catch (error) {
+      logger.error(`❌ Falha no pré-carregamento do modelo ${modelName} via ${this.baseURL}:`, error.message);
+      throw new Error(`Preload model failed: ${error.response?.data?.error || error.message}`);
+    }
+  }
+
   // ============ Utility Methods ============
   getBaseURL() {
     return this.baseURL;

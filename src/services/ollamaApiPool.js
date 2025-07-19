@@ -87,6 +87,9 @@ class OllamaAPIPool {
     if (this.clients.length > 0) {
       logger.success(`✅ Pool Ollama inicializado com ${this.clients.length} endpoints`);
       this.startHealthCheckInterval();
+      
+      // Load saved models for RKLLama endpoints
+      await this.loadSavedModels();
     } else {
       logger.warn('⚠️ Nenhum endpoint Ollama habilitado encontrado');
     }
@@ -609,6 +612,57 @@ class OllamaAPIPool {
   async reinitialize() {
     logger.info('🔄 Reinicializando pool de APIs Ollama...');
     await this.initialize();
+  }
+
+  async loadSavedModels() {
+    if (!this.configService) {
+      logger.debug('🔧 ConfigService não disponível, pulando carregamento de modelos salvos');
+      return;
+    }
+
+    try {
+      const config = await this.configService.getConfig();
+      const endpoints = config?.ollamaApi?.endpoints || [];
+      
+      logger.info('🔄 Carregando modelos salvos para todos os endpoints...');
+      
+      for (let i = 0; i < this.clients.length; i++) {
+        const client = this.clients[i];
+        const endpoint = endpoints[i];
+        
+        // Load models for both Ollama and RKLLama endpoints
+        if (endpoint.model && endpoint.enabled) {
+          try {
+            const endpointType = this.isRKLlamaEndpoint(endpoint) ? 'RKLLama' : 'Ollama';
+            logger.info(`🔄 Carregando modelo salvo ${endpoint.model} para ${endpointType} ${endpoint.url}`);
+            
+            // Check if endpoint is healthy first
+            await client.checkHealth();
+            
+            if (client.isHealthy) {
+              if (this.isRKLlamaEndpoint(endpoint)) {
+                // For RKLLama, use loadModel method
+                await client.loadModel(endpoint.model);
+                logger.success(`✅ Modelo ${endpoint.model} carregado automaticamente em RKLLama ${endpoint.url}`);
+              } else {
+                // For Ollama, use preloadModel method
+                await client.preloadModel(endpoint.model);
+                logger.success(`✅ Modelo ${endpoint.model} pré-carregado automaticamente em Ollama ${endpoint.url}`);
+              }
+            } else {
+              logger.warn(`⚠️ Endpoint ${endpoint.url} não está saudável, pulando carregamento do modelo ${endpoint.model}`);
+            }
+          } catch (error) {
+            const endpointType = this.isRKLlamaEndpoint(endpoint) ? 'RKLLama' : 'Ollama';
+            logger.warn(`⚠️ Falha ao carregar modelo ${endpoint.model} para ${endpointType} ${endpoint.url}: ${error.message}`);
+          }
+        }
+      }
+      
+      logger.info('✅ Carregamento de modelos salvos concluído');
+    } catch (error) {
+      logger.error('❌ Erro ao carregar modelos salvos:', error);
+    }
   }
 
   destroy() {

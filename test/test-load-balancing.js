@@ -5,8 +5,8 @@
  * Este script simula múltiplas requisições e mostra como elas são distribuídas
  */
 
-import WhisperAPIPool from './src/services/whisperApiPool.js';
-import logger from './src/utils/logger.js';
+import WhisperAPIPool from '../src/services/whisperApiPool.js';
+import logger from '../src/utils/logger.js';
 
 console.log('🚀 Iniciando teste de balanceamento do Whisper API\n');
 

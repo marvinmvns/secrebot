@@ -44,8 +44,8 @@ async function testRoundRobinDistribution() {
     };
 
     // Como não podemos fazer transcrições reais, vamos testar diretamente o pool
-    const { getDynamicConfig } = await import('./src/config/index.js');
-    const WhisperAPIPool = (await import('./src/services/whisperApiPool.js')).default;
+    const { getDynamicConfig } = await import('../src/config/index.js');
+    const WhisperAPIPool = (await import('../src/services/whisperApiPool.js')).default;
     
     // Mock config service para pegar a configuração atual
     const mockConfigService = {

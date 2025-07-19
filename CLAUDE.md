@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Starting the Application
 ```bash
-npm start                    # Start the main application
+pm2 restart 0           # Start the main application
 ```
 
 ### Testing

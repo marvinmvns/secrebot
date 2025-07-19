@@ -4,8 +4,8 @@
  * Script de teste para diagnosticar o problema no balanceamento Round Robin do Whisper API
  */
 
-import WhisperAPIPool from './src/services/whisperApiPool.js';
-import logger from './src/utils/logger.js';
+import WhisperAPIPool from '../src/services/whisperApiPool.js';
+import logger from '../src/utils/logger.js';
 
 console.log('🔍 Diagnóstico do balanceamento Round Robin do Whisper API\n');
 

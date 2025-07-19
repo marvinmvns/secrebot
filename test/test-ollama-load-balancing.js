@@ -5,8 +5,8 @@
  * Este script simula múltiplas requisições e mostra como elas são distribuídas
  */
 
-import OllamaAPIPool from './src/services/ollamaApiPool.js';
-import logger from './src/utils/logger.js';
+import OllamaAPIPool from '../src/services/ollamaApiPool.js';
+import logger from '../src/utils/logger.js';
 
 console.log('🚀 Iniciando teste de balanceamento do Ollama API\n');
 

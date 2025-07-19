@@ -4,7 +4,7 @@
  * Script para testar diretamente a seleção de clientes do WhisperAPIPool
  */
 
-import WhisperAPIPool from './src/services/whisperApiPool.js';
+import WhisperAPIPool from '../src/services/whisperApiPool.js';
 
 async function testWhisperSelection() {
   console.log('🧪 Teste de Seleção do WhisperAPIPool');

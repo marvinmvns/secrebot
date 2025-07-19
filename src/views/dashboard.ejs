@@ -61,12 +61,20 @@
             </div>
             <div class="mb-2">
               <div class="d-flex justify-content-between">
-                <small class="text-muted">Fila:</small>
+                <small class="text-muted">Fila Total:</small>
                 <small id="whisperQueue" class="text-info">--</small>
               </div>
               <div class="d-flex justify-content-between">
                 <small class="text-muted">Processando:</small>
                 <small id="whisperProcessing" class="text-warning">--</small>
+              </div>
+              <div class="d-flex justify-content-between">
+                <small class="text-muted">Processados:</small>
+                <small id="whisperProcessedToday" class="text-success">--</small>
+              </div>
+              <div class="d-flex justify-content-between">
+                <small class="text-muted">Status:</small>
+                <small id="whisperHealthStatus" class="badge bg-secondary">--</small>
               </div>
             </div>
             <div class="progress" style="height: 8px;">
@@ -153,6 +161,28 @@
             <h6 class="mb-0"><i class="fas fa-microphone"></i> Whisper API - Filas</h6>
           </div>
           <div class="card-body">
+            <!-- Resumo geral do Whisper -->
+            <div id="whisperSummary" class="mb-3 p-2 bg-light rounded">
+              <div class="row text-center">
+                <div class="col-3">
+                  <small class="text-muted d-block">Total na Fila</small>
+                  <strong id="whisperTotalQueue" class="text-warning">--</strong>
+                </div>
+                <div class="col-3">
+                  <small class="text-muted d-block">Processando</small>
+                  <strong id="whisperTotalActive" class="text-danger">--</strong>
+                </div>
+                <div class="col-3">
+                  <small class="text-muted d-block">Processados</small>
+                  <strong id="whisperTotalProcessed" class="text-success">--</strong>
+                </div>
+                <div class="col-3">
+                  <small class="text-muted d-block">Endpoints</small>
+                  <strong id="whisperEndpointsRatio" class="text-info">--</strong>
+                </div>
+              </div>
+            </div>
+            
             <div id="whisperQueuesContainer" class="processing-queues">
               <div class="text-center py-3">
                 <div class="spinner-border text-warning" role="status">
@@ -171,6 +201,28 @@
             <h6 class="mb-0"><i class="fas fa-brain"></i> Ollama API - Processamento</h6>
           </div>
           <div class="card-body">
+            <!-- Resumo geral do Ollama -->
+            <div id="ollamaSummary" class="mb-3 p-2 bg-light rounded">
+              <div class="row text-center">
+                <div class="col-3">
+                  <small class="text-muted d-block">Modelos Ativos</small>
+                  <strong id="ollamaTotalModels" class="text-info">--</strong>
+                </div>
+                <div class="col-3">
+                  <small class="text-muted d-block">Processando</small>
+                  <strong id="ollamaTotalActive" class="text-danger">--</strong>
+                </div>
+                <div class="col-3">
+                  <small class="text-muted d-block">Processados</small>
+                  <strong id="ollamaTotalProcessed" class="text-success">--</strong>
+                </div>
+                <div class="col-3">
+                  <small class="text-muted d-block">Endpoints</small>
+                  <strong id="ollamaEndpointsRatio" class="text-info">--</strong>
+                </div>
+              </div>
+            </div>
+            
             <div id="ollamaQueuesContainer" class="processing-queues">
               <div class="text-center py-3">
                 <div class="spinner-border text-info" role="status">
@@ -309,9 +361,29 @@ async function updateSystemStats() {
     document.getElementById('whisperTotal').textContent = data.endpoints.whisper.total;
     document.getElementById('whisperQueue').textContent = data.endpoints.whisper.processing?.totalQueue || 0;
     document.getElementById('whisperProcessing').textContent = data.endpoints.whisper.processing?.totalActiveRequests || 0;
-    const whisperPercent = data.endpoints.whisper.total > 0 ? 
+    
+    // Set placeholder for processed today (will be updated by processing stats)
+    document.getElementById('whisperProcessedToday').textContent = '--';
+    
+    // Update health status
+    const whisperHealthPercent = data.endpoints.whisper.total > 0 ? 
       (data.endpoints.whisper.active / data.endpoints.whisper.total) * 100 : 0;
-    document.getElementById('whisperProgress').style.width = whisperPercent + '%';
+    const whisperHealthBadge = document.getElementById('whisperHealthStatus');
+    if (whisperHealthPercent === 100) {
+      whisperHealthBadge.textContent = 'Ótimo';
+      whisperHealthBadge.className = 'badge bg-success';
+    } else if (whisperHealthPercent >= 75) {
+      whisperHealthBadge.textContent = 'Bom';
+      whisperHealthBadge.className = 'badge bg-warning';
+    } else if (whisperHealthPercent > 0) {
+      whisperHealthBadge.textContent = 'Degradado';
+      whisperHealthBadge.className = 'badge bg-danger';
+    } else {
+      whisperHealthBadge.textContent = 'Offline';
+      whisperHealthBadge.className = 'badge bg-dark';
+    }
+    
+    document.getElementById('whisperProgress').style.width = whisperHealthPercent + '%';
 
     // Update Ollama endpoints
     document.getElementById('ollamaActive').textContent = data.endpoints.ollama.active;
@@ -339,33 +411,78 @@ async function updateProcessingQueues() {
     const response = await fetch('/api/processing/stats');
     const data = await response.json();
 
+    // Update Whisper summary
+    document.getElementById('whisperTotalQueue').textContent = data.whisper.totalQueue || 0;
+    document.getElementById('whisperTotalActive').textContent = data.whisper.totalActiveRequests || 0;
+    document.getElementById('whisperTotalProcessed').textContent = data.whisper.totalProcessedToday || 0;
+    const whisperHealthy = data.whisper.queues.filter(q => q.healthy).length;
+    document.getElementById('whisperEndpointsRatio').textContent = `${whisperHealthy}/${data.whisper.queues.length}`;
+    
+    // Update the card summary with processed count
+    document.getElementById('whisperProcessedToday').textContent = data.whisper.totalProcessedToday || 0;
+
+    // Update Ollama summary
+    const ollamaRunningModels = data.ollama.queues.reduce((sum, q) => sum + (q.runningModels || 0), 0);
+    document.getElementById('ollamaTotalModels').textContent = ollamaRunningModels || 0;
+    document.getElementById('ollamaTotalActive').textContent = data.ollama.totalActiveRequests || 0;
+    document.getElementById('ollamaTotalProcessed').textContent = data.ollama.totalProcessedToday || 0;
+    const ollamaHealthy = data.ollama.queues.filter(q => q.healthy).length;
+    document.getElementById('ollamaEndpointsRatio').textContent = `${ollamaHealthy}/${data.ollama.queues.length}`;
+
     // Update Whisper queues
     const whisperContainer = document.getElementById('whisperQueuesContainer');
     if (data.whisper.queues.length === 0) {
       whisperContainer.innerHTML = '<div class="text-center text-muted py-3">Nenhum endpoint Whisper configurado</div>';
     } else {
-      whisperContainer.innerHTML = data.whisper.queues.map(queue => `
-        <div class="queue-item p-2 mb-2 border rounded ${queue.healthy ? 'border-success bg-light' : 'border-danger bg-light'}">
-          <div class="d-flex justify-content-between align-items-center">
+      whisperContainer.innerHTML = data.whisper.queues.map((queue, index) => `
+        <div class="queue-item p-3 mb-3 border rounded ${queue.healthy ? 'border-success bg-light' : 'border-danger bg-light'}">
+          <div class="d-flex justify-content-between align-items-center mb-2">
             <div>
-              <strong>${queue.url}</strong>
-              <span class="badge ${queue.healthy ? 'bg-success' : 'bg-danger'} ms-2">
-                ${queue.healthy ? 'Online' : 'Offline'}
-              </span>
+              <h6 class="mb-1">
+                <i class="fas fa-server text-primary me-2"></i>
+                <strong>${queue.url}</strong>
+              </h6>
+              <div>
+                <span class="badge ${queue.healthy ? 'bg-success' : 'bg-danger'} me-1">
+                  ${queue.healthy ? 'Online' : 'Offline'}
+                </span>
+                <span class="badge bg-secondary">Prioridade: ${queue.priority || 'N/A'}</span>
+              </div>
             </div>
             <div class="text-end">
-              <div><small class="text-muted">Fila:</small> <span class="badge bg-info">${queue.queueLength}</span></div>
-              <div><small class="text-muted">Ativo:</small> <span class="badge bg-warning">${queue.activeRequests}</span></div>
+              <div class="mb-1">
+                <small class="text-muted">Fila:</small> 
+                <span class="badge ${queue.queueLength > 0 ? 'bg-warning' : 'bg-info'}">${queue.queueLength}</span>
+              </div>
+              <div>
+                <small class="text-muted">Processando:</small> 
+                <span class="badge ${queue.activeRequests > 0 ? 'bg-danger' : 'bg-success'}">${queue.activeRequests}</span>
+              </div>
             </div>
           </div>
           ${queue.healthy ? `
-            <div class="mt-2">
-              <small class="text-muted">
-                Tempo médio: ${queue.avgProcessingTime}ms | 
-                Total processado: ${queue.totalProcessed}
-              </small>
+            <div class="row mt-2">
+              <div class="col-md-6">
+                <small class="text-muted d-block">Tempo Médio de Processamento:</small>
+                <strong class="text-info">${queue.avgProcessingTime}ms</strong>
+              </div>
+              <div class="col-md-6">
+                <small class="text-muted d-block">Total Processado Hoje:</small>
+                <strong class="text-success">${queue.totalProcessed}</strong>
+              </div>
             </div>
-          ` : ''}
+            <div class="mt-2">
+              <small class="text-muted">Carga do Endpoint:</small>
+              <div class="progress mt-1" style="height: 6px;">
+                <div class="progress-bar ${queue.queueLength > 5 ? 'bg-danger' : queue.queueLength > 2 ? 'bg-warning' : 'bg-success'}" 
+                     style="width: ${Math.min((queue.queueLength / 10) * 100, 100)}%"></div>
+              </div>
+            </div>
+          ` : `
+            <div class="alert alert-warning py-2 mt-2 mb-0">
+              <small><i class="fas fa-exclamation-triangle"></i> Endpoint offline ou inacessível</small>
+            </div>
+          `}
         </div>
       `).join('');
     }

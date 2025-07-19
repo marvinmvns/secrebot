@@ -270,7 +270,7 @@ class RestAPI {
               active: ollamaPoolStatus.healthyEndpoints || 0,
               total: ollamaPoolStatus.totalEndpoints || 0,
               processing: {
-                totalQueue: ollamaPoolStatus.endpoints?.reduce((sum, ep) => sum + (ep.processing?.activeRequests || 0), 0) || 0,
+                totalQueue: 0, // Ollama doesn't have queue concept, only active requests
                 totalActiveRequests: ollamaPoolStatus.endpoints?.reduce((sum, ep) => sum + (ep.processing?.activeRequests || 0), 0) || 0
               }
             };
@@ -288,9 +288,11 @@ class RestAPI {
           },
           memory: {
             total: Math.round(mem.total / 1024 / 1024 / 1024 * 100) / 100, // GB
-            used: Math.round(mem.used / 1024 / 1024 / 1024 * 100) / 100, // GB
-            free: Math.round(mem.free / 1024 / 1024 / 1024 * 100) / 100, // GB
-            percentage: Math.round((mem.used / mem.total) * 100)
+            used: Math.round((mem.total - mem.available) / 1024 / 1024 / 1024 * 100) / 100, // GB (real usage)
+            free: Math.round(mem.available / 1024 / 1024 / 1024 * 100) / 100, // GB (available)
+            percentage: Math.round(((mem.total - mem.available) / mem.total) * 100),
+            cached: Math.round(mem.cached / 1024 / 1024 / 1024 * 100) / 100, // GB
+            buffers: Math.round(mem.buffers / 1024 / 1024 / 1024 * 100) / 100 // GB
           },
           system: {
             platform: osInfo.platform,
@@ -326,8 +328,9 @@ class RestAPI {
             if (whisperPoolStatus.endpoints) {
               whisperProcessing.queues = whisperPoolStatus.endpoints.map((ep, index) => ({
                 id: index,
-                url: ep.url || 'unknown',
+                url: ep.url || ep.baseURL || 'unknown',
                 healthy: ep.healthy || false,
+                priority: ep.priority || 0,
                 queueLength: ep.queueLength || 0,
                 activeRequests: ep.activeRequests || 0,
                 avgProcessingTime: ep.avgProcessingTime || 0,
@@ -2021,6 +2024,101 @@ class RestAPI {
         logger.error('Erro ao deletar modelo:', error);
         res.status(500).json({ 
           error: 'Erro ao deletar modelo',
+          details: error.message 
+        });
+      }
+    });
+
+    // API endpoint para salvar modelo selecionado no banco
+    this.app.post('/api/ollama-api/save-selected-model', async (req, res) => {
+      try {
+        const { endpointIndex, model, url, type } = req.body;
+        
+        if (endpointIndex === undefined || !model || !url) {
+          return res.status(400).json({ 
+            error: 'endpointIndex, model e url são obrigatórios' 
+          });
+        }
+
+        // Obter configuração atual
+        let currentConfig = await this.configService.getConfig();
+        if (!currentConfig) {
+          currentConfig = await this.configService.init();
+        }
+
+        // Garantir que a estrutura de endpoints existe
+        if (!currentConfig.ollamaApi) {
+          currentConfig.ollamaApi = {};
+        }
+        if (!currentConfig.ollamaApi.endpoints) {
+          currentConfig.ollamaApi.endpoints = [];
+        }
+
+        // Expandir array se necessário
+        while (currentConfig.ollamaApi.endpoints.length <= endpointIndex) {
+          currentConfig.ollamaApi.endpoints.push({
+            url: '',
+            type: 'ollama',
+            enabled: false,
+            priority: currentConfig.ollamaApi.endpoints.length + 1,
+            maxRetries: 2
+          });
+        }
+
+        // Atualizar o endpoint com o modelo selecionado
+        const endpoint = currentConfig.ollamaApi.endpoints[endpointIndex];
+        endpoint.model = model;
+        endpoint.url = url;
+        endpoint.type = type || 'ollama';
+        endpoint.lastSelectedAt = new Date().toISOString();
+
+        // Salvar configuração
+        await this.configService.setConfig(currentConfig);
+        
+        logger.info(`📝 Modelo selecionado salvo: ${model} para endpoint ${endpointIndex} (${url})`);
+        
+        res.json({
+          success: true,
+          message: 'Modelo selecionado salvo com sucesso',
+          savedModel: model,
+          endpointIndex,
+          url,
+          type
+        });
+
+      } catch (error) {
+        logger.error('Erro ao salvar modelo selecionado:', error);
+        res.status(500).json({ 
+          error: 'Erro ao salvar modelo selecionado',
+          details: error.message 
+        });
+      }
+    });
+
+    // API endpoint para obter modelos selecionados salvos
+    this.app.get('/api/ollama-api/selected-models', async (req, res) => {
+      try {
+        const currentConfig = await this.configService.getConfig();
+        const endpoints = currentConfig?.ollamaApi?.endpoints || [];
+        
+        const selectedModels = endpoints.map((endpoint, index) => ({
+          endpointIndex: index,
+          url: endpoint.url || '',
+          type: endpoint.type || 'ollama',
+          model: endpoint.model || null,
+          enabled: endpoint.enabled || false,
+          lastSelectedAt: endpoint.lastSelectedAt || null
+        }));
+
+        res.json({
+          success: true,
+          selectedModels
+        });
+
+      } catch (error) {
+        logger.error('Erro ao obter modelos selecionados:', error);
+        res.status(500).json({ 
+          error: 'Erro ao obter modelos selecionados',
           details: error.message 
         });
       }

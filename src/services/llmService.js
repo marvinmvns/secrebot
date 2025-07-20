@@ -11,19 +11,40 @@ class LLMService {
   constructor(configService = null) {
     this.configService = configService;
     this.contexts = new Map();
-    this.ollama = new Ollama({ host: CONFIG.llm.host });
     this.ollamaApiPool = new OllamaAPIPool(configService);
     this.queue = new JobQueue(
       CONFIG.queues.llmConcurrency,
       CONFIG.queues.memoryThresholdGB
     );
-    
+    this.ollama = null; // Initialize after config is loaded
+    this.loadLastUsedModel();
+    this.initializeOllama();
+
     // Configurações de timeout progressivo
     this.timeoutLevels = [
       6000000,   // 1 minuto
       180000000, // 30 minutos
       360000000  // 1 hora (limite máximo)
     ];
+  }
+
+  initializeOllama() {
+    this.ollama = new Ollama({ host: CONFIG.llm.host });
+    logger.info(`Ollama client initialized with host: ${CONFIG.llm.host}`);
+  }
+
+  async loadLastUsedModel() {
+    if (this.configService) {
+      try {
+        const config = await this.configService.getConfig();
+        if (config && config.llm && config.llm.model) {
+          CONFIG.llm.model = config.llm.model; // Update global CONFIG
+          logger.info(`Modelo LLM carregado do MongoDB: ${CONFIG.llm.model}`);
+        }
+      } catch (error) {
+        logger.warn('⚠️ Erro ao carregar último modelo LLM do MongoDB, usando configuração padrão:', error.message);
+      }
+    }
   }
 
   async getEffectiveConfig() {
@@ -601,8 +622,9 @@ ${structuredText}`;
   }
 
   async onConfigurationChanged() {
-    logger.info('🔄 Configuração alterada, reinicializando OllamaAPIPool...');
+    logger.info('🔄 Configuração alterada, reinicializando OllamaAPIPool e carregando último modelo...');
     await this.ollamaApiPool.reinitialize();
+    await this.loadLastUsedModel();
   }
 
   destroy() {

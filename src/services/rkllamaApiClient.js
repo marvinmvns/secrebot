@@ -80,6 +80,9 @@ class RKLlamaAPIClient {
       return response.data;
     } catch (error) {
       logger.error(`❌ Falha ao carregar modelo via ${this.baseURL}:`, error.message);
+      if (error.response) {
+        logger.error(`RKLLama Load Model Error Response: Status ${error.response.status}, Data:`, error.response.data);
+      }
       throw new Error(`Load model failed: ${error.response?.data?.error || error.message}`);
     }
   }

@@ -626,27 +626,26 @@ class OllamaAPIPool {
       
       logger.info('🔄 Carregando modelos salvos para todos os endpoints...');
       
-      for (let i = 0; i < this.clients.length; i++) {
-        const client = this.clients[i];
-        const endpoint = endpoints[i];
-        
+      for (const client of this.clients) {
+        const endpoint = client.endpoint; // Get the endpoint config directly from the client
+
         // Load models for both Ollama and RKLLama endpoints
         if (endpoint.model && endpoint.enabled) {
           try {
             const endpointType = this.isRKLlamaEndpoint(endpoint) ? 'RKLLama' : 'Ollama';
             logger.info(`🔄 Carregando modelo salvo ${endpoint.model} para ${endpointType} ${endpoint.url}`);
-            
+
             // Check if endpoint is healthy first
             await client.checkHealth();
-            
+
             if (client.isHealthy) {
-              if (this.isRKLlamaEndpoint(endpoint)) {
+              if (endpointType === 'RKLLama') {
                 // For RKLLama, use loadModel method
                 await client.loadModel(endpoint.model);
                 logger.success(`✅ Modelo ${endpoint.model} carregado automaticamente em RKLLama ${endpoint.url}`);
               } else {
-                // For Ollama, use preloadModel method
-                await client.preloadModel(endpoint.model);
+                // For Ollama, use pullModel method
+                await client.pullModel(endpoint.model);
                 logger.success(`✅ Modelo ${endpoint.model} pré-carregado automaticamente em Ollama ${endpoint.url}`);
               }
             } else {

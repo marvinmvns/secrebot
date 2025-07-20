@@ -179,15 +179,16 @@ class WhisperAPIPool {
       throw new Error('No healthy Whisper API endpoints available');
     }
 
-    // Atualiza informações de fila para todos os clientes saudáveis
-    logger.debug('📊 Atualizando informações de fila para balanceamento...');
+    // Atualiza informações de fila e requisições ativas para todos os clientes saudáveis
+    logger.debug('📊 Atualizando informações de fila e requisições ativas para balanceamento...');
     await Promise.allSettled(
       healthyClients.map(async (client) => {
         try {
-          await client.getQueueEstimate();
-          logger.debug(`📊 ${client.baseURL}: fila=${client.queueLength}, score=${client.getLoadScore()}`);
+          await client.getQueueEstimate(); // Atualiza queueLength e avgProcessingTime
+          client.getProcessingStatus(); // Atualiza activeRequests
+          logger.debug(`📊 ${client.baseURL}: fila=${client.queueLength}, ativas=${client.activeRequests}, score=${client.getLoadScore()}`);
         } catch (error) {
-          logger.debug(`⚠️ Erro ao obter fila de ${client.baseURL}: ${error.message}`);
+          logger.debug(`⚠️ Erro ao obter informações de ${client.baseURL}: ${error.message}`);
         }
       })
     );

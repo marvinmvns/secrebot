@@ -297,7 +297,8 @@ class WhisperAPIClient {
   }
 
   getLoadScore() {
-    return this.queueLength + (this.avgProcessingTime / 1000);
+    // Factor in active requests from this client to the server
+    return this.queueLength + (this.avgProcessingTime / 1000) + this.activeRequests;
   }
 }
 

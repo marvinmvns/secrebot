@@ -360,7 +360,10 @@ async function updateSystemStats() {
     document.getElementById('whisperActive').textContent = data.endpoints.whisper.active;
     document.getElementById('whisperTotal').textContent = data.endpoints.whisper.total;
     document.getElementById('whisperQueue').textContent = data.endpoints.whisper.processing?.totalQueue || 0;
-    document.getElementById('whisperProcessing').textContent = data.endpoints.whisper.processing?.totalActiveRequests || 0;
+    const whisperProcessingCount = data.endpoints.whisper.processing?.totalActiveRequests || 0;
+    const whisperProcessingElement = document.getElementById('whisperProcessing');
+    whisperProcessingElement.textContent = whisperProcessingCount;
+    whisperProcessingElement.className = whisperProcessingCount > 0 ? 'text-danger' : 'text-success';
     
     // Set placeholder for processed today (will be updated by processing stats)
     document.getElementById('whisperProcessedToday').textContent = '--';

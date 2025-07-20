@@ -4,6 +4,23 @@ import { CONFIG } from '../config/index.js';
 
 class RKLlamaAPIClient {
   constructor(baseURL = 'http://localhost:8080') {
+    // Validate and clean baseURL
+    if (!baseURL || typeof baseURL !== 'string') {
+      throw new Error(`Invalid baseURL provided: ${baseURL}`);
+    }
+    
+    // Ensure URL has protocol
+    if (!baseURL.startsWith('http://') && !baseURL.startsWith('https://')) {
+      baseURL = `http://${baseURL}`;
+    }
+    
+    // Validate URL format
+    try {
+      new URL(baseURL);
+    } catch (error) {
+      throw new Error(`Invalid URL format: ${baseURL} - ${error.message}`);
+    }
+    
     this.baseURL = baseURL;
     this.axios = axios.create({ 
       baseURL: baseURL,

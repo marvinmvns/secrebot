@@ -4,6 +4,23 @@ import { CONFIG } from '../config/index.js';
 
 class OllamaAPIClient {
   constructor(baseURL = 'http://localhost:11434') {
+    // Validate and clean baseURL
+    if (!baseURL || typeof baseURL !== 'string') {
+      throw new Error(`Invalid baseURL provided: ${baseURL}`);
+    }
+    
+    // Ensure URL has protocol
+    if (!baseURL.startsWith('http://') && !baseURL.startsWith('https://')) {
+      baseURL = `http://${baseURL}`;
+    }
+    
+    // Validate URL format
+    try {
+      new URL(baseURL);
+    } catch (error) {
+      throw new Error(`Invalid URL format: ${baseURL} - ${error.message}`);
+    }
+    
     this.baseURL = baseURL;
     this.axios = axios.create({ 
       baseURL: baseURL,
@@ -270,16 +287,20 @@ class OllamaAPIClient {
   // ============ Health Check ============
   async getHealth() {
     try {
+      logger.debug(`🔍 Executando health check para ${this.baseURL}`);
+      
       // Ollama doesn't have a dedicated health endpoint, so we use /api/version
       const response = await this.axios.get('/api/version', { timeout: 5000 });
       this.isHealthy = true;
       this.lastHealthCheck = Date.now();
       
+      logger.debug(`✅ Health check bem-sucedido para ${this.baseURL}`);
+      
       // Also get running models for load estimation
       try {
         await this.listRunningModels();
       } catch (error) {
-        logger.warn(`⚠️ Falha ao obter modelos em execução para ${this.baseURL}`);
+        logger.warn(`⚠️ Falha ao obter modelos em execução para ${this.baseURL}: ${error.message}`);
       }
       
       return {
@@ -291,7 +312,20 @@ class OllamaAPIClient {
     } catch (error) {
       this.isHealthy = false;
       this.lastHealthCheck = Date.now();
-      logger.warn(`⚠️ Health check falhou para ${this.baseURL}: ${error.message}`);
+      
+      // More detailed error logging
+      const errorDetails = {
+        message: error.message,
+        code: error.code,
+        response: error.response?.status,
+        config: {
+          url: error.config?.url,
+          baseURL: error.config?.baseURL,
+          timeout: error.config?.timeout
+        }
+      };
+      
+      logger.warn(`⚠️ Health check falhou para ${this.baseURL}:`, errorDetails);
       throw new Error(`Health check failed: ${error.message}`);
     }
   }

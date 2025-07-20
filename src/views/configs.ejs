@@ -1,12 +1,4 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configurações do Sistema</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
+<style>
         .config-editor {
             font-family: 'Courier New', monospace;
             background: #f8f9fa;
@@ -205,42 +197,17 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
     </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container">
-            <a class="navbar-brand" href="/">
-                <i class="fas fa-cog"></i> Sistema de Configuração
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/"><i class="fas fa-home"></i> Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/config"><i class="fas fa-tools"></i> Config Original</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/configs"><i class="fas fa-database"></i> Todas as Configs</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
 
-    <div class="container mt-4">
-        <div class="row">
-            <div class="col-12">
-                <!-- Breadcrumb -->
-                <nav aria-label="breadcrumb" class="config-breadcrumb">
-                    <ol class="breadcrumb mb-0">
-                        <li class="breadcrumb-item"><a href="/"><i class="fas fa-home"></i> Dashboard</a></li>
-                        <li class="breadcrumb-item active" aria-current="page"><i class="fas fa-cog"></i> Configurações</li>
-                    </ol>
-                </nav>
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="config-breadcrumb mb-4">
+    <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/"><i class="fas fa-home"></i> Dashboard</a></li>
+        <li class="breadcrumb-item active" aria-current="page"><i class="fas fa-cog"></i> Configurações</li>
+    </ol>
+</nav>
+
+<div class="row">
+    <div class="col-12">
                 
                 <div class="card">
                     <div class="card-header">
@@ -427,14 +394,22 @@
         // Carregar configurações
         async function loadConfigs() {
             try {
+                console.log('Carregando configurações do servidor...');
                 const response = await fetch('/api/configs');
-                if (!response.ok) throw new Error('Erro ao carregar configurações');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erro ${response.status}: ${errorText}`);
+                }
                 
                 currentConfig = await response.json();
+                console.log('Configurações carregadas:', currentConfig);
+                
                 renderConfigEditor();
                 updateJsonEditor();
+                
+                console.log('Editor de configurações renderizado com sucesso');
             } catch (error) {
-                console.error('Erro:', error);
+                console.error('Erro ao carregar configurações:', error);
                 showAlert('Erro ao carregar configurações: ' + error.message, 'danger');
             }
         }
@@ -442,10 +417,24 @@
         // Renderizar editor visual
         function renderConfigEditor() {
             const container = document.getElementById('configEditor');
-            container.innerHTML = '';
+            if (!container) {
+                console.error('Container configEditor não encontrado');
+                return;
+            }
             
-            const configHtml = renderConfigObject(currentConfig, '');
-            container.innerHTML = configHtml;
+            try {
+                container.innerHTML = '';
+                
+                if (currentConfig && typeof currentConfig === 'object') {
+                    const configHtml = renderConfigObject(currentConfig, '');
+                    container.innerHTML = configHtml;
+                } else {
+                    container.innerHTML = '<div class="alert alert-warning">Nenhuma configuração encontrada</div>';
+                }
+            } catch (error) {
+                console.error('Erro ao renderizar editor:', error);
+                container.innerHTML = `<div class="alert alert-danger">Erro ao carregar configurações: ${error.message}</div>`;
+            }
         }
 
         // Renderizar objeto de configuração recursivamente
@@ -466,8 +455,9 @@
                     html += `<div class="array-item">`;
                     html += `<strong>Array com ${value.length} itens:</strong><br>`;
                     value.forEach((item, index) => {
+                        const itemValue = typeof item === 'string' ? item.replace(/"/g, '&quot;') : JSON.stringify(item).replace(/"/g, '&quot;');
                         html += `<input type="text" class="form-control form-control-sm mt-1" 
-                                value="${typeof item === 'string' ? item : JSON.stringify(item)}" 
+                                value="${itemValue}" 
                                 onchange="updateConfigValue('${fullPath}', ${index}, this.value)">`;
                     });
                     html += `</div>`;
@@ -482,8 +472,9 @@
                         html += `<label class="form-check-label">${value ? 'Habilitado' : 'Desabilitado'}</label>`;
                         html += `</div>`;
                     } else {
+                        const safeValue = typeof value === 'string' ? value.replace(/"/g, '&quot;') : value;
                         html += `<input type="${inputType}" class="form-control config-value" 
-                                value="${value}" 
+                                value="${safeValue}" 
                                 onchange="updateConfigValue('${fullPath}', null, this.value)">`;
                     }
                 }
@@ -496,36 +487,53 @@
 
         // Atualizar valor de configuração
         function updateConfigValue(path, index, value) {
-            const keys = path.split('.');
-            let current = currentConfig;
-            
-            // Navegar até o objeto pai
-            for (let i = 0; i < keys.length - 1; i++) {
-                current = current[keys[i]];
-            }
-            
-            const lastKey = keys[keys.length - 1];
-            
-            if (index !== null) {
-                // Atualizar item do array
-                current[lastKey][index] = value;
-            } else {
-                // Converter tipo se necessário
-                if (typeof current[lastKey] === 'number') {
-                    value = parseFloat(value);
-                } else if (typeof current[lastKey] === 'boolean') {
-                    value = Boolean(value);
+            try {
+                const keys = path.split('.');
+                let current = currentConfig;
+                
+                // Navegar até o objeto pai
+                for (let i = 0; i < keys.length - 1; i++) {
+                    if (!current[keys[i]]) {
+                        current[keys[i]] = {};
+                    }
+                    current = current[keys[i]];
                 }
-                current[lastKey] = value;
+                
+                const lastKey = keys[keys.length - 1];
+                
+                if (index !== null) {
+                    // Atualizar item do array
+                    if (!Array.isArray(current[lastKey])) {
+                        current[lastKey] = [];
+                    }
+                    current[lastKey][index] = value;
+                } else {
+                    // Converter tipo se necessário
+                    if (typeof current[lastKey] === 'number') {
+                        value = parseFloat(value) || 0;
+                    } else if (typeof current[lastKey] === 'boolean') {
+                        value = Boolean(value);
+                    }
+                    current[lastKey] = value;
+                }
+                
+                updateJsonEditor();
+            } catch (error) {
+                console.error('Erro ao atualizar configuração:', error);
+                showAlert('Erro ao atualizar configuração: ' + error.message, 'danger');
             }
-            
-            updateJsonEditor();
         }
 
         // Atualizar editor JSON
         function updateJsonEditor() {
             const jsonEditor = document.getElementById('jsonEditor');
-            jsonEditor.value = JSON.stringify(currentConfig, null, 2);
+            if (jsonEditor) {
+                try {
+                    jsonEditor.value = JSON.stringify(currentConfig, null, 2);
+                } catch (error) {
+                    console.error('Erro ao atualizar editor JSON:', error);
+                }
+            }
         }
 
         // Formatar JSON
@@ -545,15 +553,37 @@
         // Salvar configurações
         async function saveConfigs() {
             const saveBtn = document.getElementById('saveBtn');
+            if (!saveBtn) {
+                console.error('Botão salvar não encontrado');
+                showAlert('Erro: Botão salvar não encontrado', 'danger');
+                return;
+            }
+            
             const originalText = saveBtn.innerHTML;
             
             try {
+                console.log('Iniciando salvamento das configurações...');
+                
                 // Atualizar configuração a partir do editor JSON
                 const jsonEditor = document.getElementById('jsonEditor');
-                currentConfig = JSON.parse(jsonEditor.value);
+                if (!jsonEditor) {
+                    throw new Error('Editor JSON não encontrado');
+                }
+                
+                if (!jsonEditor.value.trim()) {
+                    throw new Error('Editor JSON está vazio');
+                }
+                
+                try {
+                    currentConfig = JSON.parse(jsonEditor.value);
+                } catch (parseError) {
+                    throw new Error('JSON inválido: ' + parseError.message);
+                }
                 
                 saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
                 saveBtn.disabled = true;
+                
+                console.log('Enviando configurações para API...');
                 
                 const response = await fetch('/api/configs', {
                     method: 'PUT',
@@ -563,9 +593,13 @@
                     body: JSON.stringify(currentConfig)
                 });
                 
-                if (!response.ok) throw new Error('Erro ao salvar configurações');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erro ${response.status}: ${errorText}`);
+                }
                 
                 const result = await response.json();
+                console.log('Configurações salvas com sucesso:', result);
                 showAlert('Configurações salvas com sucesso! A solução será reiniciada.', 'success');
                 
                 // Recarregar configurações após salvar
@@ -574,11 +608,13 @@
                 }, 2000);
                 
             } catch (error) {
-                console.error('Erro:', error);
+                console.error('Erro ao salvar configurações:', error);
                 showAlert('Erro ao salvar configurações: ' + error.message, 'danger');
             } finally {
-                saveBtn.innerHTML = originalText;
-                saveBtn.disabled = false;
+                if (saveBtn) {
+                    saveBtn.innerHTML = originalText;
+                    saveBtn.disabled = false;
+                }
             }
         }
 
@@ -871,8 +907,35 @@
             });
         }
         
+        // Função de teste para depuração
+        function testConfigPage() {
+            console.log('=== TESTE DE CONFIGURAÇÃO ===');
+            console.log('1. Verificando elementos...');
+            
+            const saveBtn = document.getElementById('saveBtn');
+            const jsonEditor = document.getElementById('jsonEditor');
+            const configEditor = document.getElementById('configEditor');
+            
+            console.log('Botão salvar:', saveBtn ? 'OK' : 'NÃO ENCONTRADO');
+            console.log('Editor JSON:', jsonEditor ? 'OK' : 'NÃO ENCONTRADO');
+            console.log('Editor config:', configEditor ? 'OK' : 'NÃO ENCONTRADO');
+            console.log('currentConfig:', currentConfig);
+            
+            if (jsonEditor) {
+                console.log('JSON Editor value length:', jsonEditor.value.length);
+            }
+            
+            console.log('=== FIM DO TESTE ===');
+        }
+
         // Event listeners
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM carregado, iniciando configurações...');
+            
+            // Adicionar função de teste ao window para debug no console
+            window.testConfigPage = testConfigPage;
+            window.saveConfigs = saveConfigs;
+            
             loadConfigs();
             
             // Inicializar tooltips
@@ -918,5 +981,3 @@
             });
         });
     </script>
-</body>
-</html>

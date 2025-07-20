@@ -1920,6 +1920,43 @@ class RestAPI {
       }
     });
 
+    // API endpoint para listar modelos locais do Ollama
+    this.app.get('/api/ollama-local/models', async (req, res) => {
+      try {
+        const currentConfig = await this.configService.getConfig();
+        const ollamaHost = currentConfig?.llm?.host || 'http://localhost:11434';
+        
+        const response = await fetch(`${ollamaHost}/api/tags`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        const models = data.models || [];
+        
+        res.json({
+          success: true,
+          models: models.map(model => ({
+            name: model.name,
+            size: model.size,
+            modified: model.modified_at,
+            digest: model.digest,
+            details: model.details
+          })),
+          host: ollamaHost,
+          timestamp: new Date().toISOString()
+        });
+        
+      } catch (error) {
+        logger.error('Erro ao listar modelos locais Ollama:', error);
+        res.status(500).json({ 
+          success: false,
+          error: 'Erro ao conectar com Ollama local',
+          details: error.message 
+        });
+      }
+    });
+
     // API endpoint para listar modelos de um endpoint específico
     this.app.post('/api/ollama-api/endpoint-models', async (req, res) => {
       try {
@@ -2119,6 +2156,204 @@ class RestAPI {
         logger.error('Erro ao obter modelos selecionados:', error);
         res.status(500).json({ 
           error: 'Erro ao obter modelos selecionados',
+          details: error.message 
+        });
+      }
+    });
+
+    // API endpoint para salvar modelo local selecionado
+    this.app.post('/api/ollama-local/save-model', async (req, res) => {
+      try {
+        const { model, port, protocol } = req.body;
+        
+        if (!model) {
+          return res.status(400).json({ 
+            success: false,
+            error: 'Nome do modelo é obrigatório' 
+          });
+        }
+
+        // Obter configuração atual
+        let currentConfig = await this.configService.getConfig();
+        if (!currentConfig) {
+          currentConfig = await this.configService.init();
+        }
+
+        // Garantir que a estrutura existe
+        if (!currentConfig.ollamaApi) {
+          currentConfig.ollamaApi = {};
+        }
+        if (!currentConfig.llm) {
+          currentConfig.llm = {};
+        }
+
+        // Salvar configuração local completa
+        currentConfig.ollamaApi.localModel = model;
+        currentConfig.ollamaApi.localPort = port || 11434;
+        currentConfig.ollamaApi.localProtocol = protocol || 'ollama';
+        currentConfig.ollamaApi.localModelLastSelected = new Date().toISOString();
+        
+        // Também atualizar o modelo e host principal para consistência
+        currentConfig.llm.model = model;
+        currentConfig.llm.host = `http://localhost:${currentConfig.ollamaApi.localPort}`;
+
+        // Salvar configuração
+        await this.configService.setConfig(currentConfig);
+        
+        logger.info(`📝 Configuração local salva: ${model} em localhost:${currentConfig.ollamaApi.localPort} (${protocol})`);
+        
+        res.json({
+          success: true,
+          message: 'Configuração local salva com sucesso',
+          savedModel: model,
+          savedPort: currentConfig.ollamaApi.localPort,
+          savedProtocol: protocol,
+          timestamp: new Date().toISOString()
+        });
+
+      } catch (error) {
+        logger.error('Erro ao salvar configuração local:', error);
+        res.status(500).json({ 
+          success: false,
+          error: 'Erro ao salvar configuração local',
+          details: error.message 
+        });
+      }
+    });
+
+    // API endpoint para obter modelo local salvo
+    this.app.get('/api/ollama-local/selected-model', async (req, res) => {
+      try {
+        const currentConfig = await this.configService.getConfig();
+        const localModel = currentConfig?.ollamaApi?.localModel || currentConfig?.llm?.model;
+        const localPort = currentConfig?.ollamaApi?.localPort || 11434;
+        const localProtocol = currentConfig?.ollamaApi?.localProtocol || 'ollama';
+        const lastSelected = currentConfig?.ollamaApi?.localModelLastSelected;
+        
+        res.json({
+          success: true,
+          model: localModel || null,
+          port: localPort,
+          protocol: localProtocol,
+          lastSelectedAt: lastSelected || null
+        });
+
+      } catch (error) {
+        logger.error('Erro ao obter configuração local:', error);
+        res.status(500).json({ 
+          success: false,
+          error: 'Erro ao obter configuração local',
+          details: error.message 
+        });
+      }
+    });
+
+    // API endpoint para diagnosticar problemas de conectividade Ollama
+    this.app.post('/api/ollama-api/diagnose', async (req, res) => {
+      try {
+        const { url, type = 'ollama' } = req.body;
+        
+        if (!url) {
+          return res.status(400).json({ 
+            success: false,
+            error: 'URL é obrigatória' 
+          });
+        }
+
+        const diagnosis = {
+          url: url,
+          type: type,
+          timestamp: new Date().toISOString(),
+          tests: []
+        };
+
+        // Test 1: URL Format Validation
+        let validatedURL = url;
+        try {
+          if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            validatedURL = `http://${url}`;
+          }
+          new URL(validatedURL);
+          diagnosis.tests.push({
+            name: 'URL Format',
+            status: 'PASS',
+            message: `URL válida: ${validatedURL}`
+          });
+        } catch (error) {
+          diagnosis.tests.push({
+            name: 'URL Format',
+            status: 'FAIL',
+            message: `URL inválida: ${error.message}`,
+            originalURL: url,
+            validatedURL: validatedURL
+          });
+          return res.json({ success: true, diagnosis });
+        }
+
+        // Test 2: Network Connectivity
+        try {
+          const response = await fetch(validatedURL, { 
+            method: 'HEAD', 
+            signal: AbortSignal.timeout(5000) 
+          });
+          diagnosis.tests.push({
+            name: 'Network Connectivity',
+            status: 'PASS',
+            message: `Conectividade OK (${response.status})`
+          });
+        } catch (error) {
+          diagnosis.tests.push({
+            name: 'Network Connectivity',
+            status: 'FAIL',
+            message: `Falha na conectividade: ${error.message}`,
+            error: error.name
+          });
+        }
+
+        // Test 3: API Endpoint Test
+        try {
+          let client;
+          if (type === 'rkllama') {
+            const RKLlamaAPIClient = (await import('../services/rkllamaApiClient.js')).default;
+            client = new RKLlamaAPIClient(validatedURL);
+          } else {
+            const OllamaAPIClient = (await import('../services/ollamaApiClient.js')).default;
+            client = new OllamaAPIClient(validatedURL);
+          }
+          
+          const health = await client.getHealth();
+          diagnosis.tests.push({
+            name: 'API Endpoint',
+            status: 'PASS',
+            message: `API respondendo corretamente`,
+            health: health
+          });
+        } catch (error) {
+          diagnosis.tests.push({
+            name: 'API Endpoint',
+            status: 'FAIL',
+            message: `API não responde: ${error.message}`,
+            error: error.name
+          });
+        }
+
+        // Overall status
+        const failedTests = diagnosis.tests.filter(t => t.status === 'FAIL');
+        diagnosis.overall = failedTests.length === 0 ? 'HEALTHY' : 'UNHEALTHY';
+        diagnosis.summary = failedTests.length === 0 
+          ? 'Todos os testes passaram'
+          : `${failedTests.length} teste(s) falharam`;
+
+        res.json({
+          success: true,
+          diagnosis
+        });
+
+      } catch (error) {
+        logger.error('Erro no diagnóstico Ollama:', error);
+        res.status(500).json({ 
+          success: false,
+          error: 'Erro interno no diagnóstico',
           details: error.message 
         });
       }

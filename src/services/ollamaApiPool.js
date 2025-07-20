@@ -47,12 +47,25 @@ class OllamaAPIPool {
   createClient(endpoint) {
     const isRKLlama = this.isRKLlamaEndpoint(endpoint);
     
-    if (isRKLlama) {
-      logger.info(`🤖 Criando cliente RKLLama para: ${endpoint.url}`);
-      return new RKLlamaAPIClient(endpoint.url);
-    } else {
-      logger.info(`🧠 Criando cliente Ollama para: ${endpoint.url}`);
-      return new OllamaAPIClient(endpoint.url);
+    logger.debug(`🔧 Criando cliente para endpoint:`, {
+      url: endpoint.url,
+      type: endpoint.type,
+      enabled: endpoint.enabled,
+      priority: endpoint.priority,
+      isRKLlama
+    });
+    
+    try {
+      if (isRKLlama) {
+        logger.info(`🤖 Criando cliente RKLLama para: ${endpoint.url}`);
+        return new RKLlamaAPIClient(endpoint.url);
+      } else {
+        logger.info(`🧠 Criando cliente Ollama para: ${endpoint.url}`);
+        return new OllamaAPIClient(endpoint.url);
+      }
+    } catch (error) {
+      logger.error(`❌ Erro ao criar cliente para ${endpoint.url}:`, error.message);
+      throw error;
     }
   }
 
@@ -123,19 +136,33 @@ class OllamaAPIPool {
       return;
     }
 
-    logger.debug('🔍 Executando health checks nos endpoints Ollama...');
+    logger.debug(`🔍 Executando health checks em ${this.clients.length} endpoints Ollama...`);
     
     const healthPromises = this.clients.map(async (client) => {
       try {
+        logger.debug(`🔍 Health check para ${client.baseURL}...`);
         await client.checkHealth();
         client.retryCount = 0;
+        logger.debug(`✅ Health check bem-sucedido para ${client.baseURL}`);
       } catch (error) {
         client.retryCount++;
-        logger.warn(`⚠️ Health check falhou para ${client.baseURL} (tentativa ${client.retryCount})`);
+        logger.warn(`⚠️ Health check falhou para ${client.baseURL} (tentativa ${client.retryCount}/${client.endpoint.maxRetries}): ${error.message}`);
+        
+        // Log detailed error for debugging
+        if (error.message.includes('Invalid URL')) {
+          logger.error(`❌ URL inválida detectada para ${client.baseURL}:`, {
+            originalURL: client.baseURL,
+            endpointURL: client.endpoint?.url,
+            error: error.message
+          });
+        }
       }
     });
 
     await Promise.allSettled(healthPromises);
+    
+    const healthyCount = this.getHealthyClients().length;
+    logger.debug(`📊 Health check concluído: ${healthyCount}/${this.clients.length} endpoints saudáveis`);
   }
 
   getHealthyClients() {

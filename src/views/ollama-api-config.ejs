@@ -1,12 +1,4 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configuração Ollama API</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
+<style>
         .endpoint-card {
             border: 1px solid #e9ecef;
             border-radius: 8px;
@@ -115,22 +107,17 @@
             background-color: #fff8f0;
         }
     </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container">
-            <a class="navbar-brand" href="/">
-                <i class="fas fa-robot"></i> Configuração Ollama API
-            </a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link" href="/"><i class="fas fa-home"></i> Home</a>
-                <a class="nav-link" href="/configs"><i class="fas fa-cog"></i> Configurações</a>
-                <a class="nav-link" href="/whisper-api-config"><i class="fas fa-microphone"></i> Whisper API</a>
-            </div>
-        </div>
-    </nav>
 
-    <div class="container mt-4">
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/"><i class="fas fa-home"></i> Home</a></li>
+        <li class="breadcrumb-item"><a href="/configs"><i class="fas fa-cog"></i> Configurações</a></li>
+        <li class="breadcrumb-item active" aria-current="page"><i class="fas fa-robot"></i> Ollama API</li>
+    </ol>
+</nav>
+
+<div class="container-fluid">
         <div class="row">
             <div class="col-12">
                 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -193,6 +180,87 @@
                             </div>
                         </div>
                         <div class="col-md-6">
+                            <!-- Configuração Local -->
+                            <div id="localConfigSection" style="display: none;">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-home"></i> Configuração Local</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Porta</label>
+                                                    <input type="number" class="form-control" id="localPort" 
+                                                           min="1" max="65535" value="11434" placeholder="11434">
+                                                    <div class="form-text">
+                                                        Porta do serviço local
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Protocolo</label>
+                                                    <select class="form-select" id="localProtocol">
+                                                        <option value="ollama">🧠 Ollama (porta 11434)</option>
+                                                        <option value="rkllama">🤖 RKLLama (porta 8080)</option>
+                                                    </select>
+                                                    <div class="form-text">
+                                                        Tipo de API local
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Status</label>
+                                                    <div class="input-group">
+                                                        <span class="form-control" id="localConnectionStatus">
+                                                            <i class="fas fa-question-circle text-muted"></i> Não testado
+                                                        </span>
+                                                        <button class="btn btn-outline-info" type="button" id="testLocalConnection" 
+                                                                title="Testar conexão">
+                                                            <i class="fas fa-vial"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row">
+                                            <div class="col-md-12">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Modelo Local</label>
+                                                    <div class="input-group">
+                                                        <select class="form-select" id="localModel" disabled>
+                                                            <option value="">Selecione um modelo...</option>
+                                                        </select>
+                                                        <button class="btn btn-outline-secondary" type="button" id="loadLocalModels" 
+                                                                title="Carregar modelos locais">
+                                                            <i class="fas fa-sync-alt"></i>
+                                                        </button>
+                                                    </div>
+                                                    <div class="form-text">
+                                                        <span id="localModelStatus">Configure a porta e protocolo, depois clique em atualizar</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- RKLLama Model Loading Section -->
+                                        <div class="row" id="localRKLlamaSection" style="display: none;">
+                                            <div class="col-md-12">
+                                                <div class="alert alert-info">
+                                                    <i class="fas fa-info-circle"></i>
+                                                    <strong>RKLLama:</strong> Selecione um modelo acima e clique em "Carregar Modelo" para ativá-lo no endpoint local.
+                                                    <button class="btn btn-sm btn-primary ms-2" id="loadLocalModelBtn" disabled>
+                                                        <i class="fas fa-download"></i> Carregar Modelo
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label">Timeout (ms)</label>
                                 <input type="number" class="form-control" id="apiTimeout" min="60000" max="1800000" step="1000">
@@ -237,7 +305,7 @@
                 </div>
 
                 <!-- Endpoints -->
-                <div class="card">
+                <div class="card" id="endpointsCard">
                     <div class="card-header">
                         <h5><i class="fas fa-server"></i> Endpoints de API</h5>
                     </div>
@@ -249,10 +317,9 @@
                 </div>
             </div>
         </div>
-    </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
+<script>
         let currentConfig = {};
         let generalStatus = {};
 
@@ -261,6 +328,7 @@
             loadConfiguration();
             loadCurrentStatus();
             loadSelectedModels();
+            loadSavedLocalModel();
             setupEventListeners();
             
             // Auto-refresh status every 10 seconds
@@ -278,8 +346,37 @@
                 });
             });
 
+            // Operation mode change
+            document.getElementById('operationMode').addEventListener('change', function() {
+                toggleModeVisibility();
+                updateConfigFromForm();
+            });
+
+            // Local configuration event listeners
+            document.getElementById('localPort').addEventListener('change', function() {
+                updatePortBasedProtocol();
+                updateConfigFromForm();
+            });
+            
+            document.getElementById('localProtocol').addEventListener('change', function() {
+                updateProtocolBasedPort();
+                toggleLocalRKLlamaSection();
+                updateConfigFromForm();
+            });
+
+            document.getElementById('loadLocalModels').addEventListener('click', loadLocalModels);
+            document.getElementById('testLocalConnection').addEventListener('click', testLocalConnection);
+            document.getElementById('loadLocalModelBtn').addEventListener('click', loadLocalModelInRKLlama);
+
+            // Local model selection change
+            document.getElementById('localModel').addEventListener('change', function() {
+                updateLocalLoadModelButton();
+                saveLocalModelSelection();
+                updateConfigFromForm();
+            });
+
             // Auto-save on change
-            ['ollamaApiEnabled', 'operationMode', 'apiTimeout', 'retryDelay', 'healthCheckInterval'].forEach(id => {
+            ['ollamaApiEnabled', 'apiTimeout', 'retryDelay', 'healthCheckInterval'].forEach(id => {
                 document.getElementById(id).addEventListener('change', updateConfigFromForm);
             });
         }
@@ -328,6 +425,30 @@
                 }
             });
 
+            // Load local configuration
+            document.getElementById('localPort').value = ollamaApi.localPort || 11434;
+            document.getElementById('localProtocol').value = ollamaApi.localProtocol || 'ollama';
+            
+            // Load local model if saved
+            const localModel = ollamaApi.localModel || currentConfig.llm?.model;
+            if (localModel) {
+                const localModelSelect = document.getElementById('localModel');
+                // Add saved model as option if it doesn't exist
+                const existingOption = Array.from(localModelSelect.options).find(
+                    option => option.value === localModel
+                );
+                if (!existingOption && localModel) {
+                    const option = document.createElement('option');
+                    option.value = localModel;
+                    option.textContent = localModel;
+                    option.setAttribute('data-saved', 'true');
+                    localModelSelect.appendChild(option);
+                }
+                localModelSelect.value = localModel;
+            }
+
+            toggleModeVisibility();
+            toggleLocalRKLlamaSection();
             updateEndpointsForm();
         }
 
@@ -345,6 +466,351 @@
             const selectedStrategy = document.querySelector('.strategy-option.selected');
             if (selectedStrategy) {
                 currentConfig.ollamaApi.loadBalancing.strategy = selectedStrategy.dataset.strategy;
+            }
+
+            // Save local configuration
+            currentConfig.ollamaApi.localPort = parseInt(document.getElementById('localPort').value);
+            currentConfig.ollamaApi.localProtocol = document.getElementById('localProtocol').value;
+            
+            const localModel = document.getElementById('localModel').value;
+            if (localModel) {
+                currentConfig.ollamaApi.localModel = localModel;
+                // Also update the main LLM config for consistency
+                if (!currentConfig.llm) currentConfig.llm = {};
+                currentConfig.llm.model = localModel;
+                
+                // Update host based on local config
+                const localPort = currentConfig.ollamaApi.localPort || 11434;
+                currentConfig.llm.host = `http://localhost:${localPort}`;
+            }
+        }
+
+        function toggleModeVisibility() {
+            const mode = document.getElementById('operationMode').value;
+            const localConfigSection = document.getElementById('localConfigSection');
+            const endpointsCard = document.getElementById('endpointsCard');
+            const loadBalancingSection = document.getElementById('loadBalancingStrategy').closest('.col-md-6');
+            
+            if (mode === 'local') {
+                // Show local config section, hide endpoints
+                localConfigSection.style.display = 'block';
+                endpointsCard.style.display = 'none';
+                loadBalancingSection.style.display = 'none';
+            } else {
+                // Show endpoints, hide local config section
+                localConfigSection.style.display = 'none';
+                endpointsCard.style.display = 'block';
+                loadBalancingSection.style.display = 'block';
+            }
+        }
+
+        function updatePortBasedProtocol() {
+            const port = parseInt(document.getElementById('localPort').value);
+            const protocolSelect = document.getElementById('localProtocol');
+            
+            // Auto-detect protocol based on common ports
+            if (port === 8080) {
+                protocolSelect.value = 'rkllama';
+            } else if (port === 11434) {
+                protocolSelect.value = 'ollama';
+            }
+            
+            toggleLocalRKLlamaSection();
+        }
+
+        function updateProtocolBasedPort() {
+            const protocol = document.getElementById('localProtocol').value;
+            const portInput = document.getElementById('localPort');
+            
+            // Auto-update port based on protocol
+            if (protocol === 'rkllama' && portInput.value == 11434) {
+                portInput.value = 8080;
+            } else if (protocol === 'ollama' && portInput.value == 8080) {
+                portInput.value = 11434;
+            }
+        }
+
+        function toggleLocalRKLlamaSection() {
+            const protocol = document.getElementById('localProtocol').value;
+            const rkLlamaSection = document.getElementById('localRKLlamaSection');
+            
+            if (protocol === 'rkllama') {
+                rkLlamaSection.style.display = 'block';
+            } else {
+                rkLlamaSection.style.display = 'none';
+            }
+        }
+
+        function updateLocalLoadModelButton() {
+            const protocol = document.getElementById('localProtocol').value;
+            const modelSelect = document.getElementById('localModel');
+            const loadModelBtn = document.getElementById('loadLocalModelBtn');
+            
+            if (protocol === 'rkllama' && modelSelect.value) {
+                loadModelBtn.disabled = false;
+                loadModelBtn.innerHTML = `<i class="fas fa-download"></i> Carregar ${modelSelect.value}`;
+            } else {
+                loadModelBtn.disabled = true;
+                loadModelBtn.innerHTML = '<i class="fas fa-download"></i> Carregar Modelo';
+            }
+        }
+
+        async function testLocalConnection() {
+            const port = document.getElementById('localPort').value;
+            const protocol = document.getElementById('localProtocol').value;
+            const statusSpan = document.getElementById('localConnectionStatus');
+            const testButton = document.getElementById('testLocalConnection');
+            
+            // Update UI state
+            testButton.disabled = true;
+            testButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            statusSpan.innerHTML = '<i class="fas fa-spinner fa-spin text-info"></i> Testando...';
+
+            try {
+                const url = `http://localhost:${port}`;
+                const response = await fetch('/api/ollama-api/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, type: protocol })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    statusSpan.innerHTML = `<i class="fas fa-check-circle text-success"></i> Online - ${result.type} v${result.version}`;
+                    
+                    // Show additional info based on type
+                    if (result.type === 'RKLLama') {
+                        const currentModel = result.currentModel || 'Nenhum carregado';
+                        statusSpan.innerHTML += `<br><small>Modelo atual: ${currentModel}</small>`;
+                    }
+                } else {
+                    statusSpan.innerHTML = `<i class="fas fa-times-circle text-danger"></i> Offline`;
+                }
+            } catch (error) {
+                statusSpan.innerHTML = `<i class="fas fa-times-circle text-danger"></i> Erro: ${error.message}`;
+            } finally {
+                testButton.disabled = false;
+                testButton.innerHTML = '<i class="fas fa-vial"></i>';
+            }
+        }
+
+        async function loadLocalModelInRKLlama() {
+            const port = document.getElementById('localPort').value;
+            const model = document.getElementById('localModel').value;
+            const loadModelBtn = document.getElementById('loadLocalModelBtn');
+            
+            if (!model) {
+                showAlert('Selecione um modelo primeiro', 'warning');
+                return;
+            }
+
+            // Update UI state
+            loadModelBtn.disabled = true;
+            loadModelBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Carregando...';
+
+            try {
+                const url = `http://localhost:${port}`;
+                const response = await fetch('/api/ollama-api/load-model', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, model, type: 'rkllama' })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert(`Modelo ${model} carregado com sucesso no RKLLama local!`, 'success');
+                    loadModelBtn.innerHTML = `<i class="fas fa-check"></i> ${model} Carregado`;
+                    loadModelBtn.className = 'btn btn-sm btn-success ms-2';
+                    
+                    // Refresh connection status
+                    setTimeout(() => {
+                        testLocalConnection();
+                    }, 1000);
+                } else {
+                    showAlert(`Erro ao carregar modelo: ${result.error}`, 'danger');
+                    loadModelBtn.innerHTML = `<i class="fas fa-download"></i> Carregar ${model}`;
+                    loadModelBtn.className = 'btn btn-sm btn-primary ms-2';
+                }
+            } catch (error) {
+                showAlert(`Erro na conexão: ${error.message}`, 'danger');
+                loadModelBtn.innerHTML = `<i class="fas fa-download"></i> Carregar ${model}`;
+                loadModelBtn.className = 'btn btn-sm btn-primary ms-2';
+            } finally {
+                loadModelBtn.disabled = false;
+            }
+        }
+
+        async function loadLocalModels() {
+            const localModelSelect = document.getElementById('localModel');
+            const loadButton = document.getElementById('loadLocalModels');
+            const statusSpan = document.getElementById('localModelStatus');
+            const port = document.getElementById('localPort').value;
+            const protocol = document.getElementById('localProtocol').value;
+            
+            // Update UI state
+            loadButton.disabled = true;
+            loadButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            statusSpan.textContent = 'Carregando modelos locais...';
+            statusSpan.className = 'text-info';
+            localModelSelect.disabled = true;
+
+            try {
+                const url = `http://localhost:${port}`;
+                
+                // Use endpoint that accepts specific URL and type
+                const response = await fetch('/api/ollama-api/endpoint-models', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, type: protocol })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    const models = result.models || [];
+                    
+                    // Clear existing options
+                    localModelSelect.innerHTML = '<option value="">Selecione um modelo...</option>';
+                    
+                    // Add models to select
+                    models.forEach(model => {
+                        const option = document.createElement('option');
+                        const modelName = typeof model === 'string' ? model : model.name || model.model;
+                        option.value = modelName;
+                        option.textContent = modelName;
+                        
+                        // Add size info if available
+                        if (model.size) {
+                            option.textContent += ` (${(model.size / 1024 / 1024 / 1024).toFixed(1)}GB)`;
+                        }
+                        localModelSelect.appendChild(option);
+                    });
+                    
+                    // Restore selected model if it exists
+                    const savedModel = currentConfig.ollamaApi?.localModel || currentConfig.llm?.model;
+                    if (savedModel && models.some(m => {
+                        const modelName = typeof m === 'string' ? m : m.name || m.model;
+                        return modelName === savedModel;
+                    })) {
+                        localModelSelect.value = savedModel;
+                    }
+                    
+                    localModelSelect.disabled = false;
+                    statusSpan.innerHTML = `<i class="fas fa-server text-info"></i> ${models.length} modelo(s) encontrado(s) em ${url} (${result.type || protocol})`;
+                    statusSpan.className = 'text-success';
+                    
+                    // Update load model button for RKLLama
+                    updateLocalLoadModelButton();
+                } else {
+                    throw new Error(result.error || 'Erro desconhecido');
+                }
+            } catch (error) {
+                statusSpan.textContent = `Erro ao conectar: ${error.message}`;
+                statusSpan.className = 'text-danger';
+                console.error('Erro ao carregar modelos locais:', error);
+            } finally {
+                loadButton.disabled = false;
+                loadButton.innerHTML = '<i class="fas fa-sync-alt"></i>';
+            }
+        }
+
+        async function saveLocalModelSelection() {
+            const localModel = document.getElementById('localModel').value;
+            const localPort = document.getElementById('localPort').value;
+            const localProtocol = document.getElementById('localProtocol').value;
+            
+            if (!localModel) return;
+
+            try {
+                const response = await fetch('/api/ollama-local/save-model', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        model: localModel,
+                        port: parseInt(localPort),
+                        protocol: localProtocol
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Update current config
+                    updateConfigFromForm();
+                    
+                    // Show feedback
+                    const statusSpan = document.getElementById('localModelStatus');
+                    statusSpan.innerHTML = `<i class="fas fa-save text-success"></i> Configuração salva: ${localModel} em localhost:${result.savedPort} (${result.savedProtocol})`;
+                    statusSpan.className = 'text-success';
+                    
+                    // Clear feedback after 5 seconds
+                    setTimeout(() => {
+                        if (statusSpan.innerHTML.includes('Configuração salva')) {
+                            statusSpan.innerHTML = `<i class="fas fa-database text-info"></i> Modelo atual: ${localModel}`;
+                            statusSpan.className = 'text-info';
+                        }
+                    }, 5000);
+                } else {
+                    console.error('Erro ao salvar configuração local:', result.error);
+                    showAlert(`Erro ao salvar configuração: ${result.error}`, 'warning');
+                }
+            } catch (error) {
+                console.error('Erro ao salvar configuração local:', error);
+                showAlert(`Erro ao salvar configuração: ${error.message}`, 'danger');
+            }
+        }
+
+        async function loadSavedLocalModel() {
+            try {
+                const response = await fetch('/api/ollama-local/selected-model');
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Load port and protocol
+                    if (result.port) {
+                        document.getElementById('localPort').value = result.port;
+                    }
+                    if (result.protocol) {
+                        document.getElementById('localProtocol').value = result.protocol;
+                        toggleLocalRKLlamaSection();
+                    }
+                    
+                    // Load model if available
+                    if (result.model) {
+                        const localModelSelect = document.getElementById('localModel');
+                        const statusSpan = document.getElementById('localModelStatus');
+                        
+                        // Add saved model as option if it doesn't exist
+                        const existingOption = Array.from(localModelSelect.options).find(
+                            option => option.value === result.model
+                        );
+                        if (!existingOption) {
+                            const option = document.createElement('option');
+                            option.value = result.model;
+                            option.textContent = result.model;
+                            option.setAttribute('data-saved', 'true');
+                            localModelSelect.appendChild(option);
+                        }
+                        
+                        // Select the saved model
+                        localModelSelect.value = result.model;
+                        
+                        // Update load model button for RKLLama
+                        updateLocalLoadModelButton();
+                        
+                        // Show feedback
+                        let statusHtml = `<i class="fas fa-database text-success"></i> Configuração carregada: ${result.model} em localhost:${result.port} (${result.protocol})`;
+                        if (result.lastSelectedAt) {
+                            statusHtml += `<br><small>Última atualização: ${new Date(result.lastSelectedAt).toLocaleString('pt-BR')}</small>`;
+                        }
+                        statusSpan.innerHTML = statusHtml;
+                        statusSpan.className = 'text-success';
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar configuração local salva:', error);
             }
         }
 
@@ -459,6 +925,9 @@
 
                 document.getElementById(`testEndpoint_${index}`).addEventListener('click', 
                     () => testEndpoint(index));
+                
+                document.getElementById(`diagnoseEndpoint_${index}`).addEventListener('click', 
+                    () => diagnoseEndpoint(index));
                 
                 // Initialize RKLLama section visibility
                 toggleRKLlamaSection(index);
@@ -652,9 +1121,14 @@
                             <div class="model-info">
                                 Aguardando informações...
                             </div>
-                            <button class="btn btn-outline-primary btn-sm" id="testEndpoint_${index}">
-                                <i class="fas fa-vial"></i> Testar
-                            </button>
+                            <div class="btn-group">
+                                <button class="btn btn-outline-primary btn-sm" id="testEndpoint_${index}">
+                                    <i class="fas fa-vial"></i> Testar
+                                </button>
+                                <button class="btn btn-outline-warning btn-sm" id="diagnoseEndpoint_${index}">
+                                    <i class="fas fa-stethoscope"></i> Diagnosticar
+                                </button>
+                            </div>
                         </div>
                         
                         <div id="testResult_${index}"></div>
@@ -819,6 +1293,77 @@
                 loadModelBtn.className = 'btn btn-sm btn-primary ms-2';
             } finally {
                 loadModelBtn.disabled = false;
+            }
+        }
+
+        async function diagnoseEndpoint(index) {
+            const url = document.getElementById(`endpoint_${index}_url`).value;
+            const type = document.getElementById(`endpoint_${index}_type`).value;
+            
+            if (!url) {
+                showAlert('URL do endpoint é obrigatória', 'warning');
+                return;
+            }
+
+            const resultContainer = document.getElementById(`testResult_${index}`);
+            const diagnoseButton = document.getElementById(`diagnoseEndpoint_${index}`);
+            
+            diagnoseButton.disabled = true;
+            diagnoseButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Diagnosticando...';
+
+            try {
+                const response = await fetch('/api/ollama-api/diagnose', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, type })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    const diagnosis = result.diagnosis;
+                    let diagnosticHtml = `
+                        <div class="test-result ${diagnosis.overall === 'HEALTHY' ? 'success' : 'error'}">
+                            <h6><i class="fas fa-stethoscope"></i> Diagnóstico Completo</h6>
+                            <p><strong>Status Geral:</strong> ${diagnosis.overall}</p>
+                            <p><strong>Resumo:</strong> ${diagnosis.summary}</p>
+                            <hr>
+                            <h6>Testes Realizados:</h6>
+                    `;
+                    
+                    diagnosis.tests.forEach(test => {
+                        const icon = test.status === 'PASS' ? 'fa-check-circle text-success' : 'fa-times-circle text-danger';
+                        diagnosticHtml += `
+                            <div class="mb-2">
+                                <i class="fas ${icon}"></i> <strong>${test.name}:</strong> ${test.message}
+                            </div>
+                        `;
+                    });
+                    
+                    diagnosticHtml += `
+                            <small class="text-muted">Diagnóstico realizado em: ${new Date(diagnosis.timestamp).toLocaleString('pt-BR')}</small>
+                        </div>
+                    `;
+                    
+                    resultContainer.innerHTML = diagnosticHtml;
+                } else {
+                    resultContainer.innerHTML = `
+                        <div class="test-result error">
+                            <i class="fas fa-times-circle"></i> Erro no diagnóstico<br>
+                            ${result.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultContainer.innerHTML = `
+                    <div class="test-result error">
+                        <i class="fas fa-times-circle"></i> Erro na conexão<br>
+                        ${error.message}
+                    </div>
+                `;
+            } finally {
+                diagnoseButton.disabled = false;
+                diagnoseButton.innerHTML = '<i class="fas fa-stethoscope"></i> Diagnosticar';
             }
         }
 
@@ -1028,8 +1573,6 @@
             
             const alertContainer = document.createElement('div');
             alertContainer.innerHTML = alertHtml;
-            document.querySelector('.container').prepend(alertContainer.firstElementChild);
+            document.querySelector('.container-fluid').prepend(alertContainer.firstElementChild);
         }
     </script>
-</body>
-</html>

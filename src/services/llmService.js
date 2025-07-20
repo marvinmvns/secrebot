@@ -37,12 +37,43 @@ class LLMService {
     if (this.configService) {
       try {
         const config = await this.configService.getConfig();
-        if (config && config.llm && config.llm.model) {
-          CONFIG.llm.model = config.llm.model; // Update global CONFIG
-          logger.info(`Modelo LLM carregado do MongoDB: ${CONFIG.llm.model}`);
+        if (config) {
+          // Priorizar configuração local do OllamaAPI se estiver em modo local
+          let modelToUse = null;
+          let hostToUse = null;
+          
+          if (config.ollamaApi?.mode === 'local') {
+            if (config.ollamaApi?.localModel) {
+              modelToUse = config.ollamaApi.localModel;
+              logger.info(`🏠 Modo local detectado - usando modelo local: ${modelToUse}`);
+            }
+            
+            if (config.ollamaApi?.localPort) {
+              hostToUse = `http://localhost:${config.ollamaApi.localPort}`;
+              logger.info(`🔌 Usando porta local configurada: ${config.ollamaApi.localPort}`);
+            }
+            
+            if (config.ollamaApi?.localProtocol) {
+              logger.info(`🤖 Protocolo local: ${config.ollamaApi.localProtocol}`);
+            }
+          } else if (config.llm?.model) {
+            modelToUse = config.llm.model;
+            logger.info(`🌐 Usando modelo padrão: ${modelToUse}`);
+          }
+          
+          if (modelToUse) {
+            CONFIG.llm.model = modelToUse; // Update global CONFIG
+            logger.info(`✅ Modelo LLM carregado do MongoDB: ${CONFIG.llm.model}`);
+          }
+          
+          if (hostToUse) {
+            CONFIG.llm.host = hostToUse; // Update global CONFIG
+            this.initializeOllama(); // Reinitialize with new host
+            logger.info(`✅ Host LLM atualizado: ${CONFIG.llm.host}`);
+          }
         }
       } catch (error) {
-        logger.warn('⚠️ Erro ao carregar último modelo LLM do MongoDB, usando configuração padrão:', error.message);
+        logger.warn('⚠️ Erro ao carregar configuração LLM do MongoDB, usando configuração padrão:', error.message);
       }
     }
   }

@@ -41,11 +41,12 @@ import YouTubeService from '../services/youtubeService.js';
 // ============ Bot do WhatsApp ============
 class WhatsAppBot {
   // CORREÇÃO: Adicionar ttsService ao construtor e atribuí-lo
-  constructor(scheduler, llmService, transcriber, ttsService) {
+  constructor(scheduler, llmService, transcriber, ttsService, whisperSilentService) {
     this.scheduler = scheduler;
     this.llmService = llmService;
     this.transcriber = transcriber;
     this.ttsService = ttsService; // CORREÇÃO: Atribuir o serviço TTS
+    this.whisperSilentService = whisperSilentService;
     this.chatModes = new Map();
     this.navigationStates = new Map(); // Para navegação hierárquica
     this.userPreferences = new Map(); // Para armazenar preferências (ex: { voiceResponse: true/false })
@@ -249,7 +250,22 @@ class WhatsAppBot {
   isMainCommand(text) {
     const lower = text.toLowerCase();
     const commands = Object.values(COMMANDS).sort((a, b) => b.length - a.length);
-    return commands.some(cmd => lower.startsWith(cmd));
+    
+    // Check regular commands
+    if (commands.some(cmd => lower.startsWith(cmd))) {
+      return true;
+    }
+    
+    // Check WhisperSilent commands
+    const wsCommands = [
+      'ws_health_check', 'ws_health_detailed', 'ws_status',
+      'ws_transcriptions_list', 'ws_transcriptions_search', 'ws_transcriptions_stats',
+      'ws_aggregation_status', 'ws_aggregation_texts',
+      'ws_control_toggle_api', 'ws_control_start', 'ws_control_stop',
+      'ws_send_unsent', 'ws_export_data'
+    ];
+    
+    return wsCommands.some(cmd => lower.startsWith(cmd));
   }
 
   getCurrentMode(contactId) {
@@ -536,6 +552,10 @@ class WhatsAppBot {
         this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_VIDEO);
         await this.sendResponse(contactId, SUBMENU_MESSAGES.video);
         break;
+      case 'submenu_whispersilent':
+        this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_WHISPERSILENT);
+        await this.sendResponse(contactId, SUBMENU_MESSAGES.whispersilent);
+        break;
       default:
         await this.sendResponse(contactId, MENU_MESSAGE);
     }
@@ -571,7 +591,8 @@ class WhatsAppBot {
       'submenu_midia': 'Mídia & Conteúdo',
       'submenu_profissional': 'Análise Profissional',
       'submenu_config': 'Configurações',
-      'submenu_suporte': 'Suporte & Sistema'
+      'submenu_suporte': 'Suporte & Sistema',
+      'submenu_whispersilent': 'WhisperSilent API'
     };
     return descriptions[submenu] || submenu;
   }
@@ -827,7 +848,23 @@ class WhatsAppBot {
           },
           [COMMANDS.LISTAR_ENDPOINTS_WHISPER]: () => this.handleListarEndpointsWhisperCommand(contactId),
           [COMMANDS.LISTAR_ENDPOINTS_OLLAMA]: () => this.handleListarEndpointsOllamaCommand(contactId),
-          [COMMANDS.STATUS_ENDPOINTS]: () => this.handleStatusEndpointsCommand(contactId)
+          [COMMANDS.STATUS_ENDPOINTS]: () => this.handleStatusEndpointsCommand(contactId),
+          [COMMANDS.WHISPERSILENT]: () => this.handleWhisperSilentConfigCommand(contactId),
+          
+          // WhisperSilent API Commands
+          'ws_health_check': () => this.handleWhisperSilentCommand(contactId, 'health'),
+          'ws_health_detailed': () => this.handleWhisperSilentCommand(contactId, 'health_detailed'),
+          'ws_status': () => this.handleWhisperSilentCommand(contactId, 'status'),
+          'ws_transcriptions_list': () => this.handleWhisperSilentCommand(contactId, 'transcriptions_list'),
+          'ws_transcriptions_search': () => this.handleWhisperSilentSearchCommand(contactId),
+          'ws_transcriptions_stats': () => this.handleWhisperSilentCommand(contactId, 'transcriptions_stats'),
+          'ws_aggregation_status': () => this.handleWhisperSilentCommand(contactId, 'aggregation_status'),
+          'ws_aggregation_texts': () => this.handleWhisperSilentCommand(contactId, 'aggregation_texts'),
+          'ws_control_toggle_api': () => this.handleWhisperSilentCommand(contactId, 'control_toggle_api'),
+          'ws_control_start': () => this.handleWhisperSilentCommand(contactId, 'control_start'),
+          'ws_control_stop': () => this.handleWhisperSilentCommand(contactId, 'control_stop'),
+          'ws_send_unsent': () => this.handleWhisperSilentCommand(contactId, 'send_unsent'),
+          'ws_export_data': () => this.handleWhisperSilentCommand(contactId, 'export_data')
       };
 
       const sortedHandlers = Object.entries(commandHandlers).sort((a, b) => b[0].length - a[0].length);
@@ -2464,6 +2501,12 @@ usuario@email.com:senha
       case CHAT_MODES.TROCAR_MODELO_WHISPER:
         await this.processTrocarModeloWhisperMessage(contactId, text);
         break;
+      case CHAT_MODES.WHISPERSILENT_CONFIG:
+        await this.processWhisperSilentConfigMessage(contactId, text);
+        break;
+      case 'whispersilent_search':
+        await this.processWhisperSilentSearchMessage(contactId, text);
+        break;
       default:
           logger.warn(`⚠️ Modo desconhecido encontrado: ${currentMode}`);
           this.setMode(contactId, null);
@@ -2709,6 +2752,71 @@ usuario@email.com:senha
     } catch (err) {
       logger.error(`❌ Erro ao processar troca de modelo Whisper para ${contactId}`, err);
       await this.sendErrorMessage(contactId, '❌ Erro interno ao trocar modelo Whisper. Tente novamente.');
+      this.setMode(contactId, null);
+    }
+  }
+
+  async processWhisperSilentConfigMessage(contactId, text) {
+    try {
+      const ipPort = text.trim();
+      
+      if (Utils.isVoltarCommand(ipPort)) {
+        this.setMode(contactId, null);
+        await this.sendResponse(contactId, MENU_MESSAGE);
+        return;
+      }
+
+      if (!ipPort) {
+        await this.sendResponse(contactId, '❌ *IP e porta são obrigatórios!*\n\nFormato: IP:PORTA\nExemplo: localhost:8080 ou 192.168.1.100:8080\n\n🔙 Para cancelar: !voltar');
+        return;
+      }
+
+      const result = this.whisperSilentService.configure(ipPort);
+      
+      if (result.success) {
+        await this.sendResponse(contactId, `✅ *WhisperSilent Configurado!*\n\n🔗 **URL:** ${result.url}\n\n💡 Agora você pode usar todas as funções do menu WhisperSilent (opção 7).`);
+        this.setMode(contactId, null);
+      } else {
+        await this.sendResponse(contactId, `❌ *Erro na configuração:* ${result.error}\n\nTente novamente com o formato correto: IP:PORTA`);
+      }
+
+    } catch (error) {
+      logger.error(`❌ Erro ao processar configuração WhisperSilent para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro interno: ${error.message}`);
+      this.setMode(contactId, null);
+    }
+  }
+
+  async processWhisperSilentSearchMessage(contactId, text) {
+    try {
+      const query = text.trim();
+      
+      if (Utils.isVoltarCommand(query)) {
+        this.setMode(contactId, null);
+        await this.sendResponse(contactId, MENU_MESSAGE);
+        return;
+      }
+
+      if (!query) {
+        await this.sendResponse(contactId, '❌ *Digite um termo para buscar!*\n\nExemplo: "reunião", "projeto", "erro"\n\n🔙 Para cancelar: !voltar');
+        return;
+      }
+
+      await this.sendResponse(contactId, '🔍 Buscando transcrições...', true);
+
+      const result = await this.whisperSilentService.searchTranscriptions(query);
+      
+      if (result.success) {
+        await this.sendResponse(contactId, result.message);
+      } else {
+        await this.sendResponse(contactId, `❌ Erro na busca: ${result.error}`);
+      }
+
+      this.setMode(contactId, null);
+
+    } catch (error) {
+      logger.error(`❌ Erro ao processar busca WhisperSilent para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro na busca: ${error.message}`);
       this.setMode(contactId, null);
     }
   }
@@ -3475,6 +3583,101 @@ usuario@email.com:senha
   }
   
   // === Fim dos Métodos de Gerenciamento de Endpoints ===
+
+  // === WhisperSilent Integration Methods ===
+
+  /**
+   * Handle WhisperSilent configuration command (IP:PORT setup)
+   */
+  async handleWhisperSilentConfigCommand(contactId) {
+    this.setMode(contactId, CHAT_MODES.WHISPERSILENT_CONFIG);
+    await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.WHISPERSILENT_CONFIG]);
+  }
+
+  /**
+   * Handle WhisperSilent search command (requires user input)
+   */
+  async handleWhisperSilentSearchCommand(contactId) {
+    try {
+      if (!this.whisperSilentService.isConfigured) {
+        await this.sendResponse(contactId, '❌ WhisperSilent não configurado. Use a opção 7.14 para configurar IP:PORTA');
+        return;
+      }
+
+      await this.sendResponse(contactId, '🔍 *Buscar Transcrições*\n\nDigite o termo que deseja buscar nas transcrições:');
+      
+      // Set a temporary mode to wait for search query
+      this.setMode(contactId, 'whispersilent_search');
+    } catch (error) {
+      logger.error(`❌ Erro ao iniciar busca WhisperSilent para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro ao iniciar busca: ${error.message}`);
+    }
+  }
+
+  /**
+   * General WhisperSilent command handler
+   */
+  async handleWhisperSilentCommand(contactId, action) {
+    try {
+      await this.sendResponse(contactId, '⏳ Conectando ao WhisperSilent...', true);
+      
+      let result;
+      
+      switch (action) {
+        case 'health':
+          result = await this.whisperSilentService.getHealth();
+          break;
+        case 'health_detailed':
+          result = await this.whisperSilentService.getHealthDetailed();
+          break;
+        case 'status':
+          result = await this.whisperSilentService.getStatus();
+          break;
+        case 'transcriptions_list':
+          result = await this.whisperSilentService.getTranscriptions(10);
+          break;
+        case 'transcriptions_stats':
+          result = await this.whisperSilentService.getTranscriptionStats();
+          break;
+        case 'aggregation_status':
+          result = await this.whisperSilentService.getAggregationStatus();
+          break;
+        case 'aggregation_texts':
+          result = await this.whisperSilentService.getAggregatedTexts(5);
+          break;
+        case 'control_toggle_api':
+          result = await this.whisperSilentService.toggleApiSending();
+          break;
+        case 'control_start':
+          result = await this.whisperSilentService.startPipeline();
+          break;
+        case 'control_stop':
+          result = await this.whisperSilentService.stopPipeline();
+          break;
+        case 'send_unsent':
+          result = await this.whisperSilentService.sendUnsentTranscriptions();
+          break;
+        case 'export_data':
+          result = await this.whisperSilentService.exportData();
+          break;
+        default:
+          await this.sendResponse(contactId, '❌ Ação não reconhecida');
+          return;
+      }
+
+      if (result.success) {
+        await this.sendResponse(contactId, result.message);
+      } else {
+        await this.sendResponse(contactId, `❌ Erro: ${result.error}`);
+      }
+
+    } catch (error) {
+      logger.error(`❌ Erro no comando WhisperSilent ${action} para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro na operação: ${error.message}`);
+    }
+  }
+
+  // === Fim dos Métodos WhisperSilent ===
 }
 
 export default WhatsAppBot;

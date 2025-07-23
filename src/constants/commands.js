@@ -26,7 +26,8 @@ export const COMMANDS = {
   FLOW_RESTART: '!flow restart',
   FLOW_VOLTAR: '!flow voltar',
   FLOW_STATUS: '!flow status',
-  FLOW_LIST: '!flow list'
+  FLOW_LIST: '!flow list',
+  WHISPERSILENT: '!whispersilent'
 };
 
 export const NUMERIC_SHORTCUTS = {
@@ -37,6 +38,7 @@ export const NUMERIC_SHORTCUTS = {
   '4': 'submenu_profissional',
   '5': 'submenu_config',
   '6': 'submenu_suporte',
+  '7': 'submenu_whispersilent',
   '0': COMMANDS.VOLTAR,
   
   // Agenda & Lembretes
@@ -73,7 +75,23 @@ export const NUMERIC_SHORTCUTS = {
   
   // Resumir Vídeo
   '2.3.1': COMMANDS.RESUMIRVIDEO,
-  '2.3.2': COMMANDS.RESUMIRVIDEO2
+  '2.3.2': COMMANDS.RESUMIRVIDEO2,
+  
+  // WhisperSilent Integration
+  '7.1': 'ws_health_check',
+  '7.2': 'ws_health_detailed',
+  '7.3': 'ws_status',
+  '7.4': 'ws_transcriptions_list',
+  '7.5': 'ws_transcriptions_search',
+  '7.6': 'ws_transcriptions_stats',
+  '7.7': 'ws_aggregation_status',
+  '7.8': 'ws_aggregation_texts',
+  '7.9': 'ws_control_toggle_api',
+  '7.10': 'ws_control_start',
+  '7.11': 'ws_control_stop',
+  '7.12': 'ws_send_unsent',
+  '7.13': 'ws_export_data',
+  '7.14': COMMANDS.WHISPERSILENT
 };
 
 export const CHAT_MODES = {
@@ -85,7 +103,8 @@ export const CHAT_MODES = {
   DELETAR: 'deletar',
   RESUMIR: 'resumir',
   TROCAR_MODELO: 'trocar_modelo',
-  TROCAR_MODELO_WHISPER: 'trocar_modelo_whisper'
+  TROCAR_MODELO_WHISPER: 'trocar_modelo_whisper',
+  WHISPERSILENT_CONFIG: 'whispersilent_config'
 };
 
 export const NAVIGATION_STATES = {
@@ -96,7 +115,8 @@ export const NAVIGATION_STATES = {
   SUBMENU_PROFISSIONAL: 'submenu_profissional',
   SUBMENU_CONFIG: 'submenu_config',
   SUBMENU_SUPORTE: 'submenu_suporte',
-  SUBMENU_VIDEO: 'submenu_video'
+  SUBMENU_VIDEO: 'submenu_video',
+  SUBMENU_WHISPERSILENT: 'submenu_whispersilent'
 };
 
 export const WHISPER_MODELS_LIST = [

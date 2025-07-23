@@ -2,6 +2,7 @@ import Scheduler from '../services/scheduler.js';
 import LLMService from '../services/llmService.js';
 import AudioTranscriber from '../services/audioTranscriber.js';
 import TtsService from '../services/ttsService.js';
+import WhisperSilentService from '../services/whisperSilentService.js';
 import WhatsAppBot from './whatsAppBot.js';
 import { TelegramBotService } from './telegramBot.js';
 import RestAPI from '../api/restApi.js';
@@ -88,13 +89,24 @@ export class ApplicationFactory {
     return ttsService;
   }
 
-  async createWhatsAppBot(scheduler, llmService, transcriber, ttsService) {
+  createWhisperSilentService() {
+    if (this.services.has('whisperSilentService')) {
+      return this.services.get('whisperSilentService');
+    }
+
+    const whisperSilentService = new WhisperSilentService();
+    this.services.set('whisperSilentService', whisperSilentService);
+    logger.info('WhisperSilent service initialized');
+    return whisperSilentService;
+  }
+
+  async createWhatsAppBot(scheduler, llmService, transcriber, ttsService, whisperSilentService) {
     if (this.services.has('whatsAppBot')) {
       return this.services.get('whatsAppBot');
     }
 
     try {
-      const bot = new WhatsAppBot(scheduler, llmService, transcriber, ttsService);
+      const bot = new WhatsAppBot(scheduler, llmService, transcriber, ttsService, whisperSilentService);
       await bot.initialize();
       
       // Criar e configurar FlowService  
@@ -123,6 +135,7 @@ export class ApplicationFactory {
         llmService,
         transcriber,
         ttsService,
+        whisperSilentService,
         toggleVoicePreference: () => false,
         setFlowService: () => {},
         setFlowExecutionService: () => {}
@@ -247,11 +260,12 @@ export class ApplicationFactory {
       const llmService = this.createLLMService(configService);
       const transcriber = this.createAudioTranscriber(configService, llmService);
       const ttsService = this.createTtsService();
+      const whisperSilentService = this.createWhisperSilentService();
       
       // Configure YouTubeService to use the parametrized transcriber
       YouTubeService.setTranscriber(transcriber);
       logger.debug('🔧 YouTubeService configured with parametrized AudioTranscriber');
-      const bot = await this.createWhatsAppBot(scheduler, llmService, transcriber, ttsService);
+      const bot = await this.createWhatsAppBot(scheduler, llmService, transcriber, ttsService, whisperSilentService);
       this.createRestAPI(bot, configService);
 
       // Inicializar Telegram em paralelo (não bloqueia outros serviços)
@@ -277,6 +291,7 @@ export class ApplicationFactory {
       llmService: this.services.get('llmService'),
       audioTranscriber: this.services.get('audioTranscriber'),
       ttsService: this.services.get('ttsService'),
+      whisperSilentService: this.services.get('whisperSilentService'),
       whatsAppBot: this.services.get('whatsAppBot'),
       telegramBot: this.services.get('telegramBot'),
       restAPI: this.services.get('restAPI'),

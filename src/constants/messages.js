@@ -27,6 +27,9 @@ Como posso te ajudar hoje?
 6️⃣ *Ajuda e Suporte*
    _Veja comandos e informações do sistema._
 
+7️⃣ *WhisperSilent API*
+   _Monitore e controle sistemas de transcrição._
+
 ─────────────────────────────
 💡 *Como usar:*
 • Digite o *número* da opção.
@@ -120,7 +123,35 @@ Qual método você prefere?
 2.3.2 🎯 *Preciso (Whisper IA)*
    _Análise mais detalhada, pode demorar mais._
 
-0️⃣ Voltar ao submenu de IA`
+0️⃣ Voltar ao submenu de IA`,
+
+  whispersilent: `🎤 *WhisperSilent API*
+
+*MONITORAMENTO*
+7.1 ❤️ Verificação básica de saúde
+7.2 📊 Informações detalhadas de saúde  
+7.3 📈 Status do pipeline
+
+*TRANSCRIÇÕES*
+7.4 📋 Listar transcrições
+7.5 🔍 Buscar transcrições
+7.6 📊 Estatísticas de transcrições
+
+*AGREGAÇÃO*
+7.7 📝 Status da agregação
+7.8 📚 Textos agregados
+
+*CONTROLE DO SISTEMA*
+7.9 🔄 Ligar/Desligar envio automático
+7.10 ▶️ Iniciar pipeline
+7.11 ⏹️ Parar pipeline
+7.12 📤 Enviar transcrições pendentes
+7.13 📁 Exportar dados
+7.14 ⚙️ Configurar IP/Porta
+
+0️⃣ Voltar ao Menu Principal
+
+🔗 _Conecte-se ao seu sistema WhisperSilent para monitoramento completo._`
 };
 
 /**
@@ -178,6 +209,14 @@ Para sair, digite ${COMMANDS.VOLTAR}`,
 Digite o número do modelo que deseja usar.
 
 Use ${COMMANDS.MODELOS_WHISPER} para ver a lista.
+Para sair, digite ${COMMANDS.VOLTAR}`,
+
+  [CHAT_MODES.WHISPERSILENT_CONFIG]: `⚙️ *Configuração WhisperSilent*
+
+📡 *Digite o IP e porta do servidor:*
+Formato: IP:PORTA
+Exemplo: localhost:8080 ou 192.168.1.100:8080
+
 Para sair, digite ${COMMANDS.VOLTAR}`,
 };
 

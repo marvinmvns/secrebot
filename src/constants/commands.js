@@ -102,6 +102,8 @@ export const CHAT_MODES = {
   LINKEDIN: 'linkedin',
   DELETAR: 'deletar',
   RESUMIR: 'resumir',
+  RESUMIR_VIDEO: 'resumir_video',
+  RESUMIR_VIDEO2: 'resumir_video2',
   TROCAR_MODELO: 'trocar_modelo',
   TROCAR_MODELO_WHISPER: 'trocar_modelo_whisper',
   WHISPERSILENT_CONFIG: 'whispersilent_config'

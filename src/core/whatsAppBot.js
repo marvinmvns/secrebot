@@ -41,13 +41,14 @@ import YouTubeService from '../services/youtubeService.js';
 // ============ Bot do WhatsApp ============
 class WhatsAppBot {
   // CORREÇÃO: Adicionar ttsService ao construtor e atribuí-lo
-  constructor(scheduler, llmService, transcriber, ttsService, whisperSilentService) {
+  constructor(scheduler, llmService, transcriber, ttsService, whisperSilentService, sessionService) {
     this.scheduler = scheduler;
     this.llmService = llmService;
     this.transcriber = transcriber;
     this.ttsService = ttsService; // CORREÇÃO: Atribuir o serviço TTS
     this.whisperSilentService = whisperSilentService;
-    this.chatModes = new Map();
+    this.sessionService = sessionService;
+    this.chatModes = new Map(); // Mantém cache local para performance
     this.navigationStates = new Map(); // Para navegação hierárquica
     this.userPreferences = new Map(); // Para armazenar preferências (ex: { voiceResponse: true/false })
     this.linkedinSessions = new Map(); // contato -> li_at
@@ -189,6 +190,7 @@ class WhatsAppBot {
   async initialize() {
     try {
       await this.client.initialize();
+      await this.loadActiveSessions();
       
       // Verificar se foi um restart solicitado por usuário
       setTimeout(() => {
@@ -198,6 +200,23 @@ class WhatsAppBot {
     } catch (err) {
       logger.error('❌ Erro na inicialização do WhatsApp', err);
       throw err;
+    }
+  }
+
+  async loadActiveSessions() {
+    try {
+      const activeSessions = await this.sessionService.getActiveSessions(7);
+      logger.info(`📱 Carregando ${activeSessions.length} sessões ativas`);
+      
+      for (const session of activeSessions) {
+        if (session.chatMode) {
+          this.chatModes.set(session.phoneNumber, session.chatMode);
+        }
+      }
+      
+      logger.info(`✅ Sessões ativas carregadas no cache local`);
+    } catch (error) {
+      logger.error('❌ Erro ao carregar sessões ativas:', error);
     }
   }
 
@@ -268,36 +287,64 @@ class WhatsAppBot {
     return wsCommands.some(cmd => lower.startsWith(cmd));
   }
 
-  getCurrentMode(contactId) {
-    return this.chatModes.get(contactId) || null;
+  async getCurrentMode(contactId) {
+    // Tenta cache local primeiro
+    if (this.chatModes.has(contactId)) {
+      return this.chatModes.get(contactId);
+    }
+    
+    // Busca na sessão persistida
+    const session = await this.sessionService.getSession(contactId);
+    if (session && session.chatMode) {
+      this.chatModes.set(contactId, session.chatMode);
+      return session.chatMode;
+    }
+    
+    return null;
   }
 
-  setMode(contactId, mode) {
+  async setMode(contactId, mode) {
     if (mode) {
       this.chatModes.set(contactId, mode);
+      await this.sessionService.setChatMode(contactId, mode);
       logger.log(`🔧 Modo para ${contactId} definido para: ${mode}`);
     } else {
-      const currentMode = this.chatModes.get(contactId);
+      const currentMode = await this.getCurrentMode(contactId);
       if (currentMode) {
-          this.llmService.clearContext(contactId, currentMode);
+          await this.llmService.clearContext(contactId, currentMode);
           logger.service(`🧹 Contexto LLM para modo ${currentMode} de ${contactId} limpo.`);
       }
       this.chatModes.delete(contactId);
+      await this.sessionService.setChatMode(contactId, null);
       logger.log(`🔧 Modo para ${contactId} removido.`);
     }
   }
 
   // Métodos para navegação hierárquica
-  getNavigationState(contactId) {
-    return this.navigationStates.get(contactId) || NAVIGATION_STATES.MAIN_MENU;
+  async getNavigationState(contactId) {
+    // Tenta cache local primeiro
+    if (this.navigationStates.has(contactId)) {
+      return this.navigationStates.get(contactId);
+    }
+    
+    // Busca na sessão persistida
+    const session = await this.sessionService.getSession(contactId);
+    if (session && session.navigationState) {
+      this.navigationStates.set(contactId, session.navigationState);
+      return session.navigationState;
+    }
+    
+    return NAVIGATION_STATES.MAIN_MENU;
   }
 
-  setNavigationState(contactId, state) {
+  async setNavigationState(contactId, state) {
     if (state === NAVIGATION_STATES.MAIN_MENU) {
       this.navigationStates.delete(contactId);
+      await this.sessionService.setNavigationState(contactId, 'MAIN_MENU');
       logger.log(`📍 Estado de navegação para ${contactId} resetado para menu principal.`);
     } else {
       this.navigationStates.set(contactId, state);
+      await this.sessionService.setNavigationState(contactId, state);
       logger.log(`📍 Estado de navegação para ${contactId} definido para: ${state}`);
     }
   }
@@ -765,14 +812,14 @@ class WhatsAppBot {
     }
 
     if (Utils.isVoltarCommand(text)) {
-      this.setMode(contactId, null);
-      this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+      await this.setMode(contactId, null);
+      await this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
       await this.sendResponse(contactId, MENU_MESSAGE);
       return;
     }
 
-    const currentMode = this.getCurrentMode(contactId);
-    const navigationState = this.getNavigationState(contactId);
+    const currentMode = await this.getCurrentMode(contactId);
+    const navigationState = await this.getNavigationState(contactId);
 
     // Lógica de navegação hierárquica
     if (!currentMode && await this.handleHierarchicalNavigation(msg, contactId, text, navigationState)) {
@@ -820,11 +867,11 @@ class WhatsAppBot {
   async handleCommand(msg, contactId, lowerText, originalText) {
       const commandHandlers = {
           [COMMANDS.MENU]: async () => {
-              this.setMode(contactId, null);
+              await this.setMode(contactId, null);
               await this.sendResponse(contactId, MENU_MESSAGE);
           },
           [COMMANDS.AJUDA]: async () => {
-              this.setMode(contactId, null);
+              await this.setMode(contactId, null);
               await this.sendResponse(contactId, HELP_GUIDE);
           },
           [COMMANDS.DEEP]: () => this.handleDeepCommand(contactId, originalText),
@@ -878,6 +925,88 @@ class WhatsAppBot {
 
       logger.warn(`⚠️ Comando ${lowerText} não encontrado nos handlers.`);
       await this.sendResponse(contactId, MENU_MESSAGE);
+  }
+
+  async handleDeepCommand(contactId, originalText) {
+    // Ativar modo assistente para conversar com a IA
+    await this.setMode(contactId, CHAT_MODES.ASSISTANT);
+    await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.ASSISTANT]);
+  }
+
+  async handleResumirCommand(msg, contactId) {
+    // Ativar modo resumo de texto/arquivo
+    await this.setMode(contactId, CHAT_MODES.RESUMIR);
+    await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.RESUMIR]);
+  }
+
+  async handleResumirVideoCommand(msg, contactId) {
+    // Ativar modo resumo de vídeo do YouTube
+    await this.setMode(contactId, CHAT_MODES.RESUMIR_VIDEO);
+    await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.RESUMIR_VIDEO]);
+  }
+
+  async handleResumirVideo2Command(msg, contactId) {
+    // Ativar modo resumo de vídeo do YouTube (versão 2)
+    await this.setMode(contactId, CHAT_MODES.RESUMIR_VIDEO2);
+    await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.RESUMIR_VIDEO2]);
+  }
+
+  async handleTranscreverCommand(contactId) {
+    // Ativar modo transcrição de áudio
+    await this.setMode(contactId, CHAT_MODES.TRANSCRICAO);
+    await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.TRANSCRICAO]);
+  }
+
+  async handleTranscreverResumir(contactId) {
+    // Ativar modo transcrição e resumo de áudio
+    await this.setMode(contactId, CHAT_MODES.TRANSCREVER_RESUMIR);
+    await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.TRANSCREVER_RESUMIR]);
+  }
+
+  async handleAgendabotCommand(contactId, originalText) {
+    // Ativar modo agendamento
+    await this.setMode(contactId, CHAT_MODES.AGENDABOT);
+    await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.AGENDABOT]);
+  }
+
+  async handleLinkedinCommand(contactId, originalText) {
+    // Ativar modo LinkedIn
+    await this.setMode(contactId, CHAT_MODES.LINKEDIN);
+    await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.LINKEDIN]);
+  }
+
+  async handleListarCommand(contactId) {
+    // Listar agendamentos - chama a funcionalidade existente
+    try {
+      const result = await this.scheduler.listSchedules(contactId);
+      await this.sendResponse(contactId, result.message);
+    } catch (error) {
+      logger.error(`❌ Erro ao listar agendamentos para ${contactId}:`, error);
+      await this.sendResponse(contactId, '❌ Erro ao listar agendamentos. Tente novamente.');
+    }
+  }
+
+  async handleDeletarCommand(contactId) {
+    // Ativar modo deletar agendamento
+    await this.setMode(contactId, CHAT_MODES.DELETAR);
+    await this.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.DELETAR]);
+    // Chamar a listagem para mostrar opções
+    await this.handleListarCommand(contactId);
+  }
+
+  async handleRecursoCommand(contactId) {
+    // Mostrar recursos do sistema
+    try {
+      await this.handleRecursoDetalhadoCommand(contactId);
+    } catch (error) {
+      logger.error(`❌ Erro ao mostrar recursos para ${contactId}:`, error);
+      await this.sendResponse(contactId, '❌ Erro ao obter informações do sistema. Tente novamente.');
+    }
+  }
+
+  async handleImportarAgendaCommand(msg, contactId) {
+    // Solicitar arquivo .ics para importação
+    await this.sendResponse(contactId, '📥 *Importar Agenda*\n\nEnvie o arquivo .ics (formato iCalendar) que deseja importar.\n\n💡 *Como obter:*\n• Google Calendar: Configurações → Importar/Exportar\n• Outlook: Arquivo → Salvar Calendário\n• Apple Calendar: Arquivo → Exportar\n\n🔙 Para voltar: !voltar');
   }
 
   async handleVozCommand(contactId) {
@@ -2211,8 +2340,8 @@ Use emojis e formatação clara para facilitar a leitura.`;
       await this.sendErrorMessage(contactId, '❌ Desculpe, não consegui baixar seu áudio.');
       return;
     }
-    const currentMode = this.getCurrentMode(contactId);
-    const navigationState = this.getNavigationState(contactId);
+    const currentMode = await this.getCurrentMode(contactId);
+    const navigationState = await this.getNavigationState(contactId);
     
     try {
       await this.sendResponse(contactId, '🎤 Transcrevendo áudio...', true);
@@ -2410,7 +2539,7 @@ ${currentMenuText}`);
   }
 
   async processMessageByMode(contactId, text, msg) {
-    const currentMode = this.getCurrentMode(contactId);
+    const currentMode = await this.getCurrentMode(contactId);
     logger.flow(`🔄 Processando mensagem no modo ${currentMode} para ${contactId}`);
     if (!currentMode) {
       await this.sendResponse(contactId, MENU_MESSAGE);

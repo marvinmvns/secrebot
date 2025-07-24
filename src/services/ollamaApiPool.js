@@ -445,6 +445,70 @@ class OllamaAPIPool {
     }
   }
 
+  async chatWithSpecificEndpoint(endpointUrl, options = {}) {
+    // Encontra o cliente específico pelo URL
+    const client = this.clients.find(c => c.baseURL === endpointUrl);
+    
+    if (!client) {
+      throw new Error(`Endpoint ${endpointUrl} não encontrado no pool`);
+    }
+    
+    // Verifica se o cliente está saudável (isHealthy é uma propriedade, não método)
+    if (!client.isHealthy || client.retryCount >= client.endpoint.maxRetries) {
+      throw new Error(`Endpoint ${endpointUrl} não está saudável (health: ${client.isHealthy}, retries: ${client.retryCount}/${client.endpoint.maxRetries})`);
+    }
+    
+    const startTime = Date.now();
+    try {
+      logger.info(`🎯 Chat direto: Usando endpoint específico ${endpointUrl}`);
+      const result = await client.chat(options);
+      
+      const duration = Date.now() - startTime;
+      logger.success(`✅ Chat direto: Sucesso via ${endpointUrl} em ${duration}ms`);
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logger.error(`❌ Chat direto: Falha via ${endpointUrl} após ${duration}ms:`, error);
+      throw error;
+    }
+  }
+
+  async chatWithSpecificEndpointAndModel(endpointUrl, model, options = {}) {
+    // Encontra o cliente específico pelo URL
+    const client = this.clients.find(c => c.baseURL === endpointUrl);
+    
+    if (!client) {
+      throw new Error(`Endpoint ${endpointUrl} não encontrado no pool`);
+    }
+    
+    // Verifica se o cliente está saudável
+    if (!client.isHealthy || client.retryCount >= client.endpoint.maxRetries) {
+      throw new Error(`Endpoint ${endpointUrl} não está saudável (health: ${client.isHealthy}, retries: ${client.retryCount}/${client.endpoint.maxRetries})`);
+    }
+    
+    const startTime = Date.now();
+    try {
+      logger.info(`🎯 Chat direto: Usando endpoint específico ${endpointUrl} com modelo ${model}`);
+      
+      // Define o modelo específico no options
+      const chatOptions = {
+        model: model,
+        stream: false,
+        ...options
+      };
+      
+      const result = await client.chat(chatOptions);
+      
+      const duration = Date.now() - startTime;
+      logger.success(`✅ Chat direto: Sucesso via ${endpointUrl} com modelo ${model} em ${duration}ms`);
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logger.error(`❌ Chat direto: Falha via ${endpointUrl} com modelo ${model} após ${duration}ms:`, error);
+      throw error;
+    }
+  }
+
   // ============ Model Management Methods ============
   async listModels() {
     try {

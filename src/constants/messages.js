@@ -199,6 +199,20 @@ Envie um arquivo (PDF, DOCX, TXT) ou cole o texto aqui.
 
 Para sair, digite ${COMMANDS.VOLTAR}`,
 
+  [CHAT_MODES.RESUMIR_VIDEO]: `🎥 *Modo Resumo de Vídeo Ativado!*
+Envie o link do vídeo do YouTube que deseja resumir.
+
+_Exemplo: https://www.youtube.com/watch?v=abc123_
+
+Para sair, digite ${COMMANDS.VOLTAR}`,
+
+  [CHAT_MODES.RESUMIR_VIDEO2]: `🎬 *Modo Resumo de Vídeo v2 Ativado!*
+Envie o link do vídeo do YouTube para um resumo mais detalhado.
+
+_Exemplo: https://www.youtube.com/watch?v=abc123_
+
+Para sair, digite ${COMMANDS.VOLTAR}`,
+
   [CHAT_MODES.TROCAR_MODELO]: `🤖 *Troca de Modelo de IA*
 Digite o número do modelo que deseja usar.
 

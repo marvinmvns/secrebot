@@ -1,12 +1,810 @@
-<h2>Chat com Assistente</h2>
-<form action="/chat" method="POST">
-  <div class="mb-3">
-    <textarea name="message" class="form-control" rows="4" placeholder="Digite sua pergunta"><%= message %></textarea>
+<style>
+.whatsapp-chat {
+  max-width: 900px;
+  margin: 0 auto;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.chat-header {
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(10px);
+  padding: 20px;
+  border-radius: 15px 15px 0 0;
+  color: white;
+  text-align: center;
+}
+
+.chat-config {
+  background: rgba(255,255,255,0.95);
+  padding: 20px;
+  border-radius: 10px;
+  margin: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.whatsapp-input-area {
+  background: rgba(255,255,255,0.98);
+  padding: 20px;
+  border-radius: 0 0 15px 15px;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+}
+
+.message-input-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f1f2f6;
+  border-radius: 25px;
+  padding: 8px 12px;
+  border: 2px solid #e0e6ed;
+  transition: all 0.3s ease;
+}
+
+.message-input-container:focus-within {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.message-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 12px 16px;
+  font-size: 16px;
+  resize: none;
+  outline: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.whatsapp-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  font-size: 18px;
+}
+
+.btn-audio {
+  background: #25d366;
+  color: white;
+}
+
+.btn-audio:hover {
+  background: #20c157;
+  transform: scale(1.05);
+}
+
+.btn-audio.recording {
+  background: #ff4757;
+  animation: pulse 1.5s infinite;
+}
+
+.btn-send {
+  background: #667eea;
+  color: white;
+}
+
+.btn-send:hover {
+  background: #5a6fd8;
+  transform: scale(1.05);
+}
+
+.btn-attach {
+  background: #54a3ff;
+  color: white;
+}
+
+.btn-attach:hover {
+  background: #4593e8;
+  transform: scale(1.05);
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+.config-section {
+  background: white;
+  border-radius: 12px;
+  padding: 15px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.config-row {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.config-item {
+  flex: 1;
+}
+
+.config-label {
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 5px;
+  font-size: 14px;
+}
+
+.modern-select {
+  border: 2px solid #e0e6ed;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: white;
+  transition: all 0.3s ease;
+  font-size: 14px;
+}
+
+.modern-select:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  outline: none;
+}
+
+.status-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.status-online { background: #25d366; }
+.status-offline { background: #ff4757; }
+
+.recording-indicator {
+  background: rgba(255, 71, 87, 0.1);
+  border: 1px solid #ff4757;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 10px;
+  display: none;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.chat-messages {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 20px;
+  background: rgba(255,255,255,0.05);
+  margin: 20px;
+  border-radius: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.message-bubble {
+  max-width: 80%;
+  padding: 12px 16px;
+  border-radius: 18px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.4;
+  word-wrap: break-word;
+  animation: slideIn 0.3s ease;
+}
+
+.message-user {
+  align-self: flex-end;
+  background: #667eea;
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.message-assistant {
+  align-self: flex-start;
+  background: white;
+  color: #333;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.message-meta {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-top: 4px;
+  text-align: right;
+}
+
+.message-assistant .message-meta {
+  text-align: left;
+}
+
+.endpoint-info {
+  font-size: 10px;
+  background: rgba(102, 126, 234, 0.1);
+  padding: 2px 6px;
+  border-radius: 8px;
+  display: inline-block;
+  margin-top: 2px;
+}
+
+.message-assistant .endpoint-info {
+  background: rgba(0,0,0,0.05);
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-empty {
+  text-align: center;
+  color: rgba(255,255,255,0.7);
+  font-style: italic;
+  padding: 40px 20px;
+}
+
+.typing-indicator {
+  align-self: flex-start;
+  background: white;
+  border-radius: 18px;
+  border-bottom-left-radius: 4px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  display: none;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.typing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ccc;
+  animation: typing 1.4s infinite;
+}
+
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-10px); }
+}
+</style>
+
+<div class="whatsapp-chat">
+  <div class="chat-header">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <h2 style="margin: 0; font-weight: 300;">
+          <i class="fas fa-robot" style="margin-right: 10px;"></i>
+          Chat com Assistente IA
+        </h2>
+        <p style="margin: 5px 0 0 0; opacity: 0.8; font-size: 14px;">Escolha o endpoint e modelo para conversar</p>
+      </div>
+      <button type="button" id="clear-chat-btn" class="btn btn-sm" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; border-radius: 20px; padding: 8px 16px;" title="Limpar conversa">
+        <i class="fas fa-trash" style="margin-right: 5px;"></i>
+        Limpar
+      </button>
+    </div>
   </div>
-  <button type="submit" class="btn btn-primary">Enviar</button>
-</form>
-<% if (result) { %>
-  <h3 class="mt-4">Resposta</h3>
-  <pre class="result"><%= result %></pre>
-<% } %>
+
+  <div class="chat-config">
+    <div class="config-section">
+      <div class="config-row">
+        <div class="config-item">
+          <div class="config-label">
+            <i class="fas fa-server" style="margin-right: 5px;"></i>
+            Endpoint Ollama
+          </div>
+          <select id="endpoint-selector" class="modern-select" disabled>
+            <option value="">Carregando endpoints...</option>
+          </select>
+        </div>
+        <div class="config-item">
+          <div class="config-label">
+            <i class="fas fa-brain" style="margin-right: 5px;"></i>
+            Modelo IA
+          </div>
+          <select id="model-selector" class="modern-select" disabled>
+            <option value="">Selecione um endpoint primeiro</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat Messages Area -->
+  <div class="chat-messages" id="chat-messages">
+    <div class="chat-empty" id="chat-empty">
+      <i class="fas fa-comments" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
+      <div>Inicie uma conversa escolhendo um endpoint e modelo</div>
+    </div>
+    
+    <!-- Typing Indicator -->
+    <div class="typing-indicator" id="typing-indicator">
+      <div class="typing-dots">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="whatsapp-input-area">
+    <form action="/chat" method="POST" enctype="multipart/form-data" id="chat-form">
+      <input type="hidden" name="endpoint" id="selected-endpoint" value="">
+      <input type="hidden" name="model" id="selected-model" value="">
+      <input type="hidden" name="audioData" id="audio-data" value="">
+      
+      <div class="message-input-container">
+        <textarea name="message" id="message-input" class="message-input" rows="1" placeholder="Digite sua mensagem..."><%= message %></textarea>
+        
+        <input type="file" id="audio-upload" accept="audio/*" style="display: none;" disabled>
+        
+        <div class="action-buttons">
+          <button type="button" id="attach-btn" class="whatsapp-btn btn-attach" title="Anexar arquivo de áudio">
+            <i class="fas fa-paperclip"></i>
+          </button>
+          
+          <button type="button" id="record-btn" class="whatsapp-btn btn-audio" disabled title="Gravar áudio">
+            <i class="fas fa-microphone"></i>
+          </button>
+          
+          <button type="submit" class="whatsapp-btn btn-send" title="Enviar mensagem">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+      
+      <div id="recording-status" class="recording-indicator">
+        <i class="fas fa-microphone-alt" style="margin-right: 8px; color: #ff4757;"></i>
+        <strong>Gravando áudio...</strong> Clique no microfone novamente para parar.
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const endpointSelector = document.getElementById('endpoint-selector');
+  const modelSelector = document.getElementById('model-selector');
+  const recordBtn = document.getElementById('record-btn');
+  const attachBtn = document.getElementById('attach-btn');
+  const audioUpload = document.getElementById('audio-upload');
+  const messageInput = document.getElementById('message-input');
+  const audioDataInput = document.getElementById('audio-data');
+  const selectedEndpointInput = document.getElementById('selected-endpoint');
+  const selectedModelInput = document.getElementById('selected-model');
+  const recordingStatus = document.getElementById('recording-status');
+  const chatMessages = document.getElementById('chat-messages');
+  const chatEmpty = document.getElementById('chat-empty');
+  const typingIndicator = document.getElementById('typing-indicator');
+  const chatForm = document.getElementById('chat-form');
+  const clearChatBtn = document.getElementById('clear-chat-btn');
+  
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let isRecording = false;
+  let chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
+
+  // Funções de Chat
+  function addMessageToChat(message, isUser = false, endpoint = null, model = null) {
+    const messageData = {
+      text: message,
+      isUser: isUser,
+      timestamp: new Date().toISOString(),
+      endpoint: endpoint,
+      model: model
+    };
+    
+    chatHistory.push(messageData);
+    localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+    displayMessage(messageData);
+    scrollToBottom();
+  }
+
+  function displayMessage(messageData) {
+    if (chatEmpty.style.display !== 'none') {
+      chatEmpty.style.display = 'none';
+    }
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message-bubble ${messageData.isUser ? 'message-user' : 'message-assistant'}`;
+    
+    const time = new Date(messageData.timestamp).toLocaleTimeString('pt-BR', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+    
+    let metaInfo = time;
+    if (!messageData.isUser && messageData.endpoint) {
+      const endpointInfo = messageData.model ? `${messageData.endpoint} • ${messageData.model}` : messageData.endpoint;
+      metaInfo = `<div class="endpoint-info">${endpointInfo}</div>${time}`;
+    }
+    
+    messageDiv.innerHTML = `
+      <div style="white-space: pre-wrap;">${messageData.text}</div>
+      <div class="message-meta">${metaInfo}</div>
+    `;
+    
+    // Inserir antes do typing indicator
+    chatMessages.insertBefore(messageDiv, typingIndicator);
+  }
+
+  function scrollToBottom() {
+    setTimeout(() => {
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }, 100);
+  }
+
+  function showTypingIndicator() {
+    typingIndicator.style.display = 'block';
+    scrollToBottom();
+  }
+
+  function hideTypingIndicator() {
+    typingIndicator.style.display = 'none';
+  }
+
+  function loadChatHistory() {
+    chatHistory.forEach(messageData => {
+      displayMessage(messageData);
+    });
+    if (chatHistory.length > 0) {
+      chatEmpty.style.display = 'none';
+    }
+  }
+
+  function clearChat() {
+    chatHistory = [];
+    localStorage.removeItem('chatHistory');
+    chatMessages.innerHTML = `
+      <div class="chat-empty" id="chat-empty">
+        <i class="fas fa-comments" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
+        <div>Inicie uma conversa escolhendo um endpoint e modelo</div>
+      </div>
+      <div class="typing-indicator" id="typing-indicator">
+        <div class="typing-dots">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>
+    `;
+    // Update references after innerHTML change
+    chatEmpty = document.getElementById('chat-empty');
+    typingIndicator = document.getElementById('typing-indicator');
+  }
+
+  // Handle form submission with AJAX
+  async function handleFormSubmit(event) {
+    event.preventDefault();
+    
+    const message = messageInput.value.trim();
+    const audioData = audioDataInput.value;
+    const endpoint = selectedEndpointInput.value;
+    const model = selectedModelInput.value;
+    
+    if (!message && !audioData) {
+      alert('Digite uma mensagem ou grave um áudio');
+      return;
+    }
+    
+    if (!endpoint) {
+      alert('Selecione um endpoint');
+      return;
+    }
+    
+    // Add user message to chat
+    if (message) {
+      addMessageToChat(message, true);
+    } else {
+      addMessageToChat('🎵 Mensagem de áudio', true);
+    }
+    
+    // Clear input
+    messageInput.value = '';
+    audioDataInput.value = '';
+    messageInput.placeholder = 'Digite sua mensagem...';
+    messageInput.style.height = 'auto';
+    
+    // Show typing indicator
+    showTypingIndicator();
+    
+    try {
+      const formData = new FormData();
+      formData.append('message', message);
+      formData.append('endpoint', endpoint);
+      formData.append('model', model);
+      formData.append('audioData', audioData);
+      
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        body: formData
+      });
+      
+      const data = await response.json();
+      
+      hideTypingIndicator();
+      
+      if (data.success) {
+        addMessageToChat(data.result, false, data.usedEndpoint, data.usedModel);
+      } else {
+        addMessageToChat(data.error || 'Erro ao processar resposta', false);
+      }
+      
+    } catch (error) {
+      hideTypingIndicator();
+      addMessageToChat('Erro ao enviar mensagem: ' + error.message, false);
+    }
+  }
+
+  // Carregar endpoints disponíveis
+  async function loadEndpoints() {
+    try {
+      const response = await fetch('/api/ollama-api/status');
+      const data = await response.json();
+      
+      endpointSelector.innerHTML = '<option value="">Selecione um endpoint</option>';
+      
+      if (data.enabled && data.endpoints && data.endpoints.length > 0) {
+        // Mostrar apenas endpoints saudáveis
+        const healthyEndpoints = data.endpoints.filter(ep => ep.healthy);
+        
+        healthyEndpoints.forEach(endpoint => {
+          const option = document.createElement('option');
+          option.value = endpoint.url;
+          option.textContent = `${endpoint.url} (${endpoint.type}) - ${endpoint.currentModel || 'Sem modelo'}`;
+          if (endpoint.processing && endpoint.processing.activeRequests > 0) {
+            option.textContent += ` [${endpoint.processing.activeRequests} req ativas]`;
+          }
+          endpointSelector.appendChild(option);
+        });
+        
+        endpointSelector.disabled = false;
+        
+        // Selecionar o primeiro endpoint por padrão
+        if (healthyEndpoints.length > 0) {
+          endpointSelector.value = healthyEndpoints[0].url;
+          selectedEndpointInput.value = healthyEndpoints[0].url;
+          loadModelsForEndpoint(healthyEndpoints[0].url, healthyEndpoints[0].type);
+        }
+      } else {
+        endpointSelector.innerHTML = '<option value="">Nenhum endpoint disponível</option>';
+      }
+    } catch (error) {
+      console.error('Erro ao carregar endpoints:', error);
+      endpointSelector.innerHTML = '<option value="">Erro ao carregar endpoints</option>';
+    }
+  }
+
+  // Carregar modelos para um endpoint específico
+  async function loadModelsForEndpoint(endpointUrl, endpointType) {
+    if (!endpointUrl) {
+      modelSelector.innerHTML = '<option value="">Selecione um endpoint primeiro</option>';
+      modelSelector.disabled = true;
+      return;
+    }
+
+    try {
+      modelSelector.innerHTML = '<option value="">Carregando modelos...</option>';
+      modelSelector.disabled = true;
+
+      const response = await fetch('/api/ollama-api/endpoint-models', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          url: endpointUrl, 
+          type: endpointType || 'ollama' 
+        })
+      });
+
+      const data = await response.json();
+      
+      modelSelector.innerHTML = '<option value="">Selecione um modelo</option>';
+      
+      if (data.success && data.models && data.models.length > 0) {
+        data.models.forEach(model => {
+          const option = document.createElement('option');
+          const modelName = typeof model === 'string' ? model : model.name || model.model;
+          option.value = modelName;
+          option.textContent = modelName;
+          
+          // Add size info if available
+          if (model.size) {
+            option.textContent += ` (${(model.size / 1024 / 1024 / 1024).toFixed(1)}GB)`;
+          }
+          
+          modelSelector.appendChild(option);
+        });
+        
+        modelSelector.disabled = false;
+        
+        // Selecionar primeiro modelo por padrão
+        if (data.models.length > 0) {
+          const firstModel = typeof data.models[0] === 'string' ? data.models[0] : data.models[0].name || data.models[0].model;
+          modelSelector.value = firstModel;
+          selectedModelInput.value = firstModel;
+        }
+      } else {
+        modelSelector.innerHTML = '<option value="">Nenhum modelo disponível</option>';
+      }
+    } catch (error) {
+      console.error('Erro ao carregar modelos:', error);
+      modelSelector.innerHTML = '<option value="">Erro ao carregar modelos</option>';
+    }
+  }
+
+  // Verificar suporte a áudio
+  async function checkAudioSupport() {
+    try {
+      // Verificar se Whisper API está ativo
+      const response = await fetch('/api/whisper/status');
+      const data = await response.json();
+      
+      if (data.available) {
+        recordBtn.disabled = false;
+        audioUpload.disabled = false;
+        
+        // Verificar suporte a MediaRecorder
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          recordBtn.title = 'Gravar áudio com o microfone';
+        } else {
+          recordBtn.disabled = true;
+          recordBtn.title = 'Navegador não suporta gravação de áudio';
+        }
+      } else {
+        recordBtn.title = 'Whisper API não está disponível';
+        audioUpload.title = 'Whisper API não está disponível';
+      }
+    } catch (error) {
+      console.error('Erro ao verificar suporte a áudio:', error);
+    }
+  }
+
+  // Gravação de áudio
+  recordBtn.addEventListener('click', async function() {
+    if (!isRecording) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        
+        mediaRecorder.ondataavailable = function(event) {
+          audioChunks.push(event.data);
+        };
+        
+        mediaRecorder.onstop = function() {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+          convertAudioToBase64(audioBlob);
+          
+          // Parar o stream
+          stream.getTracks().forEach(track => track.stop());
+        };
+        
+        mediaRecorder.start();
+        isRecording = true;
+        recordBtn.classList.add('recording');
+        recordBtn.innerHTML = '<i class="fas fa-stop"></i>';
+        recordingStatus.style.display = 'block';
+        
+      } catch (error) {
+        console.error('Erro ao acessar microfone:', error);
+        alert('Erro ao acessar o microfone. Verifique as permissões.');
+      }
+    } else {
+      mediaRecorder.stop();
+      isRecording = false;
+      recordBtn.classList.remove('recording');
+      recordBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+      recordingStatus.style.display = 'none';
+    }
+  });
+
+  // Upload de arquivo de áudio
+  audioUpload.addEventListener('change', function(event) {
+    const file = event.target.files[0];
+    if (file) {
+      convertAudioToBase64(file);
+    }
+  });
+
+  // Converter áudio para base64
+  function convertAudioToBase64(audioFile) {
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      const base64Data = event.target.result.split(',')[1];
+      audioDataInput.value = base64Data;
+      messageInput.placeholder = '🎵 Áudio carregado! Clique em enviar para transcrever e processar.';
+      messageInput.value = '';
+    };
+    reader.readAsDataURL(audioFile);
+  }
+
+  // Atualizar endpoint selecionado
+  endpointSelector.addEventListener('change', function() {
+    selectedEndpointInput.value = this.value;
+    if (this.value) {
+      // Encontrar o tipo do endpoint selecionado
+      const selectedOption = this.options[this.selectedIndex];
+      const endpointText = selectedOption.textContent;
+      const type = endpointText.includes('(rkllama)') ? 'rkllama' : 'ollama';
+      loadModelsForEndpoint(this.value, type);
+    } else {
+      modelSelector.innerHTML = '<option value="">Selecione um endpoint primeiro</option>';
+      modelSelector.disabled = true;
+      selectedModelInput.value = '';
+    }
+  });
+
+  // Atualizar modelo selecionado
+  modelSelector.addEventListener('change', function() {
+    selectedModelInput.value = this.value;
+  });
+
+  // Anexar arquivo de áudio
+  attachBtn.addEventListener('click', function() {
+    audioUpload.click();
+  });
+
+  // Auto-resize textarea
+  messageInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  });
+
+  // Form submission
+  chatForm.addEventListener('submit', handleFormSubmit);
+
+  // Enter key to submit (but Shift+Enter for new line)
+  messageInput.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      handleFormSubmit(event);
+    }
+  });
+
+  // Clear chat button
+  clearChatBtn.addEventListener('click', function() {
+    if (confirm('Tem certeza que deseja limpar toda a conversa?')) {
+      clearChat();
+    }
+  });
+
+  // Carregar dados iniciais
+  loadEndpoints();
+  checkAudioSupport();
+  loadChatHistory();
+  
+  // Recarregar endpoints a cada 30 segundos
+  setInterval(loadEndpoints, 30000);
+});
+</script>
 

@@ -8,9 +8,10 @@ import logger from '../utils/logger.js';
 
 // ============ Serviço LLM ============
 class LLMService {
-  constructor(configService = null) {
+  constructor(configService = null, sessionService = null) {
     this.configService = configService;
-    this.contexts = new Map();
+    this.sessionService = sessionService;
+    this.contexts = new Map(); // Cache local para performance
     this.ollamaApiPool = new OllamaAPIPool(configService);
     this.queue = new JobQueue(
       CONFIG.queues.llmConcurrency,
@@ -98,16 +99,37 @@ class LLMService {
            this.ollamaApiPool.hasHealthyEndpoints();
   }
 
-  getContext(contactId, type) {
+  async getContext(contactId, type) {
     const key = `${contactId}_${type}`;
-    if (!this.contexts.has(key)) {
-      this.contexts.set(key, []);
+    
+    // Verifica cache local primeiro
+    if (this.contexts.has(key)) {
+      return this.contexts.get(key);
     }
-    return this.contexts.get(key);
+    
+    // Carrega da sessão persistida se disponível
+    if (this.sessionService) {
+      try {
+        const session = await this.sessionService.getSession(contactId);
+        if (session && session.llmContext && session.llmContext[type]) {
+          const persistedContext = session.llmContext[type];
+          this.contexts.set(key, persistedContext);
+          logger.debug(`💼 Contexto LLM carregado da sessão para ${contactId} modo ${type} (${persistedContext.length} mensagens)`);
+          return persistedContext;
+        }
+      } catch (error) {
+        logger.error(`❌ Erro ao carregar contexto da sessão para ${contactId}:`, error);
+      }
+    }
+    
+    // Cria contexto vazio se não existe
+    const newContext = [];
+    this.contexts.set(key, newContext);
+    return newContext;
   }
 
   async chat(contactId, text, type, systemPrompt, maxRetries = this.timeoutLevels.length) {
-    const context = this.getContext(contactId, type);
+    const context = await this.getContext(contactId, type);
     context.push({ role: 'user', content: text });
     
     // Usa o método estático de Utils para limitar o contexto
@@ -134,6 +156,16 @@ class LLMService {
           : response.message.content;
         
         context.push({ role: 'assistant', content });
+        
+        // Persiste o contexto atualizado na sessão
+        if (this.sessionService) {
+          try {
+            await this.sessionService.saveLLMContext(contactId, type, context);
+          } catch (error) {
+            logger.error(`❌ Erro ao persistir contexto LLM para ${contactId}:`, error);
+          }
+        }
+        
         logger.success(`✅ LLM resposta obtida em tentativa ${attempt + 1} para ${contactId}`);
         return content;
       } catch (err) {
@@ -232,6 +264,80 @@ class LLMService {
     return this.chat(contactId, text, CHAT_MODES.ASSISTANT, PROMPTS.assistant(date));
   }
 
+  async chatWithSpecificEndpoint(contactId, text, endpointUrl) {
+    // Usar endpoint específico para resposta do assistente
+    const date = Utils.getCurrentDateInGMTMinus3().toISOString();
+    const context = await this.getContext(contactId, CHAT_MODES.ASSISTANT);
+    context.push({ role: 'user', content: text });
+    
+    const limitedContext = Utils.limitContext([...context]); 
+    const messages = [{ role: 'system', content: PROMPTS.assistant(date) }, ...limitedContext];
+    
+    try {
+      // Usar o pool de APIs para fazer uma requisição específica ao endpoint
+      const response = await this.ollamaApiPool.chatWithSpecificEndpoint(endpointUrl, {
+        messages: messages
+      });
+      
+      const content = response.message.content;
+      context.push({ role: 'assistant', content });
+      
+      // Persiste o contexto atualizado na sessão
+      if (this.sessionService) {
+        try {
+          await this.sessionService.saveLLMContext(contactId, CHAT_MODES.ASSISTANT, context);
+        } catch (error) {
+          logger.error(`❌ Erro ao persistir contexto LLM para ${contactId}:`, error);
+        }
+      }
+      
+      logger.success(`✅ LLM resposta obtida do endpoint específico ${endpointUrl} para ${contactId}`);
+      return content;
+    } catch (error) {
+      // Remove mensagem do usuário em caso de falha
+      context.pop();
+      logger.error(`❌ Erro no endpoint específico ${endpointUrl} para ${contactId}:`, error);
+      throw error;
+    }
+  }
+
+  async chatWithSpecificEndpointAndModel(contactId, text, endpointUrl, model) {
+    // Usar endpoint específico com modelo específico para resposta do assistente
+    const date = Utils.getCurrentDateInGMTMinus3().toISOString();
+    const context = await this.getContext(contactId, CHAT_MODES.ASSISTANT);
+    context.push({ role: 'user', content: text });
+    
+    const limitedContext = Utils.limitContext([...context]); 
+    const messages = [{ role: 'system', content: PROMPTS.assistant(date) }, ...limitedContext];
+    
+    try {
+      // Usar o pool de APIs para fazer uma requisição específica ao endpoint com modelo específico
+      const response = await this.ollamaApiPool.chatWithSpecificEndpointAndModel(endpointUrl, model, {
+        messages: messages
+      });
+      
+      const content = response.message.content;
+      context.push({ role: 'assistant', content });
+      
+      // Persiste o contexto atualizado na sessão
+      if (this.sessionService) {
+        try {
+          await this.sessionService.saveLLMContext(contactId, CHAT_MODES.ASSISTANT, context);
+        } catch (error) {
+          logger.error(`❌ Erro ao persistir contexto LLM para ${contactId}:`, error);
+        }
+      }
+      
+      logger.success(`✅ LLM resposta obtida do endpoint específico ${endpointUrl} com modelo ${model} para ${contactId}`);
+      return content;
+    } catch (error) {
+      // Remove mensagem do usuário em caso de falha
+      context.pop();
+      logger.error(`❌ Erro no endpoint específico ${endpointUrl} com modelo ${model} para ${contactId}:`, error);
+      throw error;
+    }
+  }
+
   async getAssistantResponseLinkedin(contactId, url, liAt) {
     try {
       const data = await fetchProfileStructured(url, {
@@ -316,9 +422,19 @@ ${structuredText}`;
     return formatted;
   }
 
-  clearContext(contactId, type) {
+  async clearContext(contactId, type) {
     const key = `${contactId}_${type}`;
     this.contexts.delete(key);
+    
+    // Limpa também da sessão persistida
+    if (this.sessionService) {
+      try {
+        await this.sessionService.clearLLMContext(contactId, type);
+        logger.debug(`🧹 Contexto LLM limpo da sessão para ${contactId} modo ${type}`);
+      } catch (error) {
+        logger.error(`❌ Erro ao limpar contexto da sessão para ${contactId}:`, error);
+      }
+    }
   }
 
   // Método para gerar resposta genérica (usado pelo Telegram)

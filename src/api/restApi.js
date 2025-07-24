@@ -482,20 +482,156 @@ class RestAPI {
     // ======== Features via Web ========
 
     this.app.get('/chat', (req, res) => {
-      res.render('chat', { result: null, message: '' });
+      res.render('chat', { result: null, message: '', usedEndpoint: null, usedModel: null });
     });
 
-    this.app.post('/chat', async (req, res) => {
-      const message = req.body.message || '';
-      if (!message.trim()) {
-        return res.render('chat', { result: 'Mensagem vazia.', message });
-      }
+    this.app.post('/chat', upload.single('audio'), async (req, res) => {
+      let message = req.body.message || '';
+      const endpoint = req.body.endpoint || '';
+      const model = req.body.model || '';
+      const audioData = req.body.audioData || '';
+      let usedEndpoint = null;
+      let usedModel = null;
+
       try {
-        const answer = await this.bot.llmService.getAssistantResponse('web', message);
-        res.render('chat', { result: answer, message });
+        // Processar áudio se fornecido
+        if (audioData && !message.trim()) {
+          try {
+            const audioBuffer = Buffer.from(audioData, 'base64');
+            const transcription = await this.bot.transcriber.transcribe(audioBuffer);
+            message = transcription;
+            logger.info(`Áudio transcrito para: ${message.substring(0, 100)}...`);
+          } catch (audioErr) {
+            logger.error('Erro ao transcrever áudio:', audioErr);
+            return res.render('chat', { 
+              result: 'Erro ao transcrever áudio: ' + audioErr.message, 
+              message: '', 
+              usedEndpoint: null,
+              usedModel: null
+            });
+          }
+        }
+
+        if (!message.trim()) {
+          return res.render('chat', { 
+            result: 'Mensagem vazia.', 
+            message, 
+            usedEndpoint: null,
+            usedModel: null
+          });
+        }
+
+        let answer;
+        
+        // Usar endpoint específico se fornecido
+        if (endpoint) {
+          try {
+            // Se modelo específico foi selecionado, usar com endpoint específico
+            if (model) {
+              answer = await this.bot.llmService.chatWithSpecificEndpointAndModel('web', message, endpoint, model);
+              usedModel = model;
+            } else {
+              answer = await this.bot.llmService.chatWithSpecificEndpoint('web', message, endpoint);
+            }
+            usedEndpoint = endpoint;
+            logger.info(`Resposta obtida do endpoint específico: ${endpoint}${model ? ` com modelo: ${model}` : ''}`);
+          } catch (endpointErr) {
+            logger.warn(`Erro no endpoint específico ${endpoint}, usando padrão:`, endpointErr);
+            answer = await this.bot.llmService.getAssistantResponse('web', message);
+            usedEndpoint = 'Padrão (endpoint específico falhou)';
+            usedModel = null;
+          }
+        } else {
+          // Usar endpoint padrão
+          answer = await this.bot.llmService.getAssistantResponse('web', message);
+          usedEndpoint = 'Padrão';
+          usedModel = null;
+        }
+
+        res.render('chat', { result: answer, message, usedEndpoint, usedModel });
       } catch (err) {
         logger.error('Erro em /chat', err);
-        res.render('chat', { result: 'Erro ao processar mensagem.', message });
+        res.render('chat', { 
+          result: 'Erro ao processar mensagem: ' + err.message, 
+          message, 
+          usedEndpoint: null,
+          usedModel: null
+        });
+      }
+    });
+
+    // JSON API endpoint for chat (for AJAX)
+    this.app.post('/api/chat', upload.single('audio'), async (req, res) => {
+      let message = req.body.message || '';
+      const endpoint = req.body.endpoint || '';
+      const model = req.body.model || '';
+      const audioData = req.body.audioData || '';
+      let usedEndpoint = null;
+      let usedModel = null;
+
+      try {
+        // Processar áudio se fornecido
+        if (audioData && !message.trim()) {
+          try {
+            const audioBuffer = Buffer.from(audioData, 'base64');
+            const transcription = await this.bot.transcriber.transcribe(audioBuffer);
+            message = transcription;
+            logger.info(`Áudio transcrito para: ${message.substring(0, 100)}...`);
+          } catch (audioErr) {
+            logger.error('Erro ao transcrever áudio:', audioErr);
+            return res.json({ 
+              success: false,
+              error: 'Erro ao transcrever áudio: ' + audioErr.message
+            });
+          }
+        }
+
+        if (!message.trim()) {
+          return res.json({ 
+            success: false,
+            error: 'Mensagem vazia.'
+          });
+        }
+
+        let answer;
+        
+        // Usar endpoint específico se fornecido
+        if (endpoint) {
+          try {
+            // Se modelo específico foi selecionado, usar com endpoint específico
+            if (model) {
+              answer = await this.bot.llmService.chatWithSpecificEndpointAndModel('web', message, endpoint, model);
+              usedModel = model;
+            } else {
+              answer = await this.bot.llmService.chatWithSpecificEndpoint('web', message, endpoint);
+            }
+            usedEndpoint = endpoint;
+            logger.info(`Resposta obtida do endpoint específico: ${endpoint}${model ? ` com modelo: ${model}` : ''}`);
+          } catch (endpointErr) {
+            logger.warn(`Erro no endpoint específico ${endpoint}, usando padrão:`, endpointErr);
+            answer = await this.bot.llmService.getAssistantResponse('web', message);
+            usedEndpoint = 'Padrão (endpoint específico falhou)';
+            usedModel = null;
+          }
+        } else {
+          // Usar endpoint padrão
+          answer = await this.bot.llmService.getAssistantResponse('web', message);
+          usedEndpoint = 'Padrão';
+          usedModel = null;
+        }
+
+        res.json({ 
+          success: true,
+          result: answer, 
+          usedEndpoint, 
+          usedModel 
+        });
+      } catch (err) {
+        logger.error('Erro em /api/chat', err);
+        res.json({ 
+          success: false,
+          error: 'Erro ao processar mensagem: ' + err.message
+        });
       }
     });
 
@@ -1842,6 +1978,48 @@ class RestAPI {
         res.status(500).json({ 
           error: 'Erro ao obter status do Ollama API',
           details: error.message 
+        });
+      }
+    });
+
+    // API endpoint para status do Whisper
+    this.app.get('/api/whisper/status', async (req, res) => {
+      try {
+        const transcriber = this.bot.transcriber;
+        const available = transcriber && typeof transcriber.transcribe === 'function';
+        
+        let status = {
+          available: available,
+          service: 'Não disponível'
+        };
+
+        if (available) {
+          // Verifica se é AudioTranscriber (que tem pools de API)
+          if (transcriber.whisperApiPool) {
+            const poolStatus = transcriber.whisperApiPool.getPoolStatus();
+            status = {
+              available: poolStatus.enabled && poolStatus.healthyEndpoints > 0,
+              service: 'Whisper API Pool',
+              endpoints: poolStatus.healthyEndpoints,
+              totalEndpoints: poolStatus.totalEndpoints,
+              details: poolStatus
+            };
+          } else {
+            // Transcritor local ou outro tipo
+            status = {
+              available: true,
+              service: 'Transcritor Local'
+            };
+          }
+        }
+
+        res.json(status);
+      } catch (error) {
+        logger.error('Erro ao obter status do Whisper:', error);
+        res.status(500).json({ 
+          error: 'Erro ao obter status do Whisper',
+          details: error.message,
+          available: false
         });
       }
     });

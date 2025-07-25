@@ -246,7 +246,24 @@ class WhisperAPIPool {
     
     // Use balanceamento adequado baseado na estratégia configurada
     const result = await this.transcribeWithLoadBalancing(audioBuffer, filename, options);
-    return result.result.text;
+    
+    // Handle different possible response structures
+    if (result.result && result.result.result && result.result.result.text) {
+      // New API structure: result.result.result.text
+      return result.result.result.text;
+    } else if (result.result && result.result.text) {
+      // Previous structure: result.result.text
+      return result.result.text;
+    } else if (result.result && typeof result.result === 'string') {
+      // String result: result.result
+      return result.result;
+    } else if (result.text) {
+      // Direct text: result.text
+      return result.text;
+    } else {
+      logger.error('❌ Estrutura de resposta inesperada no transcribe:', result);
+      throw new Error('Estrutura de resposta da API inesperada');
+    }
   }
 
   async transcribeWithLoadBalancing(audioBuffer, filename, options = {}) {
@@ -270,7 +287,12 @@ class WhisperAPIPool {
       
       const duration = Date.now() - startTime;
       logger.success(`✅ Transcrição bem-sucedida via ${selectedClient.baseURL} em ${duration}ms`);
-      return result;
+      return {
+        result,
+        endpoint: selectedClient.baseURL,
+        client: selectedClient,
+        duration
+      };
       
     } catch (error) {
       selectedClient.retryCount++;
@@ -299,14 +321,15 @@ class WhisperAPIPool {
 
     for (const client of this.clients) {
       try {
-        const health = await client.getHealth();
+        // These calls update the client's internal state, including modelName
+        await client.getHealth();
         const queueInfo = await client.getQueueEstimate();
         const processingStatus = client.getProcessingStatus();
         
         status.endpoints.push({
           url: client.baseURL,
-          baseURL: client.baseURL, // Add both for compatibility
           healthy: client.isHealthy,
+          model: client.modelName || 'N/A', // Add model name for the frontend
           priority: client.endpoint.priority,
           queueLength: queueInfo.queueLength,
           activeRequests: processingStatus.activeRequests,
@@ -319,8 +342,8 @@ class WhisperAPIPool {
       } catch (error) {
         status.endpoints.push({
           url: client.baseURL,
-          baseURL: client.baseURL, // Add both for compatibility
           healthy: false,
+          model: client.modelName || 'Erro',
           priority: client.endpoint.priority,
           queueLength: 0,
           activeRequests: 0,

@@ -172,6 +172,21 @@ class TelegramIntegrationService {
                     await this.bot.telegram.sendMessage(chatId, `🎤 <b>Transcrição:</b>\n\n${transcription}`, {
                         parse_mode: 'HTML'
                     });
+                    
+                    // Sugerir resumir o áudio após a transcrição
+                    await this.bot.telegram.sendMessage(chatId, `\n💡 <b>Gostaria de resumir este áudio?</b>\n\nDigite <b>1</b> para gerar um resumo ou continue conversando normalmente.`, {
+                        parse_mode: 'HTML'
+                    });
+                    
+                    // Armazenar dados para possível resumo
+                    if (!this.pendingSummarizations) {
+                        this.pendingSummarizations = new Map();
+                    }
+                    this.pendingSummarizations.set(chatId, {
+                        audioBuffer: audioBuffer,
+                        transcription: transcription,
+                        timestamp: Date.now()
+                    });
                 } else {
                     await this.bot.telegram.sendMessage(chatId, 'Não foi possível transcrever o áudio.');
                 }
@@ -183,6 +198,52 @@ class TelegramIntegrationService {
         } catch (error) {
             logger.error('Erro na transcrição Telegram:', error);
             await this.bot.telegram.sendMessage(chatId, 'Erro ao transcrever o áudio.');
+        }
+    }
+
+    async handleSummarizationRequest(chatId) {
+        try {
+            if (!this.pendingSummarizations) {
+                this.pendingSummarizations = new Map();
+            }
+            
+            const pendingData = this.pendingSummarizations.get(chatId);
+            if (!pendingData) {
+                await this.bot.telegram.sendMessage(chatId, 'Não há áudio aguardando para ser resumido.');
+                return false;
+            }
+            
+            // Limpar a solicitação pendente
+            this.pendingSummarizations.delete(chatId);
+            
+            await this.bot.telegram.sendMessage(chatId, '🧠 Gerando resumo do áudio...');
+            
+            // Usar o método transcribeAndSummarize
+            const result = await this.audioTranscriber.transcribeAndSummarize(pendingData.audioBuffer, 'ogg');
+            
+            if (!result || !result.combined) {
+                await this.bot.telegram.sendMessage(chatId, 'Erro ao gerar resumo do áudio.');
+                return false;
+            }
+            
+            // Formatar a mensagem para o Telegram
+            const formattedMessage = result.combined
+                .replace(/\*\*/g, '<b>')
+                .replace(/\*\*/g, '</b>')
+                .replace(/\n---\n/g, '\n\n━━━━━━━━━━━━━━━━━━━\n\n');
+            
+            const chunks = this.splitMessage(formattedMessage);
+            for (const chunk of chunks) {
+                await this.bot.telegram.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
+            }
+            
+            await this.bot.telegram.sendMessage(chatId, '✅ <b>Resumo Concluído!</b>', { parse_mode: 'HTML' });
+            return true;
+            
+        } catch (error) {
+            logger.error('Erro ao processar solicitação de resumo:', error);
+            await this.bot.telegram.sendMessage(chatId, 'Erro ao gerar resumo do áudio.');
+            return false;
         }
     }
 

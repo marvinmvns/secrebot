@@ -428,6 +428,14 @@ class TelegramBotService {
         const userId = ctx.from.id;
         const text = ctx.message.text;
 
+        // Verificar se o usuário está respondendo a uma sugestão de resumo de áudio
+        if (text === '1' && this.integrationService?.pendingSummarizations?.has(chatId)) {
+            const success = await this.integrationService.handleSummarizationRequest(chatId);
+            if (success) {
+                return;
+            }
+        }
+
         const userState = this.userStates.get(userId);
         if (!userState) {
             // Mensagem sem contexto - tratar como chat geral (AI chat sempre habilitado)

@@ -1,12 +1,212 @@
-<h2>Transcrever Vídeo do YouTube</h2>
-<form action="/video" method="POST">
-  <div class="mb-3">
-    <input type="text" name="url" class="form-control" placeholder="Link do vídeo" value="<%= url %>" required>
-  </div>
-  <button type="submit" class="btn btn-primary">Enviar</button>
-</form>
-<% if (result) { %>
-  <h3 class="mt-4">Transcrição</h3>
-  <pre class="result"><%= result %></pre>
-<% } %>
+<style>
+  .video-container {
+    max-width: 900px;
+    margin: 0 auto;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    color: white;
+  }
 
+  .video-header {
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
+    padding: 20px;
+    border-radius: 15px 15px 0 0;
+    text-align: center;
+  }
+
+  .video-main {
+    padding: 20px;
+  }
+
+  .config-section, .result-section {
+    background: rgba(255,255,255,0.95);
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    color: #333;
+  }
+
+  .config-label {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+
+  .modern-input, .modern-select {
+    width: 100%;
+    border: 2px solid #e0e6ed;
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: white;
+    transition: all 0.3s ease;
+    font-size: 14px;
+  }
+
+  .modern-input:focus, .modern-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    outline: none;
+  }
+
+  .video-actions {
+    display: flex;
+    gap: 15px;
+    margin-top: 20px;
+    align-items: center;
+  }
+
+  .whatsapp-btn {
+    height: 48px;
+    border-radius: 24px;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    font-size: 16px;
+    padding: 0 20px;
+    cursor: pointer;
+    background: #25d366;
+    color: white;
+  }
+
+  .whatsapp-btn:hover {
+    opacity: 0.9;
+  }
+
+  .transcription-result, .summary-result {
+    background: #f1f2f6;
+    border-radius: 8px;
+    padding: 15px;
+    min-height: 150px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: #333;
+    border: 1px solid #e0e6ed;
+    overflow-y: auto;
+    max-height: 400px;
+  }
+
+  .status-indicator {
+    font-size: 14px;
+    margin-top: 15px;
+    background: rgba(0,0,0,0.1);
+    padding: 10px 15px;
+    border-radius: 8px;
+    display: none;
+  }
+</style>
+
+<div class="video-container">
+  <div class="video-header">
+    <h2 style="margin: 0; font-weight: 300;">
+      <i class="fab fa-youtube" style="margin-right: 10px;"></i>
+      Resumir Vídeo do YouTube
+    </h2>
+    <p style="margin: 5px 0 0 0; opacity: 0.8; font-size: 14px;">Obtenha a transcrição e um resumo de vídeos do YouTube</p>
+  </div>
+
+  <div class="video-main">
+    <div class="config-section">
+      <div class="config-label">
+        <i class="fas fa-link" style="margin-right: 5px;"></i>
+        Link do Vídeo do YouTube
+      </div>
+      <input type="text" id="video-url" class="modern-input" placeholder="Ex: https://www.youtube.com/watch?v=dQw4w9WgXcQ">
+
+      <div class="config-label" style="margin-top: 15px;">
+        <i class="fas fa-cogs" style="margin-right: 5px;"></i>
+        Método de Transcrição
+      </div>
+      <select id="transcription-method" class="modern-select">
+        <option value="fast">Rápido (API do YouTube)</option>
+        <option value="whisper">Completo (Whisper - mais preciso)</option>
+      </select>
+
+      <div class="video-actions">
+        <button type="button" id="summarize-btn" class="whatsapp-btn">
+          <i class="fas fa-play" style="margin-right: 8px;"></i>
+          Processar Vídeo
+        </button>
+      </div>
+      <div id="status-indicator" class="status-indicator"></div>
+    </div>
+
+    <div class="result-section">
+      <h3 style="margin-top: 0; font-weight: 600;">Transcrição</h3>
+      <div id="transcription-result" class="transcription-result">Aguardando processamento...</div>
+    </div>
+
+    <div class="result-section" style="margin-top: 20px;">
+      <h3 style="margin-top: 0; font-weight: 600;">Resumo</h3>
+      <div id="summary-result" class="summary-result">Aguardando processamento...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const videoUrlInput = document.getElementById('video-url');
+  const transcriptionMethodSelect = document.getElementById('transcription-method');
+  const summarizeBtn = document.getElementById('summarize-btn');
+  const statusIndicator = document.getElementById('status-indicator');
+  const transcriptionResultDiv = document.getElementById('transcription-result');
+  const summaryResultDiv = document.getElementById('summary-result');
+
+  function showStatus(message, type) {
+    statusIndicator.textContent = message;
+    statusIndicator.style.display = 'block';
+    statusIndicator.style.backgroundColor = type === 'error' ? '#ff4757' : (type === 'success' ? '#25d366' : 'rgba(0,0,0,0.1)');
+    statusIndicator.style.color = (type === 'error' || type === 'success') ? 'white' : '#333';
+  }
+
+  summarizeBtn.addEventListener('click', async () => {
+    const url = videoUrlInput.value.trim();
+    const method = transcriptionMethodSelect.value;
+
+    if (!url) {
+      showStatus('Por favor, insira o link do vídeo do YouTube.', 'error');
+      return;
+    }
+
+    transcriptionResultDiv.textContent = 'Processando transcrição...';
+    summaryResultDiv.textContent = 'Gerando resumo...';
+    showStatus('Iniciando processamento do vídeo...', 'info');
+    summarizeBtn.disabled = true;
+
+    try {
+      const response = await fetch('/api/video/summarize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url, method })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        transcriptionResultDiv.textContent = data.transcript;
+        summaryResultDiv.textContent = data.summary;
+        showStatus('Processamento concluído com sucesso!', 'success');
+      } else {
+        transcriptionResultDiv.textContent = 'Erro ao obter transcrição.';
+        summaryResultDiv.textContent = 'Erro ao gerar resumo.';
+        showStatus('Erro: ' + (data.error || 'Ocorreu um erro desconhecido.'), 'error');
+      }
+    } catch (error) {
+      console.error('Erro ao processar vídeo:', error);
+      transcriptionResultDiv.textContent = 'Erro de conexão ou servidor.';
+      summaryResultDiv.textContent = 'Erro de conexão ou servidor.';
+      showStatus('Erro ao processar vídeo: ' + error.message, 'error');
+    } finally {
+      summarizeBtn.disabled = false;
+    }
+  });
+});
+</script>

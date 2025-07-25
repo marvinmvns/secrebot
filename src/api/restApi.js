@@ -636,17 +636,57 @@ class RestAPI {
     });
 
     this.app.get('/transcribe', (req, res) => {
-      res.render('transcribe', { result: null });
+      res.render('transcribe');
     });
 
-    this.app.post('/transcribe', upload.single('audio'), async (req, res) => {
-      if (!req.file) return res.render('transcribe', { result: 'Nenhum arquivo enviado.' });
+    // API for the new transcription UI
+    this.app.post('/api/transcribe', upload.none(), async (req, res) => {
+      const { audioData, endpoint } = req.body;
+
+      if (!audioData) {
+        return res.status(400).json({ success: false, error: 'Nenhum dado de áudio enviado.' });
+      }
+
       try {
-        const text = await this.bot.transcriber.transcribe(req.file.buffer);
-        res.render('transcribe', { result: text });
+        const audioBuffer = Buffer.from(audioData, 'base64');
+        
+        const options = endpoint ? { endpointUrl: endpoint } : {};
+        const text = await this.bot.transcriber.transcribe(audioBuffer, options.inputFormat || 'ogg');
+        
+        res.json({ success: true, transcription: text });
       } catch (err) {
-        logger.error('Erro em /transcribe', err);
-        res.render('transcribe', { result: 'Erro ao transcrever áudio.' });
+        logger.error('Erro em /api/transcribe', err);
+        res.status(500).json({ success: false, error: 'Erro ao transcrever áudio: ' + err.message });
+      }
+    });
+
+    // API for real-time transcription start
+    this.app.post('/api/transcribe/realtime/start', async (req, res) => {
+      try {
+        // Initialize real-time transcription session
+        const sessionId = this.bot.transcriber.startRealtimeTranscription();
+        res.json({ success: true, sessionId });
+      } catch (err) {
+        logger.error('Erro ao iniciar transcrição em tempo real:', err);
+        res.status(500).json({ success: false, error: 'Erro ao iniciar transcrição em tempo real: ' + err.message });
+      }
+    });
+
+    // API for real-time transcription chunk
+    this.app.post('/api/transcribe/realtime/chunk', upload.none(), async (req, res) => {
+      const { sessionId, audioData, isLastChunk } = req.body;
+
+      if (!sessionId || !audioData) {
+        return res.status(400).json({ success: false, error: 'Session ID e dados de áudio são obrigatórios.' });
+      }
+
+      try {
+        const audioBuffer = Buffer.from(audioData, 'base64');
+        const transcription = await this.bot.transcriber.processRealtimeChunk(sessionId, audioBuffer, isLastChunk === 'true');
+        res.json({ success: true, transcription });
+      } catch (err) {
+        logger.error('Erro ao processar chunk de áudio em tempo real:', err);
+        res.status(500).json({ success: false, error: 'Erro ao processar chunk de áudio em tempo real: ' + err.message });
       }
     });
 
@@ -942,6 +982,35 @@ class RestAPI {
       } catch (err) {
         logger.error('Erro em /video', err);
         res.render('video', { result: 'Erro ao processar vídeo.', url });
+      }
+    });
+
+    this.app.post('/api/video/summarize', async (req, res) => {
+      const { url, method } = req.body;
+      if (!url || !url.trim()) {
+        return res.status(400).json({ success: false, error: 'URL do vídeo é obrigatória.' });
+      }
+
+      try {
+        let transcript;
+        if (method === 'whisper') {
+          transcript = await YouTubeService.fetchTranscriptWhisperOnly(url);
+        } else {
+          transcript = await YouTubeService.fetchTranscript(url);
+        }
+
+        if (!transcript || transcript.trim().length === 0) {
+          return res.status(400).json({ success: false, error: 'Não foi possível obter a transcrição do vídeo.' });
+        }
+
+        const truncatedTranscript = transcript.slice(0, 150000); // Truncate for LLM
+        const summaryPrompt = `Resuma em português o texto a seguir em tópicos claros e objetivos, em até 30 linhas:\n\n${truncatedTranscript}`;
+        const summary = await this.bot.llmService.getAssistantResponse('web', summaryPrompt);
+
+        res.json({ success: true, transcript, summary });
+      } catch (err) {
+        logger.error('Erro em /api/video/summarize', err);
+        res.status(500).json({ success: false, error: 'Erro ao processar vídeo: ' + err.message });
       }
     });
 
@@ -1552,6 +1621,50 @@ class RestAPI {
         res.status(500).json({ 
           success: false, 
           error: error.message 
+        });
+      }
+    });
+
+    // === APIs de Status do Sistema ===
+    
+    // Status do OllamaAPIPool para flow builder
+    this.app.get('/api/system/ollama-pool-status', async (req, res) => {
+      try {
+        const llmService = this.bot.llmService;
+        if (!llmService || !llmService.ollamaApiPool) {
+          return res.json({
+            success: true,
+            available: false,
+            message: 'OllamaAPIPool não disponível'
+          });
+        }
+        
+        const pool = llmService.ollamaApiPool;
+        const stats = await pool.getStats();
+        const hasHealthy = pool.hasHealthyEndpoints();
+        
+        res.json({
+          success: true,
+          available: hasHealthy,
+          stats: {
+            totalEndpoints: stats.totalEndpoints,
+            healthyEndpoints: stats.healthyEndpoints,
+            strategy: stats.strategy,
+            mode: stats.mode
+          },
+          endpoints: stats.endpoints.map(ep => ({
+            url: ep.url,
+            type: ep.type,
+            healthy: ep.healthy,
+            priority: ep.priority
+          }))
+        });
+        
+      } catch (error) {
+        logger.error('❌ Erro ao obter status do OllamaAPIPool:', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
         });
       }
     });

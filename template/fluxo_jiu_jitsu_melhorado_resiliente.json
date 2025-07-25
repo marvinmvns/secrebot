@@ -1,0 +1,393 @@
+{
+  "name": "Academia Jiu-Jitsu - Interativo Resiliente",
+  "description": "Fluxo interativo resiliente para atendimento de academia com personalização por nome",
+  "id": "academia-jiu-jitsu-interativo",
+  "alias": "academia-interativa",
+  "version": "3.0",
+  "createdAt": "2025-01-25T00:00:00.000Z",
+  "lastModified": "2025-01-25T00:00:00.000Z",
+  "metadata": {
+    "category": "template",
+    "industry": "fitness",
+    "tags": ["jiu-jitsu", "academia", "atendimento", "interativo", "resiliente", "personalizado"],
+    "author": "Claude Code",
+    "difficulty": "simples",
+    "resilientFeatures": [
+      "Menu principal com nome personalizado",
+      "Todas condições com 2 saídas",
+      "Navegação segura",
+      "Tratamento de timeout",
+      "Personalização por nome"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "start_node",
+      "type": "start",
+      "x": 100,
+      "y": 200,
+      "data": {
+        "trigger": "any",
+        "value": ""
+      }
+    },
+    {
+      "id": "welcome_msg",
+      "type": "message",
+      "x": 300,
+      "y": 200,
+      "data": {
+        "text": "🥋 *Olá! Bem-vindo à nossa Academia de Jiu-Jitsu!*\n\nSou seu assistente virtual e estou aqui para ajudá-lo.\n\n*Para personalizar o atendimento, digite seu nome:*",
+        "delay": 1,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "menu_personalizado",
+      "type": "message", 
+      "x": 500,
+      "y": 200,
+      "data": {
+        "text": "Prazer em conhecê-lo, {{userInput}}! 😊\n\n🥋 *MENU PRINCIPAL - ACADEMIA JIU-JITSU*\n\n*Escolha uma opção:*\n\n1️⃣ 📋 Modalidades e horários\n2️⃣ 💰 Preços e planos\n3️⃣ 🎁 Aula experimental GRÁTIS\n4️⃣ 📍 Localização e contato\n5️⃣ 💪 Benefícios do Jiu-Jitsu\n6️⃣ 👨‍🏫 Falar com instrutor\n\n*Digite o número da opção (1-6):*\n\n💡 *Navegação:*\n🔄 \"CONTINUAR\" - Prosseguir\n🏠 \"MENU\" - Voltar aqui\n🎁 \"EXPERIMENTAL\" - Aula grátis\n📞 \"CONTATO\" - Atendente",
+        "delay": 1,
+        "waitForInput": true,
+        "inputTimeout": 120,
+        "isMainMenu": true
+      }
+    },
+    {
+      "id": "condition_opcao_1",
+      "type": "condition",
+      "x": 700,
+      "y": 100,
+      "data": {
+        "condition": "contains",
+        "variable": "userInput",
+        "value": "1"
+      }
+    },
+    {
+      "id": "modalidades_info",
+      "type": "message",
+      "x": 900,
+      "y": 50,
+      "data": {
+        "text": "🥋 *MODALIDADES DISPONÍVEIS:*\n\n🔥 *JIU-JITSU TRADICIONAL (Gi)*\n• Arte marcial completa com kimono\n• Técnicas de solo e em pé\n• Autodefesa e disciplina\n• Todas as idades\n\n⚡ *NO-GI (Submission Wrestling)*\n• Luta sem kimono\n• Foco em velocidade e atletismo\n• Técnicas modernas\n\n👶 *KIDS JIU-JITSU (4-12 anos)*\n• Desenvolvimento motor\n• Disciplina e respeito\n• Prevenção bullying\n• Diversão garantida!\n\n🏆 *COMPETIÇÃO*\n• Treinamento específico\n• Preparação para campeonatos\n• Técnicas avançadas\n\n⏰ *HORÁRIOS:*\n• Segunda a Sexta: 6h, 18h, 19h, 20h\n• Sábado: 9h, 10h\n\n🔄 Digite \"CONTINUAR\" para mais opções\n🏠 Digite \"MENU\" para menu principal\n🎁 Digite \"EXPERIMENTAL\" para aula grátis",
+        "delay": 2,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "condition_opcao_2",
+      "type": "condition",
+      "x": 700,
+      "y": 200,
+      "data": {
+        "condition": "contains",
+        "variable": "userInput",
+        "value": "2"
+      }
+    },
+    {
+      "id": "precos_info",
+      "type": "message",
+      "x": 900,
+      "y": 150,
+      "data": {
+        "text": "💰 *NOSSOS PLANOS:*\n\n📦 *PLANO BÁSICO - R$ 120/mês*\n• 2x por semana\n• Jiu-Jitsu Gi OU No-Gi\n• Acesso vestiário\n\n🚀 *PLANO ILIMITADO - R$ 180/mês*\n• Todos os dias da semana\n• TODAS as modalidades\n• Acesso completo\n• Desconto em seminários\n\n👨‍👩‍👧‍👦 *PLANO FAMÍLIA - R$ 280/mês*\n• Para 2 pessoas\n• Todas as modalidades\n• Melhor custo-benefício\n\n🎓 *PLANO ESTUDANTE - R$ 90/mês*\n• Com comprovante de matrícula\n• 2x por semana\n\n🆓 *PRIMEIRA AULA GRÁTIS!*\n\n💳 Cartão, PIX, Dinheiro\n📊 Parcelamento em até 12x\n\n🔄 Digite \"CONTINUAR\" para mais opções\n🏠 Digite \"MENU\" para menu principal\n🎁 Digite \"EXPERIMENTAL\" para aula grátis",
+        "delay": 2,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "condition_opcao_3",
+      "type": "condition",
+      "x": 700,
+      "y": 300,
+      "data": {
+        "condition": "contains",
+        "variable": "userInput",
+        "value": "3"
+      }
+    },
+    {
+      "id": "experimental_info",
+      "type": "message",
+      "x": 900,
+      "y": 250,
+      "data": {
+        "text": "🎉 *AULA EXPERIMENTAL GRÁTIS!*\n\n✅ *O que está incluso:*\n• Aula completa de 1h\n• Kimono emprestado (se necessário)\n• Avaliação com instrutor\n• Apresentação da academia\n• Sem compromisso!\n\n📅 *Horários disponíveis:*\n• Segunda a Sexta: 6h, 7h, 18h, 19h, 20h\n• Sábado: 9h, 10h, 11h\n\n📋 *Para agendar, me informe:*\n• Telefone para contato\n• Idade\n• Experiência anterior (se houver)\n• Melhor dia e horário\n\n*Digite seus dados para agendamento:*",
+        "delay": 2,
+        "waitForInput": true,
+        "inputTimeout": 300
+      }
+    },
+    {
+      "id": "agendamento_confirmado",
+      "type": "message",
+      "x": 1100,
+      "y": 250,
+      "data": {
+        "text": "🎉 *Perfeito! Agendamento registrado!*\n\n📝 *Dados coletados:*\n{{userInput}}\n\n📞 *Próximos passos:*\n1. Nosso instrutor entrará em contato em até 2 horas\n2. Confirmaremos horário disponível\n3. Enviaremos localização e orientações\n4. Você virá fazer sua aula GRÁTIS!\n\n💡 *Dicas importantes:*\n• Venha com roupa confortável\n• Traga uma toalha\n• Chegue 15 min antes\n• Muita vontade de aprender!\n\n🔄 Digite \"CONTINUAR\" para mais opções\n🏠 Digite \"MENU\" para menu principal\n📞 Digite \"CONTATO\" para falar conosco",
+        "delay": 2,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "condition_opcao_4",
+      "type": "condition",
+      "x": 700,
+      "y": 400,
+      "data": {
+        "condition": "contains",
+        "variable": "userInput",
+        "value": "4"
+      }
+    },
+    {
+      "id": "localizacao_info",
+      "type": "message",
+      "x": 900,
+      "y": 350,
+      "data": {
+        "text": "📍 *NOSSA LOCALIZAÇÃO:*\n\n🏢 *Endereço:*\nRua das Artes Marciais, 123\nCentro - Sua Cidade/SP\nCEP: 12345-678\n\n🚗 *Como chegar:*\n• 2 quadras do metrô Central\n• Estacionamento GRATUITO\n• Próximo ao Shopping Center\n\n⏰ *HORÁRIOS:*\n• Segunda a Sexta: 6h às 22h\n• Sábado: 8h às 16h\n• Domingo: Fechado\n\n📞 *CONTATOS:*\n• WhatsApp: (11) 99999-9999\n• Instagram: @academia_jiujitsu\n• Email: contato@academia.com\n\n🔄 Digite \"CONTINUAR\" para mais opções\n🏠 Digite \"MENU\" para menu principal\n🎁 Digite \"EXPERIMENTAL\" para aula grátis",
+        "delay": 2,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "condition_opcao_5",
+      "type": "condition",
+      "x": 700,
+      "y": 500,
+      "data": {
+        "condition": "contains",
+        "variable": "userInput",
+        "value": "5"
+      }
+    },
+    {
+      "id": "beneficios_info",
+      "type": "message",
+      "x": 900,
+      "y": 450,
+      "data": {
+        "text": "💪 *BENEFÍCIOS INCRÍVEIS DO JIU-JITSU:*\n\n🧠 *MENTAL:*\n• Reduz stress e ansiedade\n• Aumenta autoestima\n• Desenvolve disciplina\n• Melhora foco\n\n💪 *FÍSICO:*\n• Queima até 600 calorias/aula\n• Fortalece corpo todo\n• Melhora flexibilidade\n• Condicionamento cardiovascular\n\n🛡️ *AUTODEFESA:*\n• Técnicas eficazes\n• Confiança pessoal\n• Defesa real\n\n👥 *SOCIAL:*\n• Amizades verdadeiras\n• Senso de comunidade\n• Respeito mútuo\n• Família Jiu-Jitsu\n\n🎯 *Em 3 meses você sentirá transformações incríveis!*\n\n🔄 Digite \"CONTINUAR\" para mais opções\n🏠 Digite \"MENU\" para menu principal\n🎁 Digite \"EXPERIMENTAL\" para começar",
+        "delay": 3,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "condition_opcao_6",
+      "type": "condition",
+      "x": 700,
+      "y": 600,
+      "data": {
+        "condition": "contains",
+        "variable": "userInput",
+        "value": "6"
+      }
+    },
+    {
+      "id": "llm_instrutor",
+      "type": "llm",
+      "x": 900,
+      "y": 550,
+      "data": {
+        "model": "default",
+        "prompt": "Você é o Professor João Silva, faixa preta de jiu-jitsu. O usuário quer falar com o instrutor. Use o nome dele que está em {{userName}} se disponível. Responda como instrutor experiente, amigável e motivador. Fale sobre sua experiência, metodologia e como pode ajudar. Seja pessoal e incentive a prática. Ofereça aula experimental. Mantenha entre 100-150 palavras.",
+        "context": true,
+        "timeout": 20,
+        "outputVariable": "instrutorResponse",
+        "errorMessage": "Desculpe, o instrutor está em aula. Tente novamente ou agende uma conversa presencial!",
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "msg_opcao_invalida",
+      "type": "message",
+      "x": 500,
+      "y": 600,
+      "data": {
+        "text": "🤖 *Opção não reconhecida*\n\nPor favor, escolha uma opção válida:\n\n*Números:* 1, 2, 3, 4, 5 ou 6\n\n*Ou comandos:*\n🔄 \"CONTINUAR\" - Prosseguir\n🏠 \"MENU\" - Menu principal\n🎁 \"EXPERIMENTAL\" - Aula grátis\n📞 \"CONTATO\" - Atendente\n\n*Exemplo:* Digite *1* para modalidades\n\n*Digite sua escolha:*",
+        "delay": 1,
+        "waitForInput": true,
+        "inputTimeout": 60
+      }
+    },
+    {
+      "id": "msg_navegacao",
+      "type": "message",
+      "x": 1100,
+      "y": 400,
+      "data": {
+        "text": "🤖 *Como posso ajudar mais?*\n\n*Escolha uma opção:*\n\n1️⃣ Modalidades e horários\n2️⃣ Preços e planos\n3️⃣ Aula experimental GRÁTIS\n4️⃣ Localização e contato\n5️⃣ Benefícios do Jiu-Jitsu\n6️⃣ Falar com instrutor\n\n*Ou use:*\n🔄 \"CONTINUAR\" - Continuar\n🏠 \"MENU\" - Menu principal\n🎁 \"EXPERIMENTAL\" - Aula grátis\n📞 \"CONTATO\" - Atendente\n\n*Digite sua escolha:*",
+        "delay": 1,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn_start_welcome",
+      "from": "start_node",
+      "to": "welcome_msg"
+    },
+    {
+      "id": "conn_welcome_menu",
+      "from": "welcome_msg",
+      "to": "menu_personalizado"
+    },
+    {
+      "id": "conn_menu_opcao1",
+      "from": "menu_personalizado",
+      "to": "condition_opcao_1"
+    },
+    {
+      "id": "conn_opcao1_true",
+      "from": "condition_opcao_1",
+      "to": "modalidades_info"
+    },
+    {
+      "id": "conn_opcao1_false",
+      "from": "condition_opcao_1",
+      "to": "condition_opcao_2"
+    },
+    {
+      "id": "conn_opcao2_true",
+      "from": "condition_opcao_2",
+      "to": "precos_info"
+    },
+    {
+      "id": "conn_opcao2_false",
+      "from": "condition_opcao_2",
+      "to": "condition_opcao_3"
+    },
+    {
+      "id": "conn_opcao3_true",
+      "from": "condition_opcao_3",
+      "to": "experimental_info"
+    },
+    {
+      "id": "conn_opcao3_false",
+      "from": "condition_opcao_3",
+      "to": "condition_opcao_4"
+    },
+    {
+      "id": "conn_experimental_agendamento",
+      "from": "experimental_info",
+      "to": "agendamento_confirmado"
+    },
+    {
+      "id": "conn_opcao4_true",
+      "from": "condition_opcao_4",
+      "to": "localizacao_info"
+    },
+    {
+      "id": "conn_opcao4_false",
+      "from": "condition_opcao_4",
+      "to": "condition_opcao_5"
+    },
+    {
+      "id": "conn_opcao5_true",
+      "from": "condition_opcao_5",
+      "to": "beneficios_info"
+    },
+    {
+      "id": "conn_opcao5_false",
+      "from": "condition_opcao_5",
+      "to": "condition_opcao_6"
+    },
+    {
+      "id": "conn_opcao6_true",
+      "from": "condition_opcao_6",
+      "to": "llm_instrutor"
+    },
+    {
+      "id": "conn_opcao6_false",
+      "from": "condition_opcao_6",
+      "to": "msg_opcao_invalida"
+    },
+    {
+      "id": "conn_modalidades_nav",
+      "from": "modalidades_info",
+      "to": "msg_navegacao"
+    },
+    {
+      "id": "conn_precos_nav",
+      "from": "precos_info",
+      "to": "msg_navegacao"
+    },
+    {
+      "id": "conn_agendamento_nav",
+      "from": "agendamento_confirmado",
+      "to": "msg_navegacao"
+    },
+    {
+      "id": "conn_localizacao_nav",
+      "from": "localizacao_info",
+      "to": "msg_navegacao"
+    },
+    {
+      "id": "conn_beneficios_nav",
+      "from": "beneficios_info",
+      "to": "msg_navegacao"
+    },
+    {
+      "id": "conn_llm_nav",
+      "from": "llm_instrutor",
+      "to": "msg_navegacao"
+    },
+    {
+      "id": "conn_navegacao_menu",
+      "from": "msg_navegacao",
+      "to": "menu_personalizado"
+    },
+    {
+      "id": "conn_invalida_menu",
+      "from": "msg_opcao_invalida",
+      "to": "menu_personalizado"
+    }
+  ],
+  "templateInstructions": {
+    "personalizedFeatures": {
+      "title": "Funcionalidades de Personalização",
+      "features": [
+        "✅ Coleta nome do usuário no início",
+        "✅ Menu personalizado com nome do usuário",
+        "✅ Variável {{userInput}} disponível para usar o nome",
+        "✅ Conversação mais humana e pessoal",
+        "✅ LLM instrutor usa nome do usuário quando disponível"
+      ]
+    },
+    "resilientFeatures": {
+      "title": "Características de Resiliência",
+      "features": [
+        "✅ Menu principal com isMainMenu: true",
+        "✅ Todas condições têm 2 saídas",
+        "✅ Navegação por botões",
+        "✅ Timeout 20min em LLM",
+        "✅ Tratamento opções inválidas",
+        "✅ Estrutura circular resiliente"
+      ]
+    },
+    "setup": {
+      "title": "Configuração Personalizada",
+      "steps": [
+        "1. Importe no flow builder",
+        "2. Personalize dados da academia",
+        "3. Configure integração LLM",
+        "4. Teste personalização por nome",
+        "5. Valide resiliência do flow",
+        "6. Ajuste mensagens conforme necessário"
+      ]
+    }
+  }
+}

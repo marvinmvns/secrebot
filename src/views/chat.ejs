@@ -134,6 +134,7 @@
 
 .config-item {
   flex: 1;
+  min-width: 0;
 }
 
 .config-label {
@@ -150,6 +151,7 @@
   background: white;
   transition: all 0.3s ease;
   font-size: 14px;
+  width: 100%;
 }
 
 .modern-select:focus {
@@ -344,6 +346,12 @@
       <div>Inicie uma conversa escolhendo um endpoint e modelo</div>
     </div>
     
+    <!-- Real-time Transcription Display -->
+    <div id="realtime-transcription-display" style="display: none; background: #e0f7fa; padding: 10px; border-radius: 8px; margin-bottom: 10px; color: #00796b; font-style: italic;">
+      <i class="fas fa-microphone-alt-slash" style="margin-right: 5px;"></i>
+      <span id="realtime-transcription-text"></span>
+    </div>
+
     <!-- Typing Indicator -->
     <div class="typing-indicator" id="typing-indicator">
       <div class="typing-dots">
@@ -373,6 +381,9 @@
           <button type="button" id="record-btn" class="whatsapp-btn btn-audio" disabled title="Gravar áudio">
             <i class="fas fa-microphone"></i>
           </button>
+          <button type="button" id="realtime-record-btn" class="whatsapp-btn btn-audio" disabled title="Gravar áudio em tempo real">
+            <i class="fas fa-microphone-alt"></i>
+          </button>
           
           <button type="submit" class="whatsapp-btn btn-send" title="Enviar mensagem">
             <i class="fas fa-paper-plane"></i>
@@ -394,6 +405,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const endpointSelector = document.getElementById('endpoint-selector');
   const modelSelector = document.getElementById('model-selector');
   const recordBtn = document.getElementById('record-btn');
+  const realtimeRecordBtn = document.getElementById('realtime-record-btn');
   const attachBtn = document.getElementById('attach-btn');
   const audioUpload = document.getElementById('audio-upload');
   const messageInput = document.getElementById('message-input');
@@ -406,11 +418,16 @@ document.addEventListener('DOMContentLoaded', function() {
   const typingIndicator = document.getElementById('typing-indicator');
   const chatForm = document.getElementById('chat-form');
   const clearChatBtn = document.getElementById('clear-chat-btn');
+  const realtimeTranscriptionDisplay = document.getElementById('realtime-transcription-display');
+  const realtimeTranscriptionText = document.getElementById('realtime-transcription-text');
   
   let mediaRecorder = null;
   let audioChunks = [];
   let isRecording = false;
+  let isRealtimeRecording = false;
+  let realtimeSessionId = null;
   let chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
+  let realtimeInterval = null;
 
   // Funções de Chat
   function addMessageToChat(message, isUser = false, endpoint = null, model = null) {
@@ -488,6 +505,10 @@ document.addEventListener('DOMContentLoaded', function() {
         <i class="fas fa-comments" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
         <div>Inicie uma conversa escolhendo um endpoint e modelo</div>
       </div>
+      <div id="realtime-transcription-display" style="display: none; background: #e0f7fa; padding: 10px; border-radius: 8px; margin-bottom: 10px; color: #00796b; font-style: italic;">
+        <i class="fas fa-microphone-alt-slash" style="margin-right: 5px;"></i>
+        <span id="realtime-transcription-text"></span>
+      </div>
       <div class="typing-indicator" id="typing-indicator">
         <div class="typing-dots">
           <div class="typing-dot"></div>
@@ -499,6 +520,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update references after innerHTML change
     chatEmpty = document.getElementById('chat-empty');
     typingIndicator = document.getElementById('typing-indicator');
+    realtimeTranscriptionDisplay = document.getElementById('realtime-transcription-display');
+    realtimeTranscriptionText = document.getElementById('realtime-transcription-text');
   }
 
   // Handle form submission with AJAX
@@ -671,17 +694,22 @@ document.addEventListener('DOMContentLoaded', function() {
       
       if (data.available) {
         recordBtn.disabled = false;
+        realtimeRecordBtn.disabled = false;
         audioUpload.disabled = false;
         
         // Verificar suporte a MediaRecorder
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
           recordBtn.title = 'Gravar áudio com o microfone';
+          realtimeRecordBtn.title = 'Gravar áudio em tempo real com o microfone';
         } else {
           recordBtn.disabled = true;
+          realtimeRecordBtn.disabled = true;
           recordBtn.title = 'Navegador não suporta gravação de áudio';
+          realtimeRecordBtn.title = 'Navegador não suporta gravação de áudio';
         }
       } else {
         recordBtn.title = 'Whisper API não está disponível';
+        realtimeRecordBtn.title = 'Whisper API não está disponível';
         audioUpload.title = 'Whisper API não está disponível';
       }
     } catch (error) {
@@ -689,7 +717,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // Gravação de áudio
+  // Gravação de áudio (botão normal)
   recordBtn.addEventListener('click', async function() {
     if (!isRecording) {
       try {
@@ -727,6 +755,104 @@ document.addEventListener('DOMContentLoaded', function() {
       recordingStatus.style.display = 'none';
     }
   });
+
+  // Gravação de áudio em tempo real
+  realtimeRecordBtn.addEventListener('click', async function() {
+    if (!isRealtimeRecording) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' }); // Use webm for streaming
+        audioChunks = [];
+        
+        // Start real-time session on backend
+        const startResponse = await fetch('/api/transcribe/realtime/start', { method: 'POST' });
+        const startData = await startResponse.json();
+        if (!startData.success) throw new Error(startData.error);
+        realtimeSessionId = startData.sessionId;
+
+        mediaRecorder.ondataavailable = function(event) {
+          audioChunks.push(event.data);
+        };
+        
+        mediaRecorder.onstop = async function() {
+          // Send remaining chunks as last chunk
+          if (audioChunks.length > 0) {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            const base64Data = await blobToBase64(audioBlob);
+            await sendRealtimeChunk(base64Data, true);
+          }
+          
+          // Stop the stream
+          stream.getTracks().forEach(track => track.stop());
+          clearInterval(realtimeInterval);
+          realtimeTranscriptionDisplay.style.display = 'none';
+          realtimeTranscriptionText.textContent = '';
+          addMessageToChat(`🎤 Transcrição em tempo real finalizada: ${messageInput.value}`, true);
+          messageInput.value = '';
+        };
+        
+        mediaRecorder.start(1000); // Capture 1-second chunks
+        isRealtimeRecording = true;
+        realtimeRecordBtn.classList.add('recording');
+        realtimeRecordBtn.innerHTML = '<i class="fas fa-stop"></i>';
+        recordingStatus.style.display = 'block';
+        realtimeTranscriptionDisplay.style.display = 'block';
+        realtimeTranscriptionText.textContent = 'Iniciando transcrição...';
+
+        realtimeInterval = setInterval(async () => {
+          if (audioChunks.length > 0) {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            audioChunks = []; // Clear chunks after sending
+            const base64Data = await blobToBase64(audioBlob);
+            const transcription = await sendRealtimeChunk(base64Data, false);
+            if (transcription) {
+              realtimeTranscriptionText.textContent = transcription;
+              messageInput.value = transcription; // Update message input with current transcription
+            }
+          }
+        }, 2000); // Send chunks every 2 seconds
+        
+      } catch (error) {
+        console.error('Erro ao acessar microfone para tempo real:', error);
+        alert('Erro ao acessar o microfone. Verifique as permissões.');
+      }
+    } else {
+      mediaRecorder.stop();
+      isRealtimeRecording = false;
+      realtimeRecordBtn.classList.remove('recording');
+      realtimeRecordBtn.innerHTML = '<i class="fas fa-microphone-alt"></i>';
+      recordingStatus.style.display = 'none';
+    }
+  });
+
+  async function sendRealtimeChunk(base64Data, isLastChunk) {
+    try {
+      const response = await fetch('/api/transcribe/realtime/chunk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: realtimeSessionId,
+          audioData: base64Data,
+          isLastChunk: isLastChunk
+        })
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error);
+      return data.transcription;
+    } catch (error) {
+      console.error('Erro ao enviar chunk em tempo real:', error);
+      return '';
+    }
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
 
   // Upload de arquivo de áudio
   audioUpload.addEventListener('change', function(event) {

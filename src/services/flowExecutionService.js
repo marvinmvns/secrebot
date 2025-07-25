@@ -174,6 +174,7 @@ class FlowExecutionService {
             nodes: new Map(),
             connections: new Map(),
             startNodes: [],
+            menuNodes: [],
             metadata: flowData.metadata || {}
         };
 
@@ -190,6 +191,17 @@ class FlowExecutionService {
             if (node.type === 'start') {
                 processedFlow.startNodes.push(node.id);
             }
+            
+            // Detectar nós que representam menu principal do flow
+            if (node.data && (
+                node.data.isMainMenu || 
+                node.data.menuType === 'main' ||
+                (node.data.text && node.data.text.toLowerCase().includes('menu principal')) ||
+                (node.data.text && node.data.text.match(/\d+[\.]\s*[\w\s]+.*\n.*\d+[\.]\s*[\w\s]+/)) // Pattern para menu numerado
+            )) {
+                processedFlow.menuNodes.push(node.id);
+                logger.debug(`🏠 Nó de menu principal detectado: ${node.id} (${node.type})`);
+            }
         });
 
         // Processar conexões
@@ -204,6 +216,8 @@ class FlowExecutionService {
                 processedFlow.connections.set(connection.id, connection);
             }
         });
+
+        logger.info(`📋 Flow processado: ${processedFlow.menuNodes.length} nós de menu principal encontrados`);
 
         return processedFlow;
     }
@@ -365,6 +379,47 @@ class FlowExecutionService {
 
         // Retornar primeiro nó de início se nenhum específico for encontrado
         return startNodes[0] || null;
+    }
+
+    /**
+     * Encontra o nó do menu principal do flow
+     * @param {Object} flow - Fluxo processado
+     * @returns {Object|null} Nó do menu principal
+     */
+    findMainMenuNode(flow) {
+        // Se há nós de menu identificados, usar o primeiro
+        if (flow.menuNodes && flow.menuNodes.length > 0) {
+            const menuNode = flow.nodes.get(flow.menuNodes[0]);
+            logger.debug(`🏠 Menu principal encontrado: ${menuNode.id} (${menuNode.type})`);
+            return menuNode;
+        }
+        
+        // Procurar por nós de mensagem que parecem ser menu principal
+        for (const [nodeId, node] of flow.nodes) {
+            if (node.type === 'message' && node.data && node.data.text) {
+                const text = node.data.text.toLowerCase();
+                
+                // Verificar padrões de menu
+                if (text.includes('menu principal') || 
+                    text.includes('escolha uma opção') ||
+                    text.includes('selecione:') ||
+                    text.match(/\d+[\.]\s*[\w\s]+.*\n.*\d+[\.]\s*[\w\s]+/)) {
+                    
+                    logger.debug(`🏠 Menu principal detectado por padrão: ${nodeId}`);
+                    return node;
+                }
+            }
+        }
+        
+        // Como fallback, usar o primeiro nó de início
+        if (flow.startNodes && flow.startNodes.length > 0) {
+            const startNode = flow.nodes.get(flow.startNodes[0]);
+            logger.warn(`🏠 Usando nó de início como menu principal: ${startNode.id}`);
+            return startNode;
+        }
+        
+        logger.warn(`🏠 Nenhum nó de menu principal encontrado no flow`);
+        return null;
     }
 
     /**
@@ -609,7 +664,22 @@ class FlowExecutionService {
         // Verificar se o próximo nó existe
         if (!nextNodeId) {
             logger.warn(`⚠️ Nó ${node.id} não tem saída para índice ${nextNodeIndex} (condição=${conditionMet}). Outputs: [${node.outputs.join(', ')}]`);
-            return { end: true }; // Finalizar execução se não há próximo nó
+            
+            // NUNCA finalizar automaticamente - orientar usuário e aguardar
+            await this.sendWhatsAppMessage(
+                executionState.userId, 
+                `🤖 *Ops, parece que você se perdeu no fluxo!*\n\n` +
+                `💡 *Opções disponíveis:*\n` +
+                `🔄 Digite "CONTINUAR" para prosseguir\n` +
+                `🏠 Digite "MENU" para voltar ao menu\n` +
+                `🎁 Digite "EXPERIMENTAL" para agendar aula\n` +
+                `📞 Digite "CONTATO" para falar com atendente\n\n` +
+                `🛑 Para sair: !flow stop`
+            );
+            
+            // Manter flow ativo aguardando entrada válida
+            executionState.waitingForInput = true;
+            return { wait: true };
         }
 
         // Log para debugging
@@ -662,7 +732,7 @@ class FlowExecutionService {
     }
 
     /**
-     * Executa nó de LLM com error handling robusto
+     * Executa nó de LLM com error handling robusto e balanceamento inteligente
      */
     async executeLlmNode(executionState, node) {
         try {
@@ -717,8 +787,27 @@ class FlowExecutionService {
             this.llmProcessing.add(executionState.userId);
             
             try {
-                // Chamar LLM sem timeout - permite tempo ilimitado para resposta
-                logger.info(`⏳ LLM em processamento para usuário ${executionState.userId} - aguardando resposta...`);
+                // Verificar se deve usar balanceamento (configuração do nó + disponibilidade)
+                const ollamaApiPool = this.llmService.ollamaApiPool;
+                const balancerEnabled = node.data.useBalancer !== false; // Padrão é true
+                const poolAvailable = ollamaApiPool && ollamaApiPool.hasHealthyEndpoints();
+                const useBalancer = balancerEnabled && poolAvailable;
+                
+                if (balancerEnabled && !poolAvailable) {
+                    logger.warn(`⚠️ Balanceamento solicitado mas OllamaAPIPool não disponível - usando LLMService padrão`);
+                } else if (!balancerEnabled) {
+                    logger.info(`🔒 Balanceamento desabilitado pelo nó - usando LLMService padrão`);
+                } else if (useBalancer) {
+                    logger.info(`⚖️ Usando OllamaAPIPool para balanceamento de carga (${ollamaApiPool.getHealthyClients().length} endpoints saudáveis)`);
+                } else {
+                    logger.info(`🏠 Usando LLMService padrão`);
+                }
+                
+                // Chamar LLM com timeout de 20 minutos configurável
+                const timeoutMinutes = node.data.timeout || 20;
+                const timeoutMs = timeoutMinutes * 60 * 1000;
+                
+                logger.info(`⏳ LLM em processamento para usuário ${executionState.userId} - aguardando resposta (timeout: ${timeoutMinutes}min)...`);
                 
                 // Enviar mensagem de status se não for sessão de teste e demorar mais que 5 segundos
                 const statusTimeout = setTimeout(async () => {
@@ -730,7 +819,24 @@ class FlowExecutionService {
                     }
                 }, 5000);
                 
-                const response = await this.llmService.getAssistantResponse(executionState.userId, prompt);
+                // Timeout configurável para resposta LLM
+                const llmTimeout = new Promise((_, reject) => {
+                    setTimeout(() => {
+                        reject(new Error('LLM_TIMEOUT_20MIN'));
+                    }, timeoutMs);
+                });
+                
+                // Usar método baseado na configuração e disponibilidade
+                let llmResponse;
+                if (useBalancer) {
+                    // Usar OllamaAPIPool para balanceamento
+                    llmResponse = this.callLlmWithBalancer(executionState.userId, prompt, node.data.model);
+                } else {
+                    // Usar método tradicional
+                    llmResponse = this.llmService.getAssistantResponse(executionState.userId, prompt);
+                }
+                
+                const response = await Promise.race([llmResponse, llmTimeout]);
                 
                 clearTimeout(statusTimeout);
                 logger.info(`🤖 Resposta LLM recebida (usuário: ${executionState.userId}): "${response.substring(0, 100)}..."`);
@@ -775,7 +881,55 @@ class FlowExecutionService {
                 });
             }
             
-            // Em vez de parar o flow, enviar mensagem de erro e continuar
+            // Tratamento especial para timeout de 20 minutos
+            if (error.message === 'LLM_TIMEOUT_20MIN') {
+                logger.warn(`⏰ Timeout LLM (20min) para usuário ${executionState.userId} - redirecionando para menu principal do flow`);
+                
+                const flow = this.loadedFlows.get(executionState.flowId);
+                const mainMenuNode = this.findMainMenuNode(flow);
+                
+                if (mainMenuNode) {
+                    // Redirecionar diretamente para o menu principal do flow
+                    logger.info(`🏠 Redirecionando para menu principal do flow após timeout: ${mainMenuNode.id}`);
+                    
+                    await this.sendWhatsAppMessage(
+                        executionState.userId, 
+                        `⏰ *Timeout da Consulta*\n\n` +
+                        `Sua solicitação demorou mais que o esperado (20 minutos).\n\n` +
+                        `🏠 *Retornando ao Menu Principal do Fluxo...*`
+                    );
+                    
+                    // Limpar flags de entrada e redirecionar
+                    executionState.waitingForInput = false;
+                    executionState.currentNodeId = mainMenuNode.id;
+                    executionState.variables.set('llmTimeout', true);
+                    
+                    // Executar o nó do menu principal
+                    await this.executeNode(executionState, mainMenuNode);
+                    return { nextNodeId: mainMenuNode.id };
+                } else {
+                    // Fallback para menu genérico se não encontrou menu principal
+                    await this.sendWhatsAppMessage(
+                        executionState.userId, 
+                        `⏰ *Timeout da Consulta*\n\n` +
+                        `Sua solicitação demorou mais que o esperado (20 minutos).\n\n` +
+                        `🏠 *Retornando ao Menu Principal:*\n\n` +
+                        `🔄 Digite "CONTINUAR" para prosseguir\n` +
+                        `🏠 Digite "MENU" para menu principal\n` +
+                        `🎁 Digite "EXPERIMENTAL" para agendar aula\n` +
+                        `📞 Digite "CONTATO" para falar com atendente\n\n` +
+                        `🛑 Para sair: !flow stop`
+                    );
+                    
+                    // Aguardar entrada do usuário
+                    executionState.variables.set('llmTimeout', true);
+                    executionState.waitingForInput = true;
+                    
+                    return { wait: true };
+                }
+            }
+            
+            // Para outros erros, enviar mensagem de erro e continuar
             const errorMessage = node.data.errorMessage || 'Desculpe, houve um problema ao processar sua solicitação. Vamos continuar...';
             await this.sendWhatsAppMessage(executionState.userId, errorMessage);
             
@@ -786,8 +940,62 @@ class FlowExecutionService {
             if (node.outputs && node.outputs.length > 0) {
                 return { nextNodeId: node.outputs[0] };
             } else {
-                return { end: true };
+                // NUNCA finalizar flow - aguardar entrada
+                executionState.waitingForInput = true;
+                return { wait: true };
             }
+        }
+    }
+
+    /**
+     * Chama LLM usando OllamaAPIPool para balanceamento de carga
+     */
+    async callLlmWithBalancer(userId, prompt, model = null) {
+        const ollamaApiPool = this.llmService.ollamaApiPool;
+        
+        try {
+            // Log de estatísticas do pool
+            const poolStats = await ollamaApiPool.getStats();
+            logger.debug(`📊 Pool stats: ${poolStats.healthyEndpoints}/${poolStats.totalEndpoints} endpoints saudáveis`);
+            
+            // Opções para a requisição
+            const options = {
+                model: model || this.llmService.lastUsedModel || 'llama3.2:latest',
+                messages: [
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ],
+                options: {
+                    temperature: 0.7,
+                    num_predict: 1000
+                }
+            };
+            
+            // Usar chatWithFallback para balanceamento automático
+            const result = await ollamaApiPool.chatWithFallback(options);
+            
+            // Extrair texto da resposta
+            let response = '';
+            if (result && result.message && result.message.content) {
+                response = result.message.content;
+            } else if (result && typeof result === 'string') {
+                response = result;
+            } else {
+                logger.warn(`⚠️ Formato de resposta inesperado do OllamaAPIPool:`, result);
+                response = 'Desculpe, houve um problema ao processar sua solicitação.';
+            }
+            
+            logger.info(`⚖️ Resposta obtida via OllamaAPIPool para usuário ${userId}`);
+            return response;
+            
+        } catch (error) {
+            logger.error(`❌ Erro no OllamaAPIPool para usuário ${userId}: ${error.message}`);
+            
+            // Fallback para LLMService tradicional
+            logger.info(`🔄 Fazendo fallback para LLMService tradicional...`);
+            return await this.llmService.getAssistantResponse(userId, prompt);
         }
     }
 
@@ -880,8 +1088,22 @@ class FlowExecutionService {
         const nextNode = flow.nodes.get(nextNodeId);
 
         if (!nextNode) {
-            logger.warn(`Nó ${nextNodeId} não encontrado, finalizando execução`);
-            await this.endFlowExecution(executionState.userId);
+            logger.warn(`⚠️ Nó ${nextNodeId} não encontrado - orientando usuário`);
+            
+            // NUNCA finalizar automaticamente - orientar usuário
+            await this.sendWhatsAppMessage(
+                executionState.userId, 
+                `🤖 *Ops, parece que houve um problema na navegação!*\n\n` +
+                `💡 *Opções para continuar:*\n` +
+                `🔄 Digite "CONTINUAR" para tentar prosseguir\n` +
+                `🏠 Digite "MENU" para voltar ao menu principal\n` +
+                `🎁 Digite "EXPERIMENTAL" para agendar aula grátis\n` +
+                `📞 Digite "CONTATO" para falar com atendente\n\n` +
+                `🛑 Para sair: !flow stop`
+            );
+            
+            // Aguardar entrada do usuário
+            executionState.waitingForInput = true;
             return;
         }
 
@@ -891,6 +1113,58 @@ class FlowExecutionService {
         if (!executionState.waitingForInput) {
             await this.executeNode(executionState, nextNode);
         }
+    }
+
+    /**
+     * Verifica se uma mensagem é um botão de menu que deve continuar o flow
+     */
+    isMenuButtonMessage(message) {
+        const menuButtons = [
+            '🔄 CONTINUAR',
+            'CONTINUAR',
+            'PROSSEGUIR',
+            'PRÓXIMO',
+            'PROXIMO',
+            '🏠 MENU',
+            'MENU',
+            'VOLTAR',
+            'INICIO',
+            'INÍCIO',
+            '🎁 EXPERIMENTAL',
+            'EXPERIMENTAL',
+            'AULA',
+            'GRATIS',
+            'GRÁTIS',
+            'AGENDAR',
+            '📞 CONTATO',
+            'CONTATO',
+            'ATENDENTE',
+            'HUMANO',
+            'FALAR'
+        ];
+        
+        const cleanMessage = message.trim().toUpperCase();
+        
+        // Verificação exata
+        if (menuButtons.includes(cleanMessage)) {
+            return true;
+        }
+        
+        // Verificação por palavras-chave
+        const keywords = {
+            'CONTINUAR': ['CONTINUAR', 'PROSSEGUIR', 'PRÓXIMO', 'PROXIMO', 'SEGUIR'],
+            'MENU': ['MENU', 'VOLTAR', 'INICIO', 'INÍCIO', 'PRINCIPAL'],
+            'EXPERIMENTAL': ['EXPERIMENTAL', 'AULA', 'GRATIS', 'GRÁTIS', 'AGENDAR', 'TESTE'],
+            'CONTATO': ['CONTATO', 'ATENDENTE', 'HUMANO', 'FALAR', 'CONVERSAR']
+        };
+        
+        for (const [category, words] of Object.entries(keywords)) {
+            if (words.some(word => cleanMessage.includes(word))) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     /**
@@ -904,7 +1178,10 @@ class FlowExecutionService {
             return false; // Não há fluxo ativo
         }
 
-        if (!executionState.waitingForInput) {
+        // Verificar se é uma mensagem de botão/menu que deve continuar o flow
+        const isMenuButton = this.isMenuButtonMessage(message);
+        
+        if (!executionState.waitingForInput && !isMenuButton) {
             logger.debug(`❌ Fluxo ativo para ${userId} mas não aguardando entrada (waitingForInput: ${executionState.waitingForInput})`);
             return false; // Fluxo não está aguardando entrada
         }
@@ -917,24 +1194,138 @@ class FlowExecutionService {
             executionState.inputTimeout = null;
         }
 
-        // Salvar entrada como variável
-        const currentNode = this.getCurrentNode(executionState);
-        const variableName = currentNode.data.variable || currentNode.data.inputVariable || 'userInput';
-        executionState.variables.set(variableName, message);
-        
-        logger.info(`💾 Entrada salva como variável '${variableName}': "${message}"`);
+        // Se for um botão de menu, tratar de forma especial
+        if (isMenuButton) {
+            const cleanMessage = message.trim().toUpperCase();
+            
+            if (cleanMessage.includes('CONTINUAR')) {
+                // Para "CONTINUAR", simplesmente continuar o flow sem salvar a mensagem como entrada
+                logger.info(`🔄 Botão CONTINUAR pressionado - continuando flow`);
+                
+                // Não aguardar mais entrada
+                executionState.waitingForInput = false;
+                
+                // Continuar para próximo nó se existir
+                const currentNode = this.getCurrentNode(executionState);
+                if (currentNode && currentNode.outputs.length > 0) {
+                    executionState.currentNodeId = currentNode.outputs[0];
+                    const flow = this.loadedFlows.get(executionState.flowId);
+                    const nextNode = flow.nodes.get(currentNode.outputs[0]);
+                    if (nextNode) {
+                        await this.executeNode(executionState, nextNode);
+                    }
+                }
+                return true;
+                
+            } else if (cleanMessage.includes('MENU')) {
+                // Para "MENU", redirecionar para o menu principal do flow
+                logger.info(`🏠 Botão MENU pressionado - redirecionando para menu principal do flow`);
+                
+                const flow = this.loadedFlows.get(executionState.flowId);
+                const mainMenuNode = this.findMainMenuNode(flow);
+                
+                if (mainMenuNode) {
+                    // Redirecionar diretamente para o menu principal
+                    logger.info(`🏠 Redirecionando para menu principal: ${mainMenuNode.id}`);
+                    
+                    // Limpar flags de entrada
+                    executionState.waitingForInput = false;
+                    
+                    // Mover para o nó do menu principal
+                    executionState.currentNodeId = mainMenuNode.id;
+                    
+                    // Executar o nó do menu principal
+                    await this.executeNode(executionState, mainMenuNode);
+                    return true;
+                } else {
+                    // Se não encontrou menu principal, tratar como escolha normal
+                    logger.warn(`🏠 Menu principal não encontrado - tratando como escolha normal`);
+                    
+                    // Verificar qual variável o nó atual está esperando
+                    const currentNode = this.getCurrentNode(executionState);
+                    if (currentNode && currentNode.outputs && currentNode.outputs.length > 0) {
+                        const nextNode = flow.nodes.get(currentNode.outputs[0]);
+                        
+                        if (nextNode && nextNode.type === 'condition' && nextNode.data.variable) {
+                            // Salvar na variável que a condição está esperando
+                            logger.debug(`🔧 Salvando MENU na variável esperada: ${nextNode.data.variable}`);
+                            executionState.variables.set(nextNode.data.variable, 'MENU');
+                        }
+                    }
+                    
+                    // Também salvar nas variáveis padrão
+                    executionState.variables.set('userChoice', 'MENU');
+                    executionState.variables.set('menuChoice', 'VOLTAR_MENU');
+                }
+                
+            } else if (cleanMessage.includes('EXPERIMENTAL')) {
+                // Para "EXPERIMENTAL", salvar como escolha experimental
+                logger.info(`🎁 Botão EXPERIMENTAL pressionado - agendando aula grátis`);
+                
+                // Verificar qual variável o nó atual está esperando
+                const currentNode = this.getCurrentNode(executionState);
+                if (currentNode && currentNode.outputs && currentNode.outputs.length > 0) {
+                    const flow = this.loadedFlows.get(executionState.flowId);
+                    const nextNode = flow.nodes.get(currentNode.outputs[0]);
+                    
+                    if (nextNode && nextNode.type === 'condition' && nextNode.data.variable) {
+                        logger.debug(`🔧 Salvando EXPERIMENTAL na variável esperada: ${nextNode.data.variable}`);
+                        executionState.variables.set(nextNode.data.variable, 'EXPERIMENTAL');
+                    }
+                }
+                
+                executionState.variables.set('userChoice', 'EXPERIMENTAL');
+                executionState.variables.set('experimentalChoice', 'AGENDAR_AULA');
+                
+            } else if (cleanMessage.includes('CONTATO')) {
+                // Para "CONTATO", salvar como escolha de contato
+                logger.info(`📞 Botão CONTATO pressionado - conectando com atendente`);
+                
+                // Verificar qual variável o nó atual está esperando
+                const currentNode = this.getCurrentNode(executionState);
+                if (currentNode && currentNode.outputs && currentNode.outputs.length > 0) {
+                    const flow = this.loadedFlows.get(executionState.flowId);
+                    const nextNode = flow.nodes.get(currentNode.outputs[0]);
+                    
+                    if (nextNode && nextNode.type === 'condition' && nextNode.data.variable) {
+                        logger.debug(`🔧 Salvando CONTATO na variável esperada: ${nextNode.data.variable}`);
+                        executionState.variables.set(nextNode.data.variable, 'CONTATO');
+                    }
+                }
+                
+                executionState.variables.set('userChoice', 'CONTATO');
+                executionState.variables.set('contactChoice', 'ATENDENTE_HUMANO');
+            }
+        } else {
+            // Para entrada normal, salvar como variável
+            const currentNode = this.getCurrentNode(executionState);
+            const variableName = currentNode.data.variable || currentNode.data.inputVariable || 'userInput';
+            executionState.variables.set(variableName, message);
+            logger.info(`💾 Entrada salva como variável '${variableName}': "${message}"`);
+        }
 
         // Continuar execução
         executionState.waitingForInput = false;
         
-        if (currentNode.outputs.length > 0) {
+        const currentNode = this.getCurrentNode(executionState);
+        if (currentNode && currentNode.outputs.length > 0) {
+            logger.debug(`🔄 Movendo para próximo nó: ${currentNode.outputs[0]}`);
             executionState.currentNodeId = currentNode.outputs[0];
             const flow = this.loadedFlows.get(executionState.flowId);
             const nextNode = flow.nodes.get(currentNode.outputs[0]);
             if (nextNode) {
+                logger.debug(`📍 Executando próximo nó: ${nextNode.id} (tipo: ${nextNode.type})`);
                 await this.executeNode(executionState, nextNode);
+            } else {
+                logger.warn(`⚠️ Próximo nó ${currentNode.outputs[0]} não encontrado - flow pode finalizar`);
             }
+        } else {
+            logger.warn(`⚠️ Nó atual não tem outputs - flow pode finalizar. NodeId: ${currentNode?.id}, Outputs: ${currentNode?.outputs}`);
         }
+
+        // Verificar se o flow ainda está ativo após execução
+        const stillActive = this.hasActiveFlow(userId);
+        logger.debug(`🔍 Flow ainda ativo após processamento: ${stillActive}`);
 
         return true;
     }
@@ -1232,12 +1623,6 @@ class FlowExecutionService {
         return recoverableErrors.some(keyword => errorMessage.includes(keyword));
     }
 
-    /**
-     * Verifica se um usuário tem fluxo ativo
-     */
-    hasActiveFlow(userId) {
-        return this.activeFlows.has(userId);
-    }
 
     /**
      * Obtém informações sobre o fluxo ativo do usuário

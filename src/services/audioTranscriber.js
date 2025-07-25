@@ -21,7 +21,58 @@ class AudioTranscriber {
       CONFIG.queues.memoryThresholdGB
     );
     this.whisperApiPool = new WhisperAPIPool(configService);
+    this.realtimeSessions = new Map(); // Stores active real-time transcription sessions
   }
+
+  startRealtimeTranscription() {
+    const sessionId = `rt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.realtimeSessions.set(sessionId, { 
+      audioBuffer: Buffer.alloc(0), 
+      lastTranscription: '',
+      lastChunkTime: Date.now()
+    });
+    logger.info(`🎤 Real-time transcription session started: ${sessionId}`);
+    return sessionId;
+  }
+
+  async processRealtimeChunk(sessionId, audioChunk, isLastChunk = false) {
+    const session = this.realtimeSessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Real-time session ${sessionId} not found.`);
+    }
+
+    if (audioChunk.length === 0) {
+      logger.warn(`⚠️ Received empty audio chunk for session ${sessionId}. Skipping processing.`);
+      return session.lastTranscription; // Return last known transcription
+    }
+
+    session.audioBuffer = Buffer.concat([session.audioBuffer, audioChunk]);
+    session.lastChunkTime = Date.now();
+
+    let currentTranscription = '';
+
+    if (isLastChunk) {
+      logger.info(`🎤 Finalizing real-time transcription for session ${sessionId}. Total buffer size: ${session.audioBuffer.length} bytes.`);
+      currentTranscription = await this.transcribe(session.audioBuffer, 'ogg'); // Assuming ogg for now
+      this.realtimeSessions.delete(sessionId);
+      logger.info(`🎤 Real-time transcription session ${sessionId} ended.`);
+    } else {
+      // For real-time feedback, transcribe the entire accumulated buffer
+      logger.debug(`🎤 Processing real-time chunk for session ${sessionId}. Accumulated buffer size: ${session.audioBuffer.length} bytes.`);
+      try {
+        currentTranscription = await this.transcribe(session.audioBuffer, 'ogg'); 
+      } catch (error) {
+        logger.warn(`⚠️ Error transcribing real-time chunk for session ${sessionId}: ${error.message}`);
+        currentTranscription = session.lastTranscription; 
+      }
+    }
+    session.lastTranscription = currentTranscription;
+    return currentTranscription;
+  }
+
+  // Existing methods follow...
+
+  // ... (rest of the class methods) ...
 
   async getEffectiveWhisperOptions() {
     let mongoConfig = null;
@@ -213,6 +264,41 @@ class AudioTranscriber {
     });
   }
 
+  async transcribeWithEndpointInfo(audioBuffer, inputFormat = 'ogg') {
+    return this.queue.add(async () => {
+      logger.service('🎤 Iniciando transcrição de áudio com informações de endpoint...');
+      
+      // Obter configuração efetiva (MongoDB tem prioridade)
+      const effectiveConfig = await this.getEffectiveConfig();
+      
+      logger.verbose(`📊 Audio buffer details:`, {
+        size: audioBuffer.length,
+        format: inputFormat,
+        sizeInMB: (audioBuffer.length / 1024 / 1024).toFixed(2),
+        timestamp: new Date().toISOString(),
+        mode: effectiveConfig.whisperApi.mode,
+        enabled: effectiveConfig.whisperApi.enabled
+      });
+
+      // Verifica se deve usar API ou modo local usando configuração efetiva
+      if (effectiveConfig.whisperApi.mode === 'api' && effectiveConfig.whisperApi.enabled && await this.whisperApiPool.isEnabled() && this.whisperApiPool.hasHealthyEndpoints()) {
+        logger.info('🌐 Usando modo API para transcrição (configuração do MongoDB)');
+        return await this.transcribeViaAPIWithEndpointInfo(audioBuffer, inputFormat);
+      }
+      
+      logger.info('🏠 Usando modo local para transcrição');
+      const transcription = await this.transcribeLocally(audioBuffer, inputFormat);
+      return {
+        transcription,
+        endpoint: {
+          type: 'local',
+          url: 'Whisper Local (CPU)',
+          mode: 'local'
+        }
+      };
+    });
+  }
+
   /**
    * Remove timestamp lines from Whisper transcription output
    * @param {string} text - The text containing timestamps
@@ -267,6 +353,87 @@ class AudioTranscriber {
       logger.warn('🔄 Todos os endpoints API falharam, tentando modo local como fallback...');
       try {
         return await this.transcribeLocally(audioBuffer, inputFormat);
+      } catch (localError) {
+        logger.error('❌ Fallback local também falhou:', localError.message);
+        throw new Error(`API transcription failed: ${error.message}. Local fallback failed: ${localError.message}`);
+      }
+    }
+  }
+
+  async transcribeViaAPIWithEndpointInfo(audioBuffer, inputFormat = 'ogg') {
+    try {
+      const timestamp = Date.now();
+      const filename = `audio_${timestamp}.${inputFormat}`;
+      
+      logger.debug(`🌐 Iniciando transcrição via API para arquivo: ${filename}`);
+      
+      // Get effective whisperOptions for API transcription
+      const whisperOptions = await this.getEffectiveWhisperOptions();
+      
+      const options = {
+        language: CONFIG.audio.language,
+        cleanup: true,
+        ...whisperOptions
+      };
+
+      // Use the load balancing method that returns endpoint info
+      const result = await this.whisperApiPool.transcribeWithLoadBalancing(audioBuffer, filename, options);
+      
+      // Handle different possible response structures
+      let transcription;
+      if (result.result && result.result.result && result.result.result.text) {
+        // New API structure: result.result.result.text
+        transcription = result.result.result.text;
+      } else if (result.result && result.result.text) {
+        // Previous structure: result.result.text
+        transcription = result.result.text;
+      } else if (result.result && typeof result.result === 'string') {
+        // String result: result.result
+        transcription = result.result;
+      } else if (result.text) {
+        // Direct text: result.text
+        transcription = result.text;
+      } else if (typeof result.result === 'object' && result.result.transcription) {
+        // Alternative structure: result.result.transcription
+        transcription = result.result.transcription;
+      } else {
+        logger.error('❌ Estrutura de resposta inesperada:', result);
+        throw new Error('Estrutura de resposta da API inesperada');
+      }
+      
+      // Remove timestamps if the option is enabled
+      if (options.removeTimestamps) {
+        logger.debug('🧹 Removendo timestamps da transcrição...');
+        transcription = this.removeTimestampsFromText(transcription);
+      }
+      
+      logger.success('✅ Transcrição via API concluída com sucesso');
+      
+      return {
+        transcription,
+        endpoint: {
+          type: 'api',
+          url: result.endpoint,
+          mode: 'api',
+          duration: result.duration
+        }
+      };
+      
+    } catch (error) {
+      logger.error('❌ Erro na transcrição via API:', error);
+      
+      // Always try local fallback when API fails, regardless of mode
+      logger.warn('🔄 Todos os endpoints API falharam, tentando modo local como fallback...');
+      try {
+        const transcription = await this.transcribeLocally(audioBuffer, inputFormat);
+        return {
+          transcription,
+          endpoint: {
+            type: 'local',
+            url: 'Whisper Local (CPU) - Fallback após falha na API',
+            mode: 'local-fallback'
+          }
+        };
       } catch (localError) {
         logger.error('❌ Fallback local também falhou:', localError.message);
         throw new Error(`API transcription failed: ${error.message}. Local fallback failed: ${localError.message}`);
@@ -443,27 +610,39 @@ Mantenha o resumo conciso mas informativo, destacando os pontos mais importantes
 
   async getWhisperApiStatus() {
     const effectiveConfig = await this.getEffectiveConfig();
-    
-    if (!await this.whisperApiPool.isEnabled()) {
+    const isEnabled = await this.whisperApiPool.isEnabled();
+
+    if (!isEnabled) {
       return {
-        enabled: false,
+        available: false,
         mode: effectiveConfig.whisperApi.mode,
-        message: 'Whisper API não habilitado'
+        message: 'Whisper API não está habilitado na configuração.',
+        clients: []
       };
     }
 
     try {
-      const status = await this.whisperApiPool.getPoolStatus();
+      const poolStatus = await this.whisperApiPool.getPoolStatus();
+      
+      // O frontend espera uma propriedade `clients`
       return {
-        enabled: true,
+        available: true,
         mode: effectiveConfig.whisperApi.mode,
-        ...status
+        clients: poolStatus.endpoints || [], // Mapeia endpoints para clients
+        healthy: poolStatus.healthyEndpoints > 0,
+        stats: {
+          total: poolStatus.totalEndpoints,
+          healthy: poolStatus.healthyEndpoints,
+          unhealthy: poolStatus.totalEndpoints - poolStatus.healthyEndpoints
+        }
       };
     } catch (error) {
+      logger.error('Erro ao obter status do Whisper API Pool:', error);
       return {
-        enabled: true,
+        available: true, // Still enabled, but in error state
         mode: effectiveConfig.whisperApi.mode,
         error: error.message,
+        clients: [],
         healthy: false
       };
     }

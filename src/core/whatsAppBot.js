@@ -724,6 +724,50 @@ class WhatsAppBot {
 
     logger.verbose(`💬 Mensagem de ${contactId}: ${text || '[Mídia]'}`);
 
+    // Verificar se o usuário está respondendo a uma sugestão de resumo de áudio (modo geral)
+    const awaitingSummarization = this.getUserPreference(contactId, 'awaitingSummarizationResponse', null);
+    if (awaitingSummarization && text === '1') {
+      try {
+        // Limpar a preferência primeiro
+        this.setUserPreference(contactId, 'awaitingSummarizationResponse', null);
+        
+        await this.sendResponse(contactId, '🧠 Gerando resumo do áudio...', true);
+        const result = await this.transcriber.transcribeAndSummarize(awaitingSummarization.audioBuffer);
+        await this.sendResponse(contactId, result.combined);
+        await this.sendResponse(contactId, `✅ *Resumo Concluído!*\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`);
+        return;
+      } catch (err) {
+        logger.error(`❌ Erro ao gerar resumo de áudio para ${contactId}`, err);
+        await this.sendErrorMessage(contactId, `❌ Erro ao gerar resumo: ${err.message || 'Tente novamente.'}`);
+        return;
+      }
+    } else if (awaitingSummarization && text !== '1') {
+      // Usuário enviou uma resposta diferente de '1', limpar a sugestão de resumo
+      this.setUserPreference(contactId, 'awaitingSummarizationResponse', null);
+    }
+
+    // Verificar se o usuário está respondendo a uma sugestão de resumo no modo transcrição (3.1)
+    const awaitingTranscriptionSummarization = this.getUserPreference(contactId, 'awaitingTranscriptionSummarization', null);
+    if (awaitingTranscriptionSummarization && text === '1') {
+      try {
+        // Limpar a preferência primeiro
+        this.setUserPreference(contactId, 'awaitingTranscriptionSummarization', null);
+        
+        await this.sendResponse(contactId, '🧠 Gerando resumo da transcrição...', true);
+        const result = await this.transcriber.transcribeAndSummarize(awaitingTranscriptionSummarization.audioBuffer);
+        await this.sendResponse(contactId, result.combined);
+        await this.sendResponse(contactId, `✅ *Resumo da Transcrição Concluído!*\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`);
+        return;
+      } catch (err) {
+        logger.error(`❌ Erro ao gerar resumo da transcrição para ${contactId}`, err);
+        await this.sendErrorMessage(contactId, `❌ Erro ao gerar resumo: ${err.message || 'Tente novamente.'}`);
+        return;
+      }
+    } else if (awaitingTranscriptionSummarization && text !== '1') {
+      // Usuário enviou uma resposta diferente de '1', limpar a sugestão de resumo
+      this.setUserPreference(contactId, 'awaitingTranscriptionSummarization', null);
+    }
+
     // Verificar se o usuário tem fluxo ativo
     if (await this.hasActiveFlow(contactId)) {
       // Comandos específicos para controle de flow
@@ -761,8 +805,21 @@ class WhatsAppBot {
         return;
       }
       
-      // Se não foi processado pelo flow, oferecer opções de navegação
-      await this.sendResponse(contactId, `🤖 *Flow ativo:* ${this.flowExecutionService.getActiveFlowInfo(contactId)?.flowName || 'Desconhecido'}\n\n✨ Opções disponíveis:\n🔄 !flow restart - Reiniciar\n📋 menu - Ver menu principal\n🛑 !flow stop - Encerrar\n\n💭 Ou continue a conversa do flow...`);
+      // Se não foi processado pelo flow, orientar usuário sem sair do flow
+      const flowInfo = this.flowExecutionService.getActiveFlowInfo(contactId);
+      await this.sendResponse(contactId, 
+        `🤖 *Flow Ativo:* ${flowInfo?.flowName || 'Desconhecido'}\n\n` +
+        `❓ *Comando não reconhecido:* "${text}"\n\n` +
+        `💡 *Opções disponíveis:*\n` +
+        `🔄 Digite "CONTINUAR" para prosseguir\n` +
+        `🏠 Digite "MENU" para voltar ao menu\n` +
+        `🎁 Digite "EXPERIMENTAL" para agendar aula\n` +
+        `📞 Digite "CONTATO" para falar com atendente\n\n` +
+        `🔧 *Comandos de controle:*\n` +
+        `🔄 !flow restart - Reiniciar flow\n` +
+        `🛑 !flow stop - Sair do flow\n\n` +
+        `💬 *Ou continue a conversa normalmente...*`
+      );
       return;
     }
 
@@ -2344,15 +2401,37 @@ Use emojis e formatação clara para facilitar a leitura.`;
     const navigationState = await this.getNavigationState(contactId);
     
     try {
-      await this.sendResponse(contactId, '🎤 Transcrevendo áudio...', true);
-      const transcription = await this.transcriber.transcribe(
-        Buffer.from(media.data, 'base64')
-      );
-      logger.service(`📝 Transcrição para ${contactId}: ${transcription}`);
+      //await this.sendResponse(contactId, '🎤 Transcrevendo áudio...', true);
       
       if (currentMode === CHAT_MODES.TRANSCRICAO) {
-        await this.sendResponse(contactId, `📝 *Transcrição:*\n\n${transcription}`);
-        await this.sendResponse(contactId, SUCCESS_MESSAGES.TRANSCRIPTION_COMPLETE);
+        // Use the new method that returns endpoint info
+        const result = await this.transcriber.transcribeWithEndpointInfo(
+          Buffer.from(media.data, 'base64')
+        );
+        
+        logger.service(`📝 Transcrição para ${contactId}: ${result.transcription}`);
+        
+        // Show transcription with endpoint info in the requested format
+        let endpointInfo = '';
+        if (result.endpoint.type === 'api') {
+          // Extract IP from URL and convert duration to seconds
+          const url = new URL(result.endpoint.url);
+          const ip = url.hostname;
+          const durationInSeconds = result.endpoint.duration ? (result.endpoint.duration / 1000).toFixed(2) : '0.00';
+          endpointInfo = `${ip} ${durationInSeconds}s`;
+        } else {
+          endpointInfo = `Local 0.00s`;
+        }
+        
+        await this.sendResponse(contactId, `📝 *Transcrição:*\n\n${result.transcription}`);
+        await this.sendResponse(contactId, `*Informações técnicas:*\n${endpointInfo}\n\n💡 Gostaria de resumir este texto?\nDigite *1* para gerar um resumo ou continue conversando normalmente.`);
+        
+        // Store the transcription for potential summarization
+        this.setUserPreference(contactId, 'awaitingTranscriptionSummarization', {
+          transcription: result.transcription,
+          audioBuffer: Buffer.from(media.data, 'base64'),
+          timestamp: Date.now()
+        });
       } else if (currentMode === CHAT_MODES.TRANSCREVER_RESUMIR) {
         await this.sendResponse(contactId, '🧠 Gerando resumo...', true);
         const result = await this.transcriber.transcribeAndSummarize(
@@ -2361,10 +2440,29 @@ Use emojis e formatação clara para facilitar a leitura.`;
         await this.sendResponse(contactId, result.combined);
         await this.sendResponse(contactId, `✅ *Transcrição e Resumo Concluídos!*\n\n🔙 Para voltar ao menu: ${COMMANDS.VOLTAR}`);
       } else if (currentMode) {
+        // For other modes, use regular transcription
+        const transcription = await this.transcriber.transcribe(
+          Buffer.from(media.data, 'base64')
+        );
+        logger.service(`📝 Transcrição para ${contactId}: ${transcription}`);
         await this.processMessageByMode(contactId, transcription, msg);
       } else {
-        // Processamento de áudio no menu ou submenu
-        await this.processAudioNavigation(msg, contactId, transcription, navigationState);
+        // For general audio without specific mode, use regular transcription
+        const transcription = await this.transcriber.transcribe(
+          Buffer.from(media.data, 'base64')
+        );
+        logger.service(`📝 Transcrição para ${contactId}: ${transcription}`);
+        
+        // Sugerir resumir o áudio após a transcrição
+        await this.sendResponse(contactId, `📝 *Transcrição:*\n\n${transcription}`);
+        await this.sendResponse(contactId, `\n💡 *Gostaria de resumir este áudio?*\n\nDigite *1* para gerar um resumo ou continue conversando normalmente.`);
+        
+        // Aguardar resposta do usuário por um tempo limitado para sugestão de resumo
+        this.setUserPreference(contactId, 'awaitingSummarizationResponse', {
+          transcription: transcription,
+          audioBuffer: Buffer.from(media.data, 'base64'),
+          timestamp: Date.now()
+        });
       }
     } catch (err) {
       logger.error(`❌ Erro no processamento de áudio para ${contactId}`, err);

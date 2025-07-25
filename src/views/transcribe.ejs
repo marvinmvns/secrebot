@@ -1,12 +1,416 @@
-<h2>Transcrever Áudio</h2>
-<form action="/transcribe" method="POST" enctype="multipart/form-data">
-  <div class="mb-3">
-    <input type="file" name="audio" accept="audio/*" class="form-control" required>
-  </div>
-  <button type="submit" class="btn btn-primary">Enviar</button>
-</form>
-<% if (result) { %>
-  <h3 class="mt-4">Resultado</h3>
-  <pre class="result"><%= result %></pre>
-<% } %>
+<style>
+  .transcribe-container {
+    max-width: 900px;
+    margin: 0 auto;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    color: white;
+  }
 
+  .transcribe-header {
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
+    padding: 20px;
+    border-radius: 15px 15px 0 0;
+    text-align: center;
+  }
+
+  .transcribe-main {
+    padding: 20px;
+  }
+
+  .config-section, .transcription-section {
+    background: rgba(255,255,255,0.95);
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    color: #333;
+  }
+
+  .config-label {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+
+  .modern-select {
+    width: 100%;
+    border: 2px solid #e0e6ed;
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: white;
+    transition: all 0.3s ease;
+    font-size: 14px;
+  }
+
+  .modern-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    outline: none;
+  }
+
+  .transcribe-actions {
+    display: flex;
+    gap: 15px;
+    margin-top: 20px;
+    align-items: center;
+  }
+
+  .whatsapp-btn {
+    height: 48px;
+    border-radius: 24px;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    font-size: 16px;
+    padding: 0 20px;
+    cursor: pointer;
+  }
+
+  .btn-record {
+    background: #25d366;
+    color: white;
+  }
+  .btn-record.recording {
+    background: #ff4757;
+    animation: pulse 1.5s infinite;
+  }
+
+  .btn-upload {
+    background: #54a3ff;
+    color: white;
+  }
+
+  .transcription-result {
+    background: #f1f2f6;
+    border-radius: 8px;
+    padding: 15px;
+    min-height: 150px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: #333;
+    border: 1px solid #e0e6ed;
+  }
+
+  .status-indicator {
+    font-size: 14px;
+    margin-top: 15px;
+    background: rgba(0,0,0,0.1);
+    padding: 10px 15px;
+    border-radius: 8px;
+    display: none;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+  }
+</style>
+
+<div class="transcribe-container">
+  <div class="transcribe-header">
+    <h2 style="margin: 0; font-weight: 300;">
+      <i class="fas fa-microphone-alt" style="margin-right: 10px;"></i>
+      Transcrição de Áudio com Whisper
+    </h2>
+    <p style="margin: 5px 0 0 0; opacity: 0.8; font-size: 14px;">Grave áudios ou envie um arquivo para transcrição</p>
+  </div>
+
+  <div class="transcribe-main">
+    <div class="config-section">
+      <div class="config-label">
+        <i class="fas fa-server" style="margin-right: 5px;"></i>
+        Endpoint Whisper API
+      </div>
+      <select id="endpoint-selector" class="modern-select" disabled>
+        <option value="">Carregando endpoints...</option>
+      </select>
+
+      <div class="transcribe-actions">
+        <button type="button" id="record-btn" class="whatsapp-btn btn-record" disabled title="Gravar áudio">
+          <i class="fas fa-microphone" style="margin-right: 8px;"></i>
+          <span id="record-btn-text">Gravar</span>
+        </button>
+        <button type="button" id="realtime-record-btn" class="whatsapp-btn btn-record" disabled title="Gravar áudio em tempo real">
+          <i class="fas fa-microphone-alt" style="margin-right: 8px;"></i>
+          <span id="realtime-record-btn-text">Gravar em Tempo Real</span>
+        </button>
+        <button type="button" id="upload-btn" class="whatsapp-btn btn-upload" disabled title="Enviar arquivo de áudio">
+          <i class="fas fa-upload" style="margin-right: 8px;"></i>
+          Enviar Arquivo
+        </button>
+        <input type="file" id="audio-upload" accept="audio/*" style="display: none;">
+      </div>
+      <div id="status-indicator" class="status-indicator"></div>
+    </div>
+
+    <div class="transcription-section">
+      <h3 style="margin-top: 0; font-weight: 600;">Transcrição</h3>
+      <div id="realtime-transcription-display" class="transcription-result" style="display: none; background: #e0f7fa; color: #00796b; font-style: italic;">
+        <i class="fas fa-microphone-alt-slash" style="margin-right: 5px;"></i>
+        <span id="realtime-transcription-text"></span>
+      </div>
+      <div id="transcription-result" class="transcription-result">Aguardando áudio para transcrever...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const endpointSelector = document.getElementById('endpoint-selector');
+  const recordBtn = document.getElementById('record-btn');
+  const recordBtnText = document.getElementById('record-btn-text');
+  const realtimeRecordBtn = document.getElementById('realtime-record-btn');
+  const realtimeRecordBtnText = document.getElementById('realtime-record-btn-text');
+  const uploadBtn = document.getElementById('upload-btn');
+  const audioUpload = document.getElementById('audio-upload');
+  const statusIndicator = document.getElementById('status-indicator');
+  const transcriptionResult = document.getElementById('transcription-result');
+  const realtimeTranscriptionDisplay = document.getElementById('realtime-transcription-display');
+  const realtimeTranscriptionText = document.getElementById('realtime-transcription-text');
+
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let isRecording = false;
+  let isRealtimeRecording = false;
+  let realtimeSessionId = null;
+  let realtimeInterval = null;
+
+  async function loadWhisperEndpoints() {
+    try {
+      const response = await fetch('/api/whisper-api/status');
+      const data = await response.json();
+      
+      endpointSelector.innerHTML = '<option value="">Seleção automática</option>';
+      
+      if (data && data.clients && Array.isArray(data.clients) && data.clients.length > 0) {
+        let healthyCount = 0;
+        data.clients.forEach(client => {
+          if (client.healthy) {
+            const option = document.createElement('option');
+            option.value = client.url;
+            option.textContent = `${client.url} (${client.model}) - ${client.activeRequests || 0} reqs`;
+            endpointSelector.appendChild(option);
+            healthyCount++;
+          }
+        });
+
+        if (healthyCount > 0) {
+          endpointSelector.disabled = false;
+          recordBtn.disabled = false;
+          realtimeRecordBtn.disabled = false;
+          uploadBtn.disabled = false;
+        } else {
+          endpointSelector.innerHTML = '<option value="">Nenhum endpoint Whisper saudável disponível</option>';
+          showStatus('Nenhum endpoint de transcrição está saudável no momento.', 'error');
+        }
+      } else {
+        endpointSelector.innerHTML = '<option value="">Nenhum endpoint Whisper disponível</option>';
+        showStatus('Funcionalidade de transcrição indisponível.', 'error');
+      }
+    } catch (error) {
+      console.error('Erro ao carregar endpoints Whisper:', error);
+      endpointSelector.innerHTML = '<option value="">Erro ao carregar endpoints</option>';
+      showStatus('Erro ao carregar endpoints de transcrição.', 'error');
+    }
+  }
+
+  async function transcribeAudio(base64Data) {
+    showStatus('Transcrevendo, por favor aguarde...', 'info');
+    realtimeTranscriptionDisplay.style.display = 'none';
+
+    try {
+      const endpointUrl = endpointSelector.value;
+      const formData = new FormData();
+      formData.append('audioData', base64Data);
+      if (endpointUrl) {
+        formData.append('endpoint', endpointUrl);
+      }
+
+      const response = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.transcription) {
+        const timestamp = new Date().toLocaleTimeString();
+        transcriptionResult.textContent += `\n\n[${timestamp}] ${data.transcription}`;
+        transcriptionResult.scrollTop = transcriptionResult.scrollHeight; // Scroll to bottom
+        showStatus('Transcrição concluída com sucesso!', 'success');
+      } else {
+        throw new Error(data.error || 'Falha na transcrição');
+      }
+    } catch (error) {
+      console.error('Erro na transcrição:', error);
+      showStatus(`Erro: ${error.message}`, 'error');
+    }
+  }
+
+  function convertAndTranscribe(audioBlob) {
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      const base64Data = event.target.result.split(',')[1];
+      transcribeAudio(base64Data);
+    };
+    reader.readAsDataURL(audioBlob);
+  }
+
+  recordBtn.addEventListener('click', async () => {
+    if (isRecording) {
+      mediaRecorder.stop();
+      isRecording = false;
+      recordBtn.classList.remove('recording');
+      recordBtnText.textContent = 'Gravar';
+      showStatus('Gravação finalizada. Processando...', 'info');
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          convertAndTranscribe(audioBlob);
+          stream.getTracks().forEach(track => track.stop());
+        };
+        mediaRecorder.start();
+        isRecording = true;
+        recordBtn.classList.add('recording');
+        recordBtnText.textContent = 'Parar';
+        showStatus('Gravando... Fale no microfone.', 'recording');
+      } catch (err) {
+        console.error('Erro ao acessar microfone:', err);
+        showStatus('Não foi possível acessar o microfone. Verifique as permissões.', 'error');
+      }
+    }
+  });
+
+  realtimeRecordBtn.addEventListener('click', async () => {
+    if (isRealtimeRecording) {
+      mediaRecorder.stop();
+      isRealtimeRecording = false;
+      realtimeRecordBtn.classList.remove('recording');
+      realtimeRecordBtnText.textContent = 'Gravar em Tempo Real';
+      showStatus('Gravação em tempo real finalizada.', 'info');
+      clearInterval(realtimeInterval);
+      realtimeTranscriptionText.textContent = '';
+      realtimeTranscriptionDisplay.style.display = 'none';
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        audioChunks = [];
+        
+        const startResponse = await fetch('/api/transcribe/realtime/start', { method: 'POST' });
+        const startData = await startResponse.json();
+        if (!startData.success) throw new Error(startData.error);
+        realtimeSessionId = startData.sessionId;
+
+        mediaRecorder.ondataavailable = function(event) {
+          audioChunks.push(event.data);
+        };
+        
+        mediaRecorder.onstop = async function() {
+          if (audioChunks.length > 0) {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            const base64Data = await blobToBase64(audioBlob);
+            await sendRealtimeChunk(base64Data, true);
+          }
+          stream.getTracks().forEach(track => track.stop());
+          clearInterval(realtimeInterval);
+          realtimeTranscriptionDisplay.style.display = 'none';
+          const finalRealtimeText = realtimeTranscriptionText.textContent;
+          realtimeTranscriptionText.textContent = '';
+          const timestamp = new Date().toLocaleTimeString();
+          transcriptionResult.textContent += `
+
+[${timestamp}] (Tempo Real) ${finalRealtimeText}`;
+          transcriptionResult.scrollTop = transcriptionResult.scrollHeight; // Scroll to bottom
+          showStatus('Transcrição em tempo real concluída.', 'success');
+        };
+        
+        mediaRecorder.start(1000); // Capture 1-second chunks
+        isRealtimeRecording = true;
+        realtimeRecordBtn.classList.add('recording');
+        realtimeRecordBtnText.textContent = 'Parar';
+        showStatus('Gravando em tempo real... Fale no microfone.', 'recording');
+        realtimeTranscriptionDisplay.style.display = 'block';
+        realtimeTranscriptionText.textContent = 'Iniciando transcrição...';
+
+        realtimeInterval = setInterval(async () => {
+          if (audioChunks.length > 0) {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            audioChunks = []; // Clear chunks after sending
+            const base64Data = await blobToBase64(audioBlob);
+            const transcription = await sendRealtimeChunk(base64Data, false);
+            if (transcription) {
+              realtimeTranscriptionText.textContent += transcription + ' ';
+            }
+          }
+        }, 2000); // Send chunks every 2 seconds
+        
+      } catch (err) {
+        console.error('Erro ao acessar microfone para tempo real:', err);
+        showStatus('Não foi possível acessar o microfone para gravação em tempo real. Verifique as permissões.', 'error');
+      }
+    }
+  });
+
+  async function sendRealtimeChunk(base64Data, isLastChunk) {
+    try {
+      const response = await fetch('/api/transcribe/realtime/chunk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: realtimeSessionId,
+          audioData: base64Data,
+          isLastChunk: isLastChunk
+        })
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error);
+      return data.transcription;
+    } catch (error) {
+      console.error('Erro ao enviar chunk em tempo real:', error);
+      showStatus(`Erro ao enviar chunk em tempo real: ${error.message}`, 'error');
+      return '';
+    }
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  uploadBtn.addEventListener('click', () => audioUpload.click());
+
+  audioUpload.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      convertAndTranscribe(file);
+    }
+  });
+
+  function showStatus(message, type) {
+    statusIndicator.textContent = message;
+    statusIndicator.style.display = 'block';
+    statusIndicator.style.backgroundColor = type === 'error' ? '#ff4757' : (type === 'success' ? '#25d366' : 'rgba(0,0,0,0.1)');
+    statusIndicator.style.color = (type === 'error' || type === 'success') ? 'white' : '#333';
+  }
+
+  loadWhisperEndpoints();
+});
+</script>

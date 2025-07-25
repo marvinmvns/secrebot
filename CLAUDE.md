@@ -99,6 +99,11 @@ make all                    # Complete installation (deps + piper + env)
 - Node types: start, message, condition, webhook, llm, delay, variable
 - Flows are executed via WhatsApp commands: `!flow start <alias>`
 - Alias system allows user-friendly names for flows
+- **Templates Directory**: `template/` - Contains pre-built flow templates and examples
+  - Templates are JSON files with complete flow definitions
+  - Can be imported via flow builder interface
+  - Examples include academia, jiu-jitsu, and other business flows
+  - All templates follow resilient design patterns
 
 ## Common Development Tasks
 
@@ -119,6 +124,17 @@ make all                    # Complete installation (deps + piper + env)
 - Use Node's built-in test runner (no Mocha/Jest)
 - Integration tests require MongoDB and Ollama running
 - Whisper tests require FFmpeg
+- Flow testing: `test/flow-llm-tester.js` - AI-powered flow validation
+
+### Working with Flow Templates
+- Template files in `template/` directory use .json extension
+- All flows must follow resilient design patterns:
+  - Every condition node must have exactly 2 outputs (true/false)
+  - Menu principal must be defined (`"isMainMenu": true`)
+  - Error handling should guide users without terminating flows
+  - Only `!flow stop` should exit flows, never automatic termination
+  - LLM nodes should have 20-minute timeout maximum
+  - Use balancer for LLM when available (`"useBalancer": true`)
 
 ### Environment Configuration
 - Copy `.env.example` to `.env` for development

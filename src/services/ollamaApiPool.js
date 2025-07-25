@@ -327,12 +327,19 @@ class OllamaAPIPool {
       throw new Error('No healthy Ollama API endpoints available');
     }
 
+    // Override model if a specific model is configured for this endpoint
+    const finalOptions = { ...options };
+    if (selectedClient.endpoint.model) {
+      finalOptions.model = selectedClient.endpoint.model;
+      logger.debug(`🔧 Usando modelo específico do endpoint: ${finalOptions.model}`);
+    }
+
     const startTime = Date.now();
     try {
       const processingStatus = selectedClient.getProcessingStatus();
       logger.info(`🎯 Req #${this.requestCount}: Usando ${selectedClient.baseURL} (ativo: ${processingStatus.activeRequests}, score: ${selectedClient.getLoadScore()})`);
       
-      const result = await selectedClient.generate(options);
+      const result = await selectedClient.generate(finalOptions);
       
       const duration = Date.now() - startTime;
       logger.success(`✅ Req #${this.requestCount}: Geração bem-sucedida via ${selectedClient.baseURL} em ${duration}ms`);
@@ -367,10 +374,17 @@ class OllamaAPIPool {
     let lastError;
     
     for (const client of healthyClients) {
+      // Override model if a specific model is configured for this endpoint
+      const finalOptions = { ...options };
+      if (client.endpoint.model) {
+        finalOptions.model = client.endpoint.model;
+        logger.debug(`🔧 Usando modelo específico do endpoint para fallback: ${finalOptions.model}`);
+      }
+
       try {
         logger.info(`🎯 Tentando chat com ${client.baseURL}`);
         
-        const result = await client.chat(options);
+        const result = await client.chat(finalOptions);
         
         logger.success(`✅ Chat bem-sucedido via ${client.baseURL}`);
         return result;
@@ -417,12 +431,19 @@ class OllamaAPIPool {
       throw new Error('No healthy Ollama API endpoints available');
     }
 
+    // Override model if a specific model is configured for this endpoint
+    const finalOptions = { ...options };
+    if (selectedClient.endpoint.model) {
+      finalOptions.model = selectedClient.endpoint.model;
+      logger.debug(`🔧 Usando modelo específico do endpoint: ${finalOptions.model}`);
+    }
+
     const startTime = Date.now();
     try {
       const processingStatus = selectedClient.getProcessingStatus();
       logger.info(`🎯 Chat #${this.requestCount}: Usando ${selectedClient.baseURL} (ativo: ${processingStatus.activeRequests}, score: ${selectedClient.getLoadScore()})`);
       
-      const result = await selectedClient.chat(options);
+      const result = await selectedClient.chat(finalOptions);
       
       const duration = Date.now() - startTime;
       logger.success(`✅ Chat #${this.requestCount}: Chat bem-sucedido via ${selectedClient.baseURL} em ${duration}ms`);

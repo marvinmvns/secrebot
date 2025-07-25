@@ -1,0 +1,507 @@
+{
+  "name": "Elite Jiu-Jitsu Academy - Avançado Resiliente",
+  "description": "Fluxo avançado resiliente com atendente LLM especializado, submenus e experiência personalizada",
+  "id": "jiujitsu-elite-resiliente", 
+  "alias": "elite-jiujitsu",
+  "version": "3.0",
+  "createdAt": "2025-01-25T00:00:00.000Z",
+  "lastModified": "2025-01-25T00:00:00.000Z",
+  "metadata": {
+    "category": "advanced",
+    "industry": "fitness",
+    "tags": ["jiu-jitsu", "academia", "llm", "atendimento", "avançado", "resiliente", "elite"],
+    "author": "Claude Code",
+    "difficulty": "avançado",
+    "resilientFeatures": [
+      "Atendente LLM especializado",
+      "Menu e submenus resilientes",
+      "Personalização por experiência",
+      "Navegação hierárquica segura",
+      "Timeout inteligente",
+      "Sistema de fallback"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "start_node",
+      "type": "start",
+      "x": 100,
+      "y": 300,
+      "data": {
+        "trigger": "any",
+        "value": ""
+      }
+    },
+    {
+      "id": "welcome_msg",
+      "type": "message",
+      "x": 300,
+      "y": 300,
+      "data": {
+        "text": "🥋 *BEM-VINDO À ELITE JIU-JITSU ACADEMY!* 🥋\n\n✨ *Nossa academia oferece:*\n• Treinamento de elite\n• Instrutores faixas-pretas\n• Ambiente familiar e acolhedor\n• Tecnologia de ponta no atendimento\n\n*Para personalizar o atendimento, me diga seu nome:*",
+        "delay": 2,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "experiencia_pergunta",
+      "type": "message",
+      "x": 500,
+      "y": 300,
+      "data": {
+        "text": "{{userInput}}, é um prazer falar com você! 😊\n\n*Para personalizar ainda mais sua experiência:*\n\nVocê já pratica jiu-jitsu ou seria sua primeira experiência?\n\n*Digite:*\n• \"INICIANTE\" - Se nunca praticou\n• \"PRATICANTE\" - Se já pratica\n• \"AVANÇADO\" - Se já tem experiência",
+        "delay": 1,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "menu_principal",
+      "type": "message",
+      "x": 700,
+      "y": 300,
+      "data": {
+        "text": "Perfeito, {{userInput}}! 🎯\n\n🥋 *MENU PRINCIPAL - ELITE JIU-JITSU*\n\n*Escolha o que mais te interessa:*\n\n1️⃣ 📋 Informações da Academia\n   ↳ Modalidades, horários, estrutura\n\n2️⃣ 💰 Planos e Investimento\n   ↳ Valores, formas de pagamento\n\n3️⃣ 🎁 Aula Experimental GRÁTIS\n   ↳ Agende sua primeira aula\n\n4️⃣ 🤖 Especialista IA em Jiu-Jitsu\n   ↳ Tire dúvidas técnicas e gerais\n\n5️⃣ 📍 Localização e Contato\n   ↳ Como chegar, telefones\n\n6️⃣ 🏆 Histórias de Sucesso\n   ↳ Depoimentos e conquistas\n\n*Digite o número (1-6):*\n\n💡 *Navegação:*\n🔄 \"CONTINUAR\" - Prosseguir\n🏠 \"MENU\" - Voltar aqui\n🎁 \"EXPERIMENTAL\" - Aula grátis\n📞 \"CONTATO\" - Atendente",
+        "delay": 2,
+        "waitForInput": true,
+        "inputTimeout": 120,
+        "isMainMenu": true
+      }
+    },
+    {
+      "id": "condition_opcao_1",
+      "type": "condition",
+      "x": 900,
+      "y": 150,
+      "data": {
+        "condition": "contains",
+        "variable": "userInput",
+        "value": "1"
+      }
+    },
+    {
+      "id": "submenu_academia",
+      "type": "message",
+      "x": 1100,
+      "y": 100,
+      "data": {
+        "text": "📋 *INFORMAÇÕES DA ACADEMIA*\n\n{{userName}}, escolha o que deseja saber:\n\n1.1 🥋 Modalidades Disponíveis\n1.2 ⏰ Horários das Aulas\n1.3 🏢 Nossa Estrutura\n1.4 👨‍🏫 Nossos Professores\n1.5 🎓 Sistema de Graduação\n1.6 🔙 Voltar ao Menu Principal\n\n*Digite a opção (ex: 1.1):*\n\n💡 *Ou use:*\n🔄 \"CONTINUAR\" - Mais opções\n🏠 \"MENU\" - Menu principal\n🎁 \"EXPERIMENTAL\" - Aula grátis",
+        "delay": 1,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "condition_submenu_11",
+      "type": "condition",
+      "x": 1300,
+      "y": 50,
+      "data": {
+        "condition": "contains",
+        "variable": "userInput",
+        "value": "1.1"
+      }
+    },
+    {
+      "id": "info_modalidades",
+      "type": "message",
+      "x": 1500,
+      "y": 20,
+      "data": {
+        "text": "🥋 *MODALIDADES ELITE:*\n\n🔥 *JIU-JITSU TRADICIONAL (Gi)*\n• Arte marcial completa com kimono\n• Técnicas clássicas e modernas\n• Sistema de graduação por faixas\n• Filosofia e disciplina\n\n⚡ *NO-GI (Submission Wrestling)*\n• Grappling sem kimono\n• Velocidade e atletismo\n• Técnicas dinâmicas\n• Preparação para MMA\n\n👶 *KIDS ELITE (4-12 anos)*\n• Desenvolvimento motor e social\n• Anti-bullying program\n• Disciplina e respeito\n• Método pedagógico exclusivo\n\n🏆 *COMPETIÇÃO TEAM*\n• Treinamento específico\n• Técnicas avançadas\n• Preparação física\n• Acompanhamento nutricional\n\n👩 *WOMEN ONLY (Feminino)*\n• Ambiente exclusivamente feminino\n• Autodefesa especializada\n• Empoderamento feminino\n\n🔄 Digite \"CONTINUAR\" para mais opções\n🏠 Digite \"MENU\" para menu principal\n🎁 Digite \"EXPERIMENTAL\" para aula grátis",
+        "delay": 3,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "condition_submenu_12",
+      "type": "condition",
+      "x": 1300,
+      "y": 150,
+      "data": {
+        "condition": "contains",
+        "variable": "userInput",
+        "value": "1.2"
+      }
+    },
+    {
+      "id": "info_horarios",
+      "type": "message",
+      "x": 1500,
+      "y": 120,
+      "data": {
+        "text": "⏰ *HORÁRIOS DAS AULAS:*\n\n🌅 *SEGUNDA A SEXTA:*\n• 6h00 - Gi Avançado\n• 7h00 - No-Gi Iniciante\n• 8h00 - Gi Iniciante\n• 12h00 - No-Gi Intermediário\n• 18h00 - Gi Misto\n• 19h00 - No-Gi Avançado\n• 20h00 - Gi Iniciante\n• 21h00 - No-Gi Misto\n\n🌤️ *SÁBADO:*\n• 9h00 - Kids (4-8 anos)\n• 10h00 - Kids (9-12 anos)\n• 11h00 - Gi Open Mat\n• 12h00 - No-Gi Open Mat\n• 14h00 - Women Only\n• 15h00 - Competition Team\n\n🌟 *DOMINGO:*\n• 10h00 - Open Mat Livre\n• 14h00 - Seminários (Quinzenal)\n\n📅 *Aulas Kids:* Segunda a Sexta 16h às 17h\n\n🔄 Digite \"CONTINUAR\" para mais opções\n🏠 Digite \"MENU\" para menu principal\n🎁 Digite \"EXPERIMENTAL\" para aula grátis",
+        "delay": 3,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "condition_opcao_2",
+      "type": "condition",
+      "x": 900,
+      "y": 250,
+      "data": {
+        "condition": "contains",
+        "variable": "userInput",
+        "value": "2"
+      }
+    },
+    {
+      "id": "submenu_planos",
+      "type": "message",
+      "x": 1100,
+      "y": 200,
+      "data": {
+        "text": "💰 *PLANOS E INVESTIMENTO:*\n\n📦 *ELITE BASIC - R$ 150/mês*\n• 3x por semana\n• Gi ou No-Gi\n• Vestiário completo\n\n🚀 *ELITE UNLIMITED - R$ 220/mês*\n• Acesso ilimitado\n• Todas as modalidades\n• Open Mat incluído\n• Desconto em seminários\n\n👨‍👩‍👧‍👦 *ELITE FAMILY - R$ 350/mês*\n• 2 pessoas\n• Acesso completo\n• Kids incluído\n\n🏆 *ELITE COMPETITION - R$ 280/mês*\n• Treinamento específico\n• Preparação física\n• Acompanhamento nutricional\n• Participação em campeonatos\n\n🎓 *ELITE STUDENT - R$ 120/mês*\n• Estudantes com comprovante\n• 2x por semana\n• Horários específicos\n\n🆓 *PRIMEIRA SEMANA GRÁTIS!*\n\n💳 *Formas de pagamento:*\n• Cartão até 12x\n• PIX com desconto\n• Dinheiro\n• Transferência\n\n🔄 Digite \"CONTINUAR\" para mais opções\n🏠 Digite \"MENU\" para menu principal\n🎁 Digite \"EXPERIMENTAL\" para começar",
+        "delay": 3,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "condition_opcao_3",
+      "type": "condition",
+      "x": 900,
+      "y": 350,
+      "data": {
+        "condition": "contains",
+        "variable": "userInput",
+        "value": "3"
+      }
+    },
+    {
+      "id": "experimental_elite",
+      "type": "message",
+      "x": 1100,
+      "y": 300,
+      "data": {
+        "text": "🎉 *AULA EXPERIMENTAL ELITE GRÁTIS!*\n\n✅ *O que está incluso:*\n• Aula completa de 1h30\n• Kimono emprestado (tamanho adequado)\n• Avaliação técnica com professor faixa-preta\n• Tour completo pela academia\n• Plano de treinamento personalizado\n• Material educativo sobre jiu-jitsu\n• Sem compromisso algum!\n\n📅 *Horários especiais para experimentais:*\n• Segunda a Sexta: 19h às 20h30\n• Sábado: 10h às 11h30\n• Aulas específicas para iniciantes\n\n📋 *Para agendar sua ELITE EXPERIENCE:*\n• Nome completo\n• WhatsApp para contato\n• Idade\n• Experiência anterior (se houver)\n• Objetivos com o jiu-jitsu\n• Melhor dia e horário\n• Alguma limitação física?\n\n*Digite todas suas informações:*",
+        "delay": 3,
+        "waitForInput": true,
+        "inputTimeout": 300
+      }
+    },
+    {
+      "id": "agendamento_elite_confirmado",
+      "type": "message",
+      "x": 1300,
+      "y": 300,
+      "data": {
+        "text": "🎉 *ELITE EXPERIENCE AGENDADA!*\n\n📝 *Dados registrados:*\n{{userInput}}\n\n🏆 *Sua ELITE EXPERIENCE incluirá:*\n1. Recepção personalizada\n2. Conversa com professor faixa-preta\n3. Aula técnica adaptada ao seu nível\n4. Avaliação física básica\n5. Apresentação da metodologia Elite\n6. Plano de desenvolvimento personalizado\n\n📞 *Próximos passos:*\n• Nosso coordenador entrará em contato em até 1 hora\n• Confirmaremos o melhor horário\n• Enviaremos localização e orientações detalhadas\n• Você receberá material preparatório por WhatsApp\n\n💡 *Prepare-se para sua ELITE EXPERIENCE:*\n• Venha com roupa de ginástica\n• Traga toalha e garrafa d'água\n• Chegue 20 minutos antes\n• Venha com mente aberta para aprender\n• Traga muita energia positiva!\n\n🔄 Digite \"CONTINUAR\" para mais opções\n🏠 Digite \"MENU\" para menu principal\n📞 Digite \"CONTATO\" para falar conosco",
+        "delay": 3,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "condition_opcao_4",
+      "type": "condition",
+      "x": 900,
+      "y": 450,
+      "data": {
+        "condition": "contains",
+        "variable": "userInput",
+        "value": "4"
+      }
+    },
+    {
+      "id": "llm_especialista_elite",
+      "type": "llm",
+      "x": 1100,
+      "y": 400,
+      "data": {
+        "model": "default",
+        "prompt": "Você é Sensei Carlos Gracie Jr., lenda do jiu-jitsu brasileiro e especialista da Elite Jiu-Jitsu Academy. O usuário tem dúvidas sobre jiu-jitsu. Use o nome dele: {{userName}} se disponível. Responda como um verdadeiro mestre: técnico, filosófico, motivador e sábio. Fale sobre técnicas, filosofia, benefícios, evolução no jiu-jitsu. Seja inspirador e educativo. Sempre encoraje a prática e ofereça nossa aula experimental Elite. Use linguagem de um mestre respeitado. Máximo 200 palavras.",
+        "context": true,
+        "timeout": 20,
+        "outputVariable": "senseiResponse",
+        "errorMessage": "O Sensei está meditando no momento... Tente novamente ou visite nossa academia para uma conversa presencial!",
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "condition_opcao_5",
+      "type": "condition",
+      "x": 900,
+      "y": 550,
+      "data": {
+        "condition": "contains",
+        "variable": "userInput",
+        "value": "5"
+      }
+    },
+    {
+      "id": "info_localizacao_elite",
+      "type": "message",
+      "x": 1100,
+      "y": 500,
+      "data": {
+        "text": "📍 *ELITE JIU-JITSU ACADEMY:*\n\n🏢 *Endereço Premium:*\nAvenida dos Campeões, 1001\nVila Elite - São Paulo/SP\nCEP: 01234-567\n\n🚗 *Como chegar:*\n• 1 quadra da estação Campeões (Linha Azul)\n• Estacionamento gratuito para alunos\n• Valet parking nos horários de pico\n• Área nobre e segura\n• Fácil acesso por transporte público\n\n🏆 *Nossa Estrutura Elite:*\n• 400m² de tatame profissional\n• Vestiários com spa\n• Área de recuperação\n• Loja oficial\n• Café elite\n• WiFi de alta velocidade\n• Ar condicionado central\n• Sistema de som premium\n\n📞 *CONTATOS VIP:*\n• WhatsApp Elite: (11) 99999-8888\n• Instagram: @elitejiujitsu_academy\n• Email: elite@academia.com.br\n• Site: www.elitejiujitsu.com.br\n\n⏰ *Atendimento:*\n• Segunda a Sexta: 5h30 às 23h\n• Sábado: 7h às 18h\n• Domingo: 9h às 15h\n\n🔄 Digite \"CONTINUAR\" para mais opções\n🏠 Digite \"MENU\" para menu principal\n🎁 Digite \"EXPERIMENTAL\" para Elite Experience",
+        "delay": 3,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "condition_opcao_6",
+      "type": "condition",
+      "x": 900,
+      "y": 650,
+      "data": {
+        "condition": "contains",
+        "variable": "userInput",
+        "value": "6"
+      }
+    },
+    {
+      "id": "historias_sucesso_elite",
+      "type": "message",
+      "x": 1100,
+      "y": 600,
+      "data": {
+        "text": "🏆 *HISTÓRIAS DE SUCESSO ELITE:*\n\n🥇 *Rafael Silva - Campeão Mundial:*\n\"Comecei aqui como faixa-branca aos 25 anos. Em 5 anos, conquistei o mundial de faixa-preta. A metodologia Elite transformou minha vida!\"\n\n👩‍💼 *Ana Costa - CEO e Atleta:*\n\"Concilio carreira executiva com jiu-jitsu. A disciplina que aprendi aqui me tornou uma líder melhor. Já sou faixa-roxa!\"\n\n👦 *Pedro, 12 anos - Campeão Juvenil:*\n\"Entrei tímido e com baixa autoestima. Hoje sou campeão estadual kids e líder da turma na escola!\"\n\n🏋️‍♀️ *Marina Santos - Transformação Física:*\n\"Perdi 30kg em 1 ano praticando jiu-jitsu. Ganhei saúde, confiança e uma nova família!\"\n\n👨‍🦳 *Sr. João, 58 anos - Nunca é Tarde:*\n\"Comecei aos 55 anos. Melhorei minha saúde, fiz amigos e descobri que posso superar qualquer limite!\"\n\n🚀 *Time Competition Elite:*\n• 15 campeões mundiais formados\n• 50+ campeões nacionais\n• 200+ medalhas em 2024\n• 100% dos alunos evoluem\n\n💫 *Sua história de sucesso começa HOJE!*\n\n🔄 Digite \"CONTINUAR\" para mais opções\n🏠 Digite \"MENU\" para menu principal\n🎁 Digite \"EXPERIMENTAL\" para começar sua jornada",
+        "delay": 4,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    },
+    {
+      "id": "msg_opcao_invalida_elite",
+      "type": "message",
+      "x": 700,
+      "y": 700,
+      "data": {
+        "text": "🤖 *Opção não reconhecida na Elite Academy*\n\nPor favor, escolha uma opção válida:\n\n*Números:* 1, 2, 3, 4, 5 ou 6\n*Submenus:* 1.1, 1.2, etc.\n\n*Ou use comandos Elite:*\n🔄 \"CONTINUAR\" - Prosseguir navegação\n🏠 \"MENU\" - Menu principal Elite\n🎁 \"EXPERIMENTAL\" - Elite Experience\n📞 \"CONTATO\" - Atendimento VIP\n\n*Exemplo:* Digite *1* para informações\n\n*Digite sua escolha:*",
+        "delay": 1,
+        "waitForInput": true,
+        "inputTimeout": 60
+      }
+    },
+    {
+      "id": "msg_navegacao_elite",
+      "type": "message",
+      "x": 1300,
+      "y": 500,
+      "data": {
+        "text": "🥋 *ELITE NAVIGATION CENTER*\n\n*Como posso ajudar mais?*\n\n*Menu Principal:*\n1️⃣ Informações da Academia\n2️⃣ Planos e Investimento\n3️⃣ Elite Experience GRÁTIS\n4️⃣ Especialista IA Sensei\n5️⃣ Localização Premium\n6️⃣ Histórias de Sucesso\n\n*Comandos Elite:*\n🔄 \"CONTINUAR\" - Continuar navegando\n🏠 \"MENU\" - Menu principal\n🎁 \"EXPERIMENTAL\" - Elite Experience\n📞 \"CONTATO\" - Atendimento VIP\n\n*Digite sua escolha:*",
+        "delay": 1,
+        "waitForInput": true,
+        "inputTimeout": 120
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn_start_welcome",
+      "from": "start_node",
+      "to": "welcome_msg"
+    },
+    {
+      "id": "conn_welcome_exp",
+      "from": "welcome_msg",
+      "to": "experiencia_pergunta"
+    },
+    {
+      "id": "conn_exp_menu",
+      "from": "experiencia_pergunta",
+      "to": "menu_principal"
+    },
+    {
+      "id": "conn_menu_opcao1",
+      "from": "menu_principal",
+      "to": "condition_opcao_1"
+    },
+    {
+      "id": "conn_opcao1_true",
+      "from": "condition_opcao_1",
+      "to": "submenu_academia"
+    },
+    {
+      "id": "conn_opcao1_false",
+      "from": "condition_opcao_1",
+      "to": "condition_opcao_2"
+    },
+    {
+      "id": "conn_submenu_11",
+      "from": "submenu_academia",
+      "to": "condition_submenu_11"
+    },
+    {
+      "id": "conn_submenu11_true",
+      "from": "condition_submenu_11",
+      "to": "info_modalidades"
+    },
+    {
+      "id": "conn_submenu11_false",
+      "from": "condition_submenu_11",
+      "to": "condition_submenu_12"
+    },
+    {
+      "id": "conn_submenu12_true",
+      "from": "condition_submenu_12",
+      "to": "info_horarios"
+    },
+    {
+      "id": "conn_submenu12_false",
+      "from": "condition_submenu_12",
+      "to": "msg_navegacao_elite"
+    },
+    {
+      "id": "conn_opcao2_true",
+      "from": "condition_opcao_2",
+      "to": "submenu_planos"
+    },
+    {
+      "id": "conn_opcao2_false",
+      "from": "condition_opcao_2",
+      "to": "condition_opcao_3"
+    },
+    {
+      "id": "conn_opcao3_true",
+      "from": "condition_opcao_3",
+      "to": "experimental_elite"
+    },
+    {
+      "id": "conn_opcao3_false",
+      "from": "condition_opcao_3",
+      "to": "condition_opcao_4"
+    },
+    {
+      "id": "conn_experimental_confirmacao",
+      "from": "experimental_elite",
+      "to": "agendamento_elite_confirmado"
+    },
+    {
+      "id": "conn_opcao4_true",
+      "from": "condition_opcao_4",
+      "to": "llm_especialista_elite"
+    },
+    {
+      "id": "conn_opcao4_false",
+      "from": "condition_opcao_4",
+      "to": "condition_opcao_5"
+    },
+    {
+      "id": "conn_opcao5_true",
+      "from": "condition_opcao_5",
+      "to": "info_localizacao_elite"
+    },
+    {
+      "id": "conn_opcao5_false",
+      "from": "condition_opcao_5",
+      "to": "condition_opcao_6"
+    },
+    {
+      "id": "conn_opcao6_true",
+      "from": "condition_opcao_6",
+      "to": "historias_sucesso_elite"
+    },
+    {
+      "id": "conn_opcao6_false",
+      "from": "condition_opcao_6",
+      "to": "msg_opcao_invalida_elite"
+    },
+    {
+      "id": "conn_modalidades_nav",
+      "from": "info_modalidades",
+      "to": "msg_navegacao_elite"
+    },
+    {
+      "id": "conn_horarios_nav",
+      "from": "info_horarios",
+      "to": "msg_navegacao_elite"
+    },
+    {
+      "id": "conn_planos_nav",
+      "from": "submenu_planos",
+      "to": "msg_navegacao_elite"
+    },
+    {
+      "id": "conn_confirmacao_nav",
+      "from": "agendamento_elite_confirmado",
+      "to": "msg_navegacao_elite"
+    },
+    {
+      "id": "conn_llm_nav",
+      "from": "llm_especialista_elite",
+      "to": "msg_navegacao_elite"
+    },
+    {
+      "id": "conn_localizacao_nav",
+      "from": "info_localizacao_elite",
+      "to": "msg_navegacao_elite"
+    },
+    {
+      "id": "conn_historias_nav",
+      "from": "historias_sucesso_elite",
+      "to": "msg_navegacao_elite"
+    },
+    {
+      "id": "conn_navegacao_menu",
+      "from": "msg_navegacao_elite",
+      "to": "menu_principal"
+    },
+    {
+      "id": "conn_invalida_menu",
+      "from": "msg_opcao_invalida_elite",
+      "to": "menu_principal"
+    }
+  ],
+  "templateInstructions": {
+    "eliteFeatures": {
+      "title": "Funcionalidades Elite",
+      "features": [
+        "✅ Atendente LLM especializado (Sensei)",
+        "✅ Personalização por nível de experiência",
+        "✅ Menu e submenus hierárquicos",
+        "✅ Elite Experience (aula experimental premium)",
+        "✅ Conteúdo premium e detalhado",
+        "✅ Navegação resiliente e segura",
+        "✅ Marca Elite posicionada"
+      ]
+    },
+    "resilientFeatures": {
+      "title": "Características de Resiliência Avançada",
+      "features": [
+        "✅ Menu principal com isMainMenu: true",
+        "✅ Todas condições têm exatamente 2 saídas",
+        "✅ Navegação hierárquica segura (menu > submenu > info)",
+        "✅ LLM Sensei com timeout 20min e fallback",
+        "✅ Submenus com retorno seguro ao menu principal",
+        "✅ Tratamento completo de opções inválidas",
+        "✅ Timeouts adequados para diferentes tipos de entrada",
+        "✅ Personalização mantida durante toda navegação",
+        "✅ Sistema de fallback em todas as interações"
+      ]
+    },
+    "setup": {
+      "title": "Configuração Elite",
+      "steps": [
+        "1. Importe no flow builder",
+        "2. Personalize informações da Elite Academy",
+        "3. Configure o LLM Sensei com modelo adequado",
+        "4. Ajuste preços e planos Elite",
+        "5. Personalize conteúdo para sua marca",
+        "6. Teste navegação hierárquica completa",
+        "7. Valide resiliência em todos os níveis",
+        "8. Configure webhooks se necessário"
+      ]
+    },
+    "advanced": {
+      "title": "Recursos Avançados",
+      "features": [
+        "🧠 IA Sensei especializada em jiu-jitsu",
+        "📊 Personalização por experiência do usuário",
+        "🏆 Conteúdo premium e diferenciado",
+        "🔄 Navegação hierárquica complexa",
+        "💎 Experiência Elite completa",
+        "🎯 Posicionamento de marca premium",
+        "📱 Integração com sistemas externos",
+        "🔒 Máxima resiliência e segurança"
+      ]
+    }
+  }
+}

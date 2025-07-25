@@ -250,7 +250,12 @@ class WhisperAPIClient {
       const response = await this.axios.get('/health', { timeout: 10000 });
       this.isHealthy = true;
       this.lastHealthCheck = Date.now();
-      
+
+      // Extrai o nome do modelo da resposta do health check
+      if (response.data && response.data.model) {
+        this.modelName = response.data.model;
+      }
+
       if (response.data.queue) {
         this.queueLength = response.data.queue.pendingJobs || 0;
       }

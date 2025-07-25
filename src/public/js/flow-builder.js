@@ -20,6 +20,7 @@ class FlowBuilder {
         
         this.initializeEventListeners();
         this.updateStats();
+        this.updateOllamaPoolStatus();
     }
     
     initializeEventListeners() {
@@ -133,7 +134,13 @@ class FlowBuilder {
             message: {
                 title: 'Mensagem',
                 content: '<small class="text-muted">Clique para configurar a mensagem</small>',
-                data: { text: 'Olá! Como posso ajudar?', delay: 0 }
+                data: { 
+                    text: 'Olá! Como posso ajudar?', 
+                    delay: 0, 
+                    waitForInput: false, 
+                    isMainMenu: false,
+                    inputTimeout: 60
+                }
             },
             condition: {
                 title: 'Condição',
@@ -153,7 +160,15 @@ class FlowBuilder {
             llm: {
                 title: 'IA/LLM',
                 content: '<small class="text-muted">Resposta inteligente</small>',
-                data: { model: 'default', prompt: '', context: true }
+                data: { 
+                    model: 'default', 
+                    prompt: '', 
+                    context: true, 
+                    timeout: 20, 
+                    outputVariable: 'llmResponse',
+                    errorMessage: 'Desculpe, houve um problema ao processar sua solicitação.',
+                    useBalancer: true
+                }
             },
             webhook: {
                 title: 'Webhook',
@@ -288,6 +303,29 @@ class FlowBuilder {
                                onchange="flowBuilder.updateNodeData('${node.id}', 'delay', parseInt(this.value))"
                                min="0" max="300">
                     </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" ${data.isMainMenu ? 'checked' : ''} 
+                                   onchange="flowBuilder.updateNodeData('${node.id}', 'isMainMenu', this.checked)">
+                            🏠 Este é o menu principal do flow
+                        </label>
+                        <small class="text-muted">Botões "MENU" redirecionarão para este nó</small>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" ${data.waitForInput ? 'checked' : ''} 
+                                   onchange="flowBuilder.updateNodeData('${node.id}', 'waitForInput', this.checked)">
+                            Aguardar entrada do usuário
+                        </label>
+                    </div>
+                    ${data.waitForInput ? `
+                    <div class="form-group">
+                        <label>Timeout para entrada (segundos)</label>
+                        <input type="number" class="form-control" value="${data.inputTimeout || 60}" 
+                               onchange="flowBuilder.updateNodeData('${node.id}', 'inputTimeout', parseInt(this.value))"
+                               min="10" max="600">
+                    </div>
+                    ` : ''}
                 `;
                 break;
                 
@@ -357,11 +395,39 @@ class FlowBuilder {
                                   placeholder="Prompt para a IA...">${data.prompt || ''}</textarea>
                     </div>
                     <div class="form-group">
+                        <label>Timeout (minutos) - Máximo: 20min</label>
+                        <input type="number" class="form-control" value="${data.timeout || 20}" 
+                               onchange="flowBuilder.updateNodeData('${node.id}', 'timeout', Math.min(parseInt(this.value), 20))"
+                               min="1" max="20"
+                               placeholder="20">
+                        <small class="text-muted">Após o timeout, retorna ao menu principal</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Variável de Saída</label>
+                        <input type="text" class="form-control" value="${data.outputVariable || 'llmResponse'}" 
+                               onchange="flowBuilder.updateNodeData('${node.id}', 'outputVariable', this.value)"
+                               placeholder="llmResponse">
+                    </div>
+                    <div class="form-group">
+                        <label>Mensagem de Erro</label>
+                        <input type="text" class="form-control" value="${data.errorMessage || ''}" 
+                               onchange="flowBuilder.updateNodeData('${node.id}', 'errorMessage', this.value)"
+                               placeholder="Mensagem quando há erro (opcional)">
+                    </div>
+                    <div class="form-group">
                         <label>
                             <input type="checkbox" ${data.context ? 'checked' : ''} 
                                    onchange="flowBuilder.updateNodeData('${node.id}', 'context', this.checked)">
                             Usar contexto da conversa
                         </label>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" ${data.useBalancer !== false ? 'checked' : ''} 
+                                   onchange="flowBuilder.updateNodeData('${node.id}', 'useBalancer', this.checked)">
+                            Usar balanceamento automático (OllamaAPIPool)
+                        </label>
+                        <small class="text-muted">Distribui requisições entre múltiplos endpoints Ollama para melhor performance</small>
                     </div>
                 `;
                 break;
@@ -884,6 +950,130 @@ class FlowBuilder {
     updateStats() {
         document.getElementById('node-count').textContent = this.nodes.size;
         document.getElementById('connection-count').textContent = this.connections.length;
+        
+        // Validar flow e mostrar problemas
+        this.validateFlow();
+    }
+    
+    validateFlow() {
+        const warnings = [];
+        const errors = [];
+        
+        // Verificar nós órfãos (sem conexões de saída)
+        this.nodes.forEach((node, nodeId) => {
+            const hasOutputConnections = this.connections.some(conn => conn.from === nodeId);
+            const hasInputConnections = this.connections.some(conn => conn.to === nodeId);
+            
+            if (node.type === 'condition') {
+                const outputs = this.connections.filter(conn => conn.from === nodeId);
+                if (outputs.length < 2) {
+                    warnings.push(`⚠️ Nó de condição "${nodeId}" deve ter pelo menos 2 saídas (verdadeiro/falso)`);
+                }
+                if (outputs.length === 1) {
+                    errors.push(`❌ Nó de condição "${nodeId}" tem apenas 1 saída - flow pode ser finalizado inesperadamente`);
+                }
+            }
+            
+            if (node.type !== 'end' && !hasOutputConnections) {
+                errors.push(`❌ Nó "${nodeId}" (${node.type}) não tem saídas - flow será finalizado aqui`);
+            }
+            
+            if (node.type !== 'start' && !hasInputConnections) {
+                warnings.push(`⚠️ Nó "${nodeId}" (${node.type}) não tem entradas - pode ser inacessível`);
+            }
+        });
+        
+        // Verificar se há nó de início
+        const startNodes = Array.from(this.nodes.values()).filter(node => node.type === 'start');
+        if (startNodes.length === 0) {
+            errors.push(`❌ Flow não tem nó de início`);
+        } else if (startNodes.length > 1) {
+            warnings.push(`⚠️ Flow tem múltiplos nós de início (${startNodes.length})`);
+        }
+        
+        // Verificar nós de menu principal
+        const mainMenuNodes = Array.from(this.nodes.values()).filter(node => 
+            node.data && node.data.isMainMenu
+        );
+        
+        if (mainMenuNodes.length === 0) {
+            warnings.push(`⚠️ Flow não tem menu principal definido - botões "MENU" usarão nó de início`);
+        } else if (mainMenuNodes.length > 1) {
+            warnings.push(`⚠️ Flow tem múltiplos menus principais (${mainMenuNodes.length}) - apenas o primeiro será usado`);
+        } else {
+            // Destacar visualmente o nó de menu principal
+            const mainMenuNode = mainMenuNodes[0];
+            warnings.push(`🏠 Menu principal: ${mainMenuNode.id} (configurado corretamente)`);
+        }
+        
+        // Atualizar interface com validações
+        this.updateValidationStatus(warnings, errors);
+    }
+    
+    updateValidationStatus(warnings, errors) {
+        let statusHtml = '';
+        
+        if (errors.length === 0 && warnings.length === 0) {
+            statusHtml = '<div class="alert alert-success"><i class="fas fa-check"></i> Flow válido</div>';
+        } else {
+            if (errors.length > 0) {
+                statusHtml += '<div class="alert alert-danger">';
+                statusHtml += '<h6><i class="fas fa-exclamation-triangle"></i> Erros Críticos:</h6>';
+                errors.forEach(error => {
+                    statusHtml += `<div>${error}</div>`;
+                });
+                statusHtml += '</div>';
+            }
+            
+            if (warnings.length > 0) {
+                statusHtml += '<div class="alert alert-warning">';
+                statusHtml += '<h6><i class="fas fa-info-circle"></i> Avisos:</h6>';
+                warnings.forEach(warning => {
+                    statusHtml += `<div>${warning}</div>`;
+                });
+                statusHtml += '</div>';
+            }
+        }
+        
+        const statusElement = document.getElementById('validation-status');
+        if (statusElement) {
+            statusElement.innerHTML = statusHtml;
+        }
+    }
+    
+    async updateOllamaPoolStatus() {
+        try {
+            const response = await fetch('/api/system/ollama-pool-status');
+            const data = await response.json();
+            
+            let statusHtml = '';
+            
+            if (data.success && data.available) {
+                statusHtml = `
+                    <div class="alert alert-success" style="font-size: 0.8rem; padding: 0.5rem;">
+                        <strong>⚖️ Balanceamento Ativo</strong><br>
+                        ${data.stats.healthyEndpoints}/${data.stats.totalEndpoints} endpoints saudáveis<br>
+                        <small>Estratégia: ${data.stats.strategy}</small>
+                    </div>
+                `;
+            } else {
+                statusHtml = `
+                    <div class="alert alert-warning" style="font-size: 0.8rem; padding: 0.5rem;">
+                        <strong>🏠 Modo Padrão</strong><br>
+                        OllamaAPIPool não disponível<br>
+                        <small>Usando LLMService tradicional</small>
+                    </div>
+                `;
+            }
+            
+            const poolStatusElement = document.getElementById('ollama-pool-status');
+            if (poolStatusElement) {
+                poolStatusElement.innerHTML = statusHtml;
+            }
+            
+        } catch (error) {
+            console.error('Erro ao obter status do OllamaAPIPool:', error);
+        }
     }
     
     deleteNode(nodeId) {

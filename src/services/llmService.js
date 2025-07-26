@@ -5,6 +5,7 @@ import { fetchProfileStructured } from './linkedinScraper.js';
 import JobQueue from './jobQueue.js';
 import OllamaAPIPool from './ollamaApiPool.js';
 import logger from '../utils/logger.js';
+import { getMetricsService } from './metricsService.js';
 
 // ============ Serviço LLM ============
 class LLMService {
@@ -18,6 +19,7 @@ class LLMService {
       CONFIG.queues.memoryThresholdGB
     );
     this.ollama = null; // Initialize after config is loaded
+    this.metricsService = getMetricsService();
     this.loadLastUsedModel();
     this.initializeOllama();
 
@@ -129,12 +131,19 @@ class LLMService {
   }
 
   async chat(contactId, text, type, systemPrompt, maxRetries = this.timeoutLevels.length) {
+    const startTime = Date.now();
     const context = await this.getContext(contactId, type);
     context.push({ role: 'user', content: text });
     
     // Usa o método estático de Utils para limitar o contexto
     const limitedContext = Utils.limitContext([...context]); 
     const messages = [{ role: 'system', content: systemPrompt }, ...limitedContext];
+    
+    // Calculate token estimates for metrics
+    const inputTokens = Math.ceil((text + systemPrompt).length / 4);
+    let outputTokens = 0;
+    let finalResponse = null;
+    let lastError = null;
     
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const timeoutMs = this.timeoutLevels[attempt] || this.timeoutLevels[this.timeoutLevels.length - 1];
@@ -167,9 +176,29 @@ class LLMService {
         }
         
         logger.success(`✅ LLM resposta obtida em tentativa ${attempt + 1} para ${contactId}`);
+        
+        // Record metrics for successful request
+        const duration = (Date.now() - startTime) / 1000;
+        outputTokens = Math.ceil(content.length / 4);
+        const model = CONFIG.llm.model;
+        const endpoint = await this.shouldUseApiPool() ? 'api_pool' : 'local';
+        
+        if (this.metricsService.enabled) {
+          this.metricsService.recordLLMRequest(
+            contactId,
+            model,
+            endpoint,
+            'success',
+            duration,
+            inputTokens,
+            outputTokens
+          );
+        }
+        
         return content;
       } catch (err) {
         const isTimeout = err.code === 'UND_ERR_HEADERS_TIMEOUT' || err.name === 'TimeoutError' || err.message?.includes('timeout');
+        lastError = err;
         
         logger.error(`❌ LLM (${type}) - Tentativa ${attempt + 1}/${maxRetries} [${timeoutLabel}]:`, {
           error: err.message,
@@ -179,6 +208,24 @@ class LLMService {
         });
         
         if (attempt === maxRetries - 1) {
+          // Record metrics for final failure
+          const duration = (Date.now() - startTime) / 1000;
+          const model = CONFIG.llm.model;
+          const endpoint = await this.shouldUseApiPool() ? 'api_pool' : 'local';
+          
+          if (this.metricsService.enabled) {
+            this.metricsService.recordLLMRequest(
+              contactId,
+              model,
+              endpoint,
+              'error',
+              duration,
+              inputTokens,
+              0 // No output tokens on failure
+            );
+            this.metricsService.recordError('llm_request_final_failure', 'llm_service', contactId);
+          }
+          
           // Remove the failed user message from context on final failure
           context.pop();
           logger.error(`🚫 LLM falhou definitivamente após ${maxRetries} tentativas para ${contactId}`);
@@ -603,6 +650,59 @@ ${structuredText}`;
     return await this.ollama.list();
   }
 
+  async listModelsFromAllEndpoints() {
+    // Se o pool de APIs estiver ativo, usar o método do pool
+    if (await this.shouldUseApiPool()) {
+      try {
+        return await this.ollamaApiPool.listModelsFromAllEndpoints();
+      } catch (error) {
+        logger.error('❌ Erro ao listar modelos de todos os endpoints via pool:', error);
+        
+        // Fallback: tentar pelo menos o local
+        try {
+          const localModels = await this.ollama.list();
+          return {
+            endpoints: [{
+              url: CONFIG.llm.host,
+              type: 'Ollama Local',
+              priority: 1,
+              healthy: true,
+              models: localModels.models || [],
+              error: null
+            }],
+            totalModels: localModels.models ? localModels.models.length : 0,
+            uniqueModels: localModels.models ? localModels.models.map(m => m.name).sort() : [],
+            timestamp: new Date().toISOString()
+          };
+        } catch (localError) {
+          logger.error('❌ Erro também no fallback local:', localError);
+          throw new Error(`Pool API failed: ${error.message}. Local fallback failed: ${localError.message}`);
+        }
+      }
+    }
+    
+    // Se não tem pool ativo, listar apenas modelos locais
+    try {
+      const localModels = await this.ollama.list();
+      return {
+        endpoints: [{
+          url: CONFIG.llm.host,
+          type: 'Ollama Local',
+          priority: 1,
+          healthy: true,
+          models: localModels.models || [],
+          error: null
+        }],
+        totalModels: localModels.models ? localModels.models.length : 0,
+        uniqueModels: localModels.models ? localModels.models.map(m => m.name).sort() : [],
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      logger.error('❌ Erro ao listar modelos locais:', error);
+      throw error;
+    }
+  }
+
   async pullModel(modelName) {
     const useApiPool = await this.shouldUseApiPool();
     
@@ -635,6 +735,10 @@ ${structuredText}`;
 
   // Método simplificado para uso direto (usado por RestAPI)
   async chatWithModel(prompt, model = CONFIG.llm.model) {
+    const startTime = Date.now();
+    const contactId = 'system'; // For system-level calls
+    const inputTokens = Math.ceil(prompt.length / 4);
+    
     try {
       logger.debug(`🤖 LLMService.chatWithModel: ${model}`);
       
@@ -645,6 +749,23 @@ ${structuredText}`;
             model,
             messages: [{ role: 'user', content: prompt }]
           });
+          
+          // Record metrics for API pool success
+          const duration = (Date.now() - startTime) / 1000;
+          const outputTokens = Math.ceil((response?.message?.content || '').length / 4);
+          
+          if (this.metricsService.enabled) {
+            this.metricsService.recordLLMRequest(
+              contactId,
+              model,
+              'api_pool',
+              'success',
+              duration,
+              inputTokens,
+              outputTokens
+            );
+          }
+          
           return response;
         } catch (apiError) {
           logger.warn('⚠️ Todos os endpoints API falharam, tentando Ollama local como fallback...', apiError.message);
@@ -658,8 +779,40 @@ ${structuredText}`;
         messages: [{ role: 'user', content: prompt }]
       });
       
+      // Record metrics for local fallback success
+      const duration = (Date.now() - startTime) / 1000;
+      const outputTokens = Math.ceil((response?.message?.content || '').length / 4);
+      
+      if (this.metricsService.enabled) {
+        this.metricsService.recordLLMRequest(
+          contactId,
+          model,
+          'local',
+          'success',
+          duration,
+          inputTokens,
+          outputTokens
+        );
+      }
+      
       return response;
     } catch (error) {
+      // Record metrics for error
+      const duration = (Date.now() - startTime) / 1000;
+      
+      if (this.metricsService.enabled) {
+        this.metricsService.recordLLMRequest(
+          contactId,
+          model,
+          'local',
+          'error',
+          duration,
+          inputTokens,
+          0
+        );
+        this.metricsService.recordError('llm_chat_with_model_error', 'llm_service', contactId);
+      }
+      
       logger.error('❌ Erro em chatWithModel:', error);
       throw error;
     }

@@ -1,0 +1,301 @@
+{
+  "id": "restaurante-delivery-template",
+  "name": "Restaurante e Delivery",
+  "description": "Template para pedidos de delivery com cardápio interativo e acompanhamento de entrega",
+  "alias": "delivery",
+  "version": "1.0.0",
+  "metadata": {
+    "category": "alimentacao",
+    "isTemplate": true,
+    "tags": ["restaurante", "delivery", "cardapio", "pedido", "food"],
+    "author": "SecreBot Templates",
+    "businessType": "restaurant"
+  },
+  "nodes": [
+    {
+      "id": "start-1",
+      "type": "start",
+      "position": { "x": 100, "y": 100 },
+      "data": {
+        "label": "Início Pedido",
+        "message": "Sistema de delivery iniciado"
+      }
+    },
+    {
+      "id": "restaurant_welcome",
+      "type": "message",
+      "position": { "x": 300, "y": 100 },
+      "data": {
+        "label": "Boas-vindas Restaurante",
+        "message": "🍕 *Bem-vindo ao [Nome do Restaurante]!*\n\nSeu delivery favorito chegou no WhatsApp!\n\n🛵 *Delivery grátis acima de R$ 30*\n⏰ *Tempo médio: 35-45 minutos*\n💳 *Pagamento: Dinheiro, PIX, Cartão*\n\n🍽️ *O que vai ser hoje?*\n\n🍕 Pizzas tradicionais\n🍝 Massas artesanais\n🍔 Hambúrguers gourmet\n🥗 Saladas fresquinhas\n🍰 Sobremesas especiais\n🥤 Bebidas geladas\n\n*Digite o número da categoria ou me fale o que está procurando!*",
+        "isMainMenu": true
+      }
+    },
+    {
+      "id": "get_customer_location",
+      "type": "message",
+      "position": { "x": 500, "y": 100 },
+      "data": {
+        "label": "Localização Cliente",
+        "message": "📍 *Qual é o seu endereço para entrega?*\n\nPreciso saber onde você está para:\n• Calcular a taxa de entrega\n• Estimar tempo de chegada\n• Confirmar nossa área de atendimento\n\n📱 *Você pode:*\n• Enviar sua localização pelo WhatsApp\n• Digitar o endereço completo\n• Informar apenas o bairro (para começar)\n\n💡 *Dica: Quanto mais preciso o endereço, mais rápida a entrega!*"
+      }
+    },
+    {
+      "id": "validate_delivery_area",
+      "type": "webhook",
+      "position": { "x": 700, "y": 100 },
+      "data": {
+        "label": "Validar Área",
+        "url": "{{DELIVERY_SYSTEM_URL}}/validate-area",
+        "method": "POST",
+        "payload": {
+          "address": "{{customer_address}}",
+          "coordinates": "{{customer_coordinates}}"
+        }
+      }
+    },
+    {
+      "id": "check_delivery_area",
+      "type": "condition",
+      "position": { "x": 900, "y": 100 },
+      "data": {
+        "label": "Verificar Área",
+        "condition": "webhook_response.delivers_to === true",
+        "description": "Verifica se entregamos na região"
+      }
+    },
+    {
+      "id": "area_not_covered",
+      "type": "message",
+      "position": { "x": 900, "y": 200 },
+      "data": {
+        "label": "Área Não Atendida",
+        "message": "😔 *Ops! Ainda não entregamos na sua região.*\n\n📍 *Atendemos atualmente:*\n• Centro e região central\n• Bairros: [Lista dos bairros]\n• Raio de até 8km do restaurante\n\n🏪 *Alternativas para você:*\n• Retirada no balcão (desconto de 10%)\n• Delivery via iFood/Uber Eats\n• Agende para quando estivermos na sua área\n\n📧 *Deixe seu contato e te avisamos quando chegarmos na sua região!*\n\n*Deseja fazer retirada no balcão?*"
+      }
+    },
+    {
+      "id": "show_menu_categories",
+      "type": "message",
+      "position": { "x": 1100, "y": 100 },
+      "data": {
+        "label": "Categorias Cardápio",
+        "message": "🍽️ *Nosso Cardápio Completo*\n\n✅ *Área de entrega: {{customer_area}}*\n🚚 *Taxa de entrega: {{delivery_fee}}*\n⏰ *Tempo estimado: {{estimated_time}}*\n\n*Escolha uma categoria:*\n\n🍕 *1. PIZZAS* (15 sabores)\n   • Tradicionais, Especiais, Doces\n   • A partir de R$ 25,90\n\n🍝 *2. MASSAS* (8 opções)\n   • Espaguete, Penne, Lasanhas\n   • A partir de R$ 18,90\n\n🍔 *3. HAMBÚRGUERS* (12 opções)\n   • Artesanais, Veganos, Kids\n   • A partir de R$ 22,90\n\n🥗 *4. SALADAS* (6 opções)\n   • Verdes, Proteicas, Especiais\n   • A partir de R$ 16,90\n\n🍰 *5. SOBREMESAS* (8 opções)\n   • Doces caseiros, Sorvetes\n   • A partir de R$ 8,90\n\n🥤 *6. BEBIDAS* (20+ opções)\n   • Refrigerantes, Sucos, Cervejas\n   • A partir de R$ 4,90\n\n*Digite o número da categoria!*"
+      }
+    },
+    {
+      "id": "show_category_items",
+      "type": "webhook",
+      "position": { "x": 1300, "y": 100 },
+      "data": {
+        "label": "Itens da Categoria",
+        "url": "{{MENU_SYSTEM_URL}}/category/{{selected_category}}",
+        "method": "GET"
+      }
+    },
+    {
+      "id": "display_menu_items",
+      "type": "llm",
+      "position": { "x": 1500, "y": 100 },
+      "data": {
+        "label": "Exibir Itens",
+        "prompt": "Crie uma apresentação atrativa dos itens do cardápio:\n\nCategoria: {{selected_category}}\nItens disponíveis: {{menu_items}}\n\nFormato da resposta:\n\"🍽️ *[CATEGORIA] - Escolha seu favorito:*\n\n[Para cada item]\n🔢 *[Número]. [Nome do Prato]*\n   💰 R$ [Preço]\n   📝 [Descrição breve]\n   ⭐ [Nota/Recomendação se houver]\n\n💡 *Dica: Digite o número do prato para adicionar ao pedido!*\n\n🔙 Digite 'menu' para voltar às categorias\"\n\nSeja descritivo e apetitoso nas descrições!",
+        "timeout": 15000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "add_to_cart",
+      "type": "message",
+      "position": { "x": 1700, "y": 100 },
+      "data": {
+        "label": "Adicionar ao Carrinho",
+        "message": "🛒 *Adicionado ao seu carrinho!*\n\n*Quer personalizar seu pedido?*\n\n🍕 *Se for pizza:*\n   • Borda recheada? (+ R$ 5,00)\n   • Extra queijo? (+ R$ 3,00)\n   • Retirar ingrediente?\n\n🍔 *Se for hambúrguer:*\n   • Ponto da carne?\n   • Adicionais? (bacon, queijo, etc.)\n   • Batata frita? (+ R$ 8,00)\n\n🥤 *Bebida para acompanhar?*\n   • Refrigerante 350ml (+ R$ 4,90)\n   • Suco natural (+ R$ 6,90)\n\n*Personalizações:*\nDigite suas preferências ou 'continuar' para prosseguir."
+      }
+    },
+    {
+      "id": "show_cart_summary",
+      "type": "webhook",
+      "position": { "x": 1900, "y": 100 },
+      "data": {
+        "label": "Resumo Carrinho",
+        "url": "{{ORDER_SYSTEM_URL}}/cart/{{session_id}}",
+        "method": "GET"
+      }
+    },
+    {
+      "id": "display_cart",
+      "type": "llm",
+      "position": { "x": 1500, "y": 300 },
+      "data": {
+        "label": "Exibir Carrinho",
+        "prompt": "Crie um resumo atrativo do carrinho de compras:\n\nItens no carrinho: {{cart_items}}\nSubtotal: {{subtotal}}\nTaxa de entrega: {{delivery_fee}}\nTotal: {{total}}\n\nFormato:\n\"🛒 *SEU CARRINHO*\n\n[Para cada item]\n🍽️ [Quantidade]x [Nome do Prato]\n   💰 R$ [Preço unitário] = R$ [Subtotal]\n   📝 [Personalizações se houver]\n\n━━━━━━━━━━━━━━━━━━━\n💵 *Subtotal:* R$ [valor]\n🚚 *Entrega:* R$ [valor]\n━━━━━━━━━━━━━━━━━━━\n💸 *TOTAL:* R$ [valor]\n\n*Opções:*\n✅ Finalizar pedido\n➕ Adicionar mais itens\n✏️ Editar quantidades\n🗑️ Remover item\n\nDigite sua escolha!\"",
+        "timeout": 15000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "checkout_process",
+      "type": "message",
+      "position": { "x": 1300, "y": 400 },
+      "data": {
+        "label": "Processo Checkout",
+        "message": "💳 *Finalização do Pedido*\n\n*Confirme seus dados:*\n\n📍 *Endereço de entrega:*\n{{delivery_address}}\n\n📱 *Telefone:* {{customer_phone}}\n👤 *Nome:* {{customer_name}}\n\n💰 *Total do pedido:* R$ {{total_amount}}\n\n💳 *Forma de pagamento:*\n1️⃣ 💸 Dinheiro (precisa de troco?)\n2️⃣ 💳 Cartão na entrega\n3️⃣ 📱 PIX (desconto de 5%)\n4️⃣ 💰 Cartão online\n\n⏰ *Tempo de entrega:* {{estimated_delivery}}\n\n*Escolha a forma de pagamento:*"
+      }
+    },
+    {
+      "id": "process_payment",
+      "type": "llm",
+      "position": { "x": 1100, "y": 400 },
+      "data": {
+        "label": "Processar Pagamento",
+        "prompt": "Processe a escolha de pagamento do cliente:\n\nEscolha: {{payment_choice}}\nTotal: {{total_amount}}\n\nSe PIX:\n- Aplicar desconto de 5%\n- Gerar instruções para PIX\n- Informar dados bancários\n\nSe dinheiro:\n- Perguntar se precisa de troco\n- Quanto de troco?\n\nSe cartão:\n- Confirmar modalidade (débito/crédito)\n- Informar que máquina está disponível\n\nRetornar instruções específicas para o pagamento escolhido.",
+        "timeout": 15000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "confirm_order",
+      "type": "webhook",
+      "position": { "x": 900, "y": 400 },
+      "data": {
+        "label": "Confirmar Pedido",
+        "url": "{{ORDER_SYSTEM_URL}}/confirm",
+        "method": "POST",
+        "payload": {
+          "customer_data": "{{customer_info}}",
+          "cart_items": "{{cart_contents}}",
+          "payment_method": "{{payment_type}}",
+          "delivery_address": "{{delivery_location}}",
+          "total_amount": "{{final_total}}",
+          "estimated_time": "{{delivery_estimate}}"
+        }
+      }
+    },
+    {
+      "id": "order_confirmed",
+      "type": "message",
+      "position": { "x": 700, "y": 400 },
+      "data": {
+        "label": "Pedido Confirmado",
+        "message": "🎉 *PEDIDO CONFIRMADO!*\n\n📋 *Número do pedido:* #{{order_number}}\n⏰ *Previsão de entrega:* {{delivery_time}}\n💰 *Total:* R$ {{final_amount}}\n💳 *Pagamento:* {{payment_method}}\n\n👨‍🍳 *Status atual:* Preparando seu pedido\n\n🛵 *Acompanhamento:*\nVou te mandar atualizações em tempo real:\n• ✅ Pedido confirmado\n• 👨‍🍳 Em preparo\n• 📦 Saiu para entrega\n• 🏠 Chegou ao destino\n\n📱 *Contato do entregador:* Será enviado quando sair\n\n🔔 *Dúvidas?*\nDigite 'status' para acompanhar\nDigite 'contato' para falar conosco\n\n*Obrigado pela preferência! 😋*"
+      }
+    },
+    {
+      "id": "track_order",
+      "type": "webhook",
+      "position": { "x": 500, "y": 500 },
+      "data": {
+        "label": "Rastrear Pedido",
+        "url": "{{ORDER_SYSTEM_URL}}/track/{{order_number}}",
+        "method": "GET"
+      }
+    },
+    {
+      "id": "show_order_status",
+      "type": "llm",
+      "position": { "x": 700, "y": 500 },
+      "data": {
+        "label": "Status do Pedido",
+        "prompt": "Crie uma mensagem de acompanhamento do pedido:\n\nDados do pedido: {{order_data}}\nStatus atual: {{current_status}}\nTempo estimado: {{remaining_time}}\n\nFormatos possíveis:\n\nSe em preparo:\n\"👨‍🍳 *Seu pedido está sendo preparado!*\n⏰ Tempo restante: [X] minutos\n📍 Status: [detalhes]\n🔥 Nosso chef está caprichando!\"\n\nSe saiu para entrega:\n\"🛵 *Pedido a caminho!*\n📱 Entregador: [nome] - [telefone]\n📍 Distância: [X]km\n⏰ Chega em: [X] minutos\n🔴 Acompanhe em tempo real\"\n\nSempre manter tom animado e informativo.",
+        "timeout": 15000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "delivery_feedback",
+      "type": "message",
+      "position": { "x": 900, "y": 500 },
+      "data": {
+        "label": "Feedback Entrega",
+        "message": "🍽️ *Entrega realizada com sucesso!*\n\nEsperamos que tenha aproveitado sua refeição!\n\n⭐ *Como foi nossa entrega hoje?*\n\n😍 Excelente - Superou expectativas\n😊 Muito bom - Recomendo\n😐 Bom - Dentro do esperado\n😕 Regular - Pode melhorar\n😞 Ruim - Tive problemas\n\n📝 *Conte mais:*\n• Como estava a comida?\n• O entregador foi atencioso?\n• A entrega chegou no tempo?\n• Alguma sugestão?\n\n🎁 *Avaliações nos ajudam a melhorar e você ganha pontos para desconto na próxima!*\n\n*Use os emojis ou descreva sua experiência:*"
+      }
+    },
+    {
+      "id": "save_feedback",
+      "type": "webhook",
+      "position": { "x": 1100, "y": 500 },
+      "data": {
+        "label": "Salvar Avaliação",
+        "url": "{{FEEDBACK_SYSTEM_URL}}/rating",
+        "method": "POST",
+        "payload": {
+          "order_id": "{{order_number}}",
+          "customer_rating": "{{customer_feedback}}",
+          "delivery_rating": "{{delivery_experience}}",
+          "comments": "{{additional_comments}}",
+          "timestamp": "{{current_timestamp}}"
+        }
+      }
+    },
+    {
+      "id": "thank_you_message",
+      "type": "message",
+      "position": { "x": 1300, "y": 500 },
+      "data": {
+        "label": "Agradecimento",
+        "message": "🙏 *Muito obrigado pelo seu feedback!*\n\nSua opinião é fundamental para continuarmos melhorando.\n\n🎁 *Você ganhou:*\n• 50 pontos de fidelidade\n• 10% de desconto na próxima\n• Prioridade no atendimento\n\n📱 *Nos salve nos contatos:*\n• WhatsApp: (11) 9999-9999\n• Instagram: @[restaurante]\n• Site: www.[restaurante].com.br\n\n🍽️ *Novidades sempre chegando:*\n• Novos pratos toda semana\n• Promoções exclusivas no WhatsApp\n• Cardápio sazonal\n\n🔄 *Para um novo pedido:*\nDigite 'menu' ou 'novo pedido'\n\n*Até a próxima refeição deliciosa! 😋🍕*"
+      }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "start-1", "target": "restaurant_welcome" },
+    { "id": "e2", "source": "restaurant_welcome", "target": "get_customer_location" },
+    { "id": "e3", "source": "get_customer_location", "target": "validate_delivery_area" },
+    { "id": "e4", "source": "validate_delivery_area", "target": "check_delivery_area" },
+    { "id": "e5", "source": "check_delivery_area", "target": "area_not_covered", "label": "false" },
+    { "id": "e6", "source": "check_delivery_area", "target": "show_menu_categories", "label": "true" },
+    { "id": "e7", "source": "show_menu_categories", "target": "show_category_items" },
+    { "id": "e8", "source": "show_category_items", "target": "display_menu_items" },
+    { "id": "e9", "source": "display_menu_items", "target": "add_to_cart" },
+    { "id": "e10", "source": "add_to_cart", "target": "show_cart_summary" },
+    { "id": "e11", "source": "show_cart_summary", "target": "display_cart" },
+    { "id": "e12", "source": "display_cart", "target": "checkout_process" },
+    { "id": "e13", "source": "checkout_process", "target": "process_payment" },
+    { "id": "e14", "source": "process_payment", "target": "confirm_order" },
+    { "id": "e15", "source": "confirm_order", "target": "order_confirmed" },
+    { "id": "e16", "source": "order_confirmed", "target": "track_order" },
+    { "id": "e17", "source": "track_order", "target": "show_order_status" },
+    { "id": "e18", "source": "show_order_status", "target": "delivery_feedback" },
+    { "id": "e19", "source": "delivery_feedback", "target": "save_feedback" },
+    { "id": "e20", "source": "save_feedback", "target": "thank_you_message" }
+  ],
+  "configuration": {
+    "webhooks": {
+      "delivery_system": {
+        "base_url": "https://api.delivery.com",
+        "auth_header": "Authorization: Bearer {{DELIVERY_API_KEY}}",
+        "timeout": 8000
+      },
+      "menu_system": {
+        "base_url": "https://api.menu.com",
+        "auth_header": "X-API-Key: {{MENU_API_KEY}}",
+        "timeout": 5000
+      },
+      "order_system": {
+        "base_url": "https://api.orders.com",
+        "auth_header": "Authorization: Bearer {{ORDER_API_KEY}}",
+        "timeout": 10000
+      }
+    },
+    "variables": {
+      "DELIVERY_SYSTEM_URL": "https://api.delivery.com/v1",
+      "MENU_SYSTEM_URL": "https://api.menu.com/v1",
+      "ORDER_SYSTEM_URL": "https://api.orders.com/v1",
+      "FEEDBACK_SYSTEM_URL": "https://api.feedback.com/v1",
+      "restaurant_name": "Seu Restaurante",
+      "min_order_free_delivery": "30.00",
+      "max_delivery_distance": "8",
+      "avg_preparation_time": "35"
+    },
+    "settings": {
+      "free_delivery_threshold": 30.00,
+      "max_delivery_radius_km": 8,
+      "average_prep_time_minutes": 35,
+      "pix_discount_percent": 5,
+      "loyalty_points_per_order": 50,
+      "enable_order_tracking": true,
+      "enable_feedback_system": true,
+      "auto_status_updates": true
+    }
+  }
+}

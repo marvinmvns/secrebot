@@ -540,6 +540,65 @@ class OllamaAPIPool {
     }
   }
 
+  async listModelsFromAllEndpoints() {
+    logger.info('🔍 Listando modelos de todos os endpoints Ollama...');
+    
+    if (this.clients.length === 0) {
+      logger.warn('⚠️ Nenhum endpoint configurado');
+      return { endpoints: [], totalModels: 0, uniqueModels: [] };
+    }
+
+    const results = [];
+    const uniqueModels = new Set();
+    
+    for (const client of this.clients) {
+      const endpointResult = {
+        url: client.endpoint.url,
+        type: this.isRKLlamaEndpoint(client.endpoint) ? 'RKLLama' : 'Ollama',
+        priority: client.endpoint.priority,
+        healthy: false,
+        models: [],
+        error: null
+      };
+
+      try {
+        logger.debug(`📡 Consultando modelos do endpoint: ${client.endpoint.url}`);
+        const response = await client.listModels();
+        
+        if (response && response.models) {
+          endpointResult.healthy = true;
+          endpointResult.models = response.models;
+          
+          // Adicionar modelos únicos ao conjunto
+          response.models.forEach(model => {
+            uniqueModels.add(model.name);
+          });
+          
+          logger.success(`✅ ${response.models.length} modelos encontrados em ${client.endpoint.url}`);
+        } else {
+          endpointResult.error = 'Resposta inválida do endpoint';
+          logger.warn(`⚠️ Resposta inválida do endpoint ${client.endpoint.url}`);
+        }
+      } catch (error) {
+        endpointResult.error = error.message;
+        logger.error(`❌ Erro ao listar modelos do endpoint ${client.endpoint.url}:`, error.message);
+      }
+
+      results.push(endpointResult);
+    }
+
+    const totalModels = results.reduce((sum, result) => sum + result.models.length, 0);
+    
+    logger.info(`📊 Resumo: ${totalModels} modelos totais, ${uniqueModels.size} únicos em ${results.length} endpoints`);
+    
+    return {
+      endpoints: results,
+      totalModels,
+      uniqueModels: Array.from(uniqueModels).sort(),
+      timestamp: new Date().toISOString()
+    };
+  }
+
   async showModel(model, verbose = false) {
     try {
       const client = await this.selectBestClient();

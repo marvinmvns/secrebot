@@ -1,0 +1,257 @@
+{
+  "id": "vendas-leads-template",
+  "name": "Geração de Leads e Vendas",
+  "description": "Template para qualificação de leads e processo de vendas com follow-up automatizado",
+  "alias": "vendas",
+  "version": "1.0.0",
+  "metadata": {
+    "category": "vendas",
+    "isTemplate": true,
+    "tags": ["vendas", "leads", "qualificacao", "crm", "follow-up"],
+    "author": "SecreBot Templates",
+    "businessType": "sales"
+  },
+  "nodes": [
+    {
+      "id": "start-1",
+      "type": "start",
+      "position": { "x": 100, "y": 100 },
+      "data": {
+        "label": "Início Vendas",
+        "message": "Processo de vendas iniciado"
+      }
+    },
+    {
+      "id": "welcome_sales",
+      "type": "message",
+      "position": { "x": 300, "y": 100 },
+      "data": {
+        "label": "Boas-vindas Vendas",
+        "message": "🎯 *Olá! Que bom ter você aqui!*\n\nSou o assistente de vendas e vou te ajudar a encontrar a melhor solução para suas necessidades.\n\n✨ *O que podemos fazer por você hoje?*\n\n🔍 Conhecer nossos produtos\n💰 Solicitar orçamento personalizado\n📞 Agendar demonstração\n🎁 Ver promoções especiais\n\n*Digite sua escolha ou me conte o que precisa!*",
+        "isMainMenu": true
+      }
+    },
+    {
+      "id": "qualify_lead",
+      "type": "llm",
+      "position": { "x": 500, "y": 100 },
+      "data": {
+        "label": "Qualificar Lead",
+        "prompt": "Você é um especialista em qualificação de leads. Analise a mensagem do prospecto e determine:\n\n1. INTERESSE: Alto, Médio, Baixo\n2. URGÊNCIA: Imediata, Próximos 30 dias, Futuro\n3. ORÇAMENTO: Indicado, Não mencionado, Limitado\n4. AUTORIDADE: Decisor, Influenciador, Usuário\n5. PRODUTO_INTERESSE: Específico ou Geral\n\nMensagem: {{user_message}}\n\nFormat sua resposta:\nINTERESSE: [Alto/Médio/Baixo]\nURGÊNCIA: [Imediata/30dias/Futuro]\nORÇAMENTO: [Indicado/NãoMencionado/Limitado]\nAUTORIDADE: [Decisor/Influenciador/Usuário]\nPRODUTO: [específico/geral]\nRESUMO: [frase sobre o interesse do lead]",
+        "timeout": 20000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "check_lead_quality",
+      "type": "condition",
+      "position": { "x": 700, "y": 100 },
+      "data": {
+        "label": "Verificar Qualidade do Lead",
+        "condition": "llm_output.includes('INTERESSE: Alto') || llm_output.includes('URGÊNCIA: Imediata')",
+        "description": "Lead qualificado com alto interesse ou urgência"
+      }
+    },
+    {
+      "id": "high_priority_response",
+      "type": "llm",
+      "position": { "x": 900, "y": 50 },
+      "data": {
+        "label": "Resposta Prioritária",
+        "prompt": "Este é um lead de alta prioridade! Crie uma resposta personalizada e envolvente que:\n\n1. Reconheça o interesse/urgência\n2. Apresente valor imediato\n3. Faça perguntas qualificadoras\n4. Ofereça próximo passo concreto\n\nContexto do lead: {{user_message}}\nQualificação: {{qualification_result}}\n\nTom: Profissional, entusiasmado, focado em resultados.\nIncluir: Benefícios específicos, prova social, call-to-action.",
+        "timeout": 20000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "standard_response",
+      "type": "llm",
+      "position": { "x": 900, "y": 200 },
+      "data": {
+        "label": "Resposta Padrão",
+        "prompt": "Crie uma resposta educativa e informativa para nutrir este lead:\n\n1. Agradeça o interesse\n2. Forneça informações úteis\n3. Eduque sobre benefícios\n4. Mantenha porta aberta\n\nContexto: {{user_message}}\nQualificação: {{qualification_result}}\n\nTom: Amigável, educativo, sem pressão de venda.\nFoco: Construir relacionamento e confiança.",
+        "timeout": 20000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "capture_contact_info",
+      "type": "message",
+      "position": { "x": 1100, "y": 50 },
+      "data": {
+        "label": "Capturar Contato",
+        "message": "🎯 *Perfeito! Vou preparar algo especial para você.*\n\nPara personalizar nossa proposta, preciso de algumas informações:\n\n📧 *E-mail corporativo*\n🏢 *Nome da empresa*\n👤 *Seu nome completo*\n📱 *Telefone (opcional)*\n\n*Pode me passar essas informações?*\n\n💡 *Dica: Com esses dados, posso criar uma proposta muito mais direcionada às suas necessidades!*"
+      }
+    },
+    {
+      "id": "extract_contact_data",
+      "type": "llm",
+      "position": { "x": 1300, "y": 50 },
+      "data": {
+        "label": "Extrair Dados",
+        "prompt": "Extraia as informações de contato da mensagem do cliente:\n\nMensagem: {{user_message}}\n\nRetorne no formato JSON:\n{\n  \"email\": \"email encontrado ou null\",\n  \"company\": \"empresa encontrada ou null\",\n  \"name\": \"nome encontrado ou null\",\n  \"phone\": \"telefone encontrado ou null\"\n}\n\nSe não encontrar alguma informação, use null.",
+        "timeout": 15000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "save_to_crm",
+      "type": "webhook",
+      "position": { "x": 1500, "y": 50 },
+      "data": {
+        "label": "Salvar no CRM",
+        "url": "{{CRM_WEBHOOK_URL}}/leads",
+        "method": "POST",
+        "payload": {
+          "source": "whatsapp_bot",
+          "contact_info": "{{extracted_contact}}",
+          "qualification": "{{qualification_result}}",
+          "conversation_id": "{{session_id}}",
+          "timestamp": "{{current_time}}",
+          "status": "new_lead",
+          "priority": "high"
+        }
+      }
+    },
+    {
+      "id": "schedule_demo",
+      "type": "message",
+      "position": { "x": 1100, "y": 200 },
+      "data": {
+        "label": "Agendar Demo",
+        "message": "🚀 *Que tal uma demonstração personalizada?*\n\nVou te mostrar exatamente como nossa solução pode resolver seus desafios.\n\n📅 *Horários disponíveis:*\n\n🕘 Segunda a Sexta: 9h às 18h\n⏱️ Duração: 30-45 minutos\n💻 Online via Google Meet\n\n*Qual dia e horário seria melhor para você?*\n\nExemplo: \"Quarta-feira às 14h\" ou \"Amanhã de manhã\""
+      }
+    },
+    {
+      "id": "process_scheduling",
+      "type": "llm",
+      "position": { "x": 1300, "y": 200 },
+      "data": {
+        "label": "Processar Agendamento",
+        "prompt": "O cliente quer agendar uma demo. Extraia e confirme:\n\nMensagem: {{user_message}}\n\nRetorne:\n1. Data preferida (se mencionada)\n2. Horário preferido (se mencionado)\n3. Sugestão de 3 horários próximos\n\nFormato:\nDATA_PREFERIDA: [data ou 'não especificada']\nHORÁRIO_PREFERIDO: [horário ou 'não especificado']\nSUGESTÕES:\n- Opção 1: [dia] às [hora]\n- Opção 2: [dia] às [hora]\n- Opção 3: [dia] às [hora]\n\nConsidere apenas dias úteis, horário comercial 9h-18h.",
+        "timeout": 15000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "create_calendar_event",
+      "type": "webhook",
+      "position": { "x": 1500, "y": 200 },
+      "data": {
+        "label": "Criar Evento",
+        "url": "{{CALENDAR_WEBHOOK_URL}}/events",
+        "method": "POST",
+        "payload": {
+          "title": "Demonstração de Produto - {{contact_name}}",
+          "description": "Demo personalizada para {{company_name}}",
+          "datetime": "{{scheduled_time}}",
+          "duration": 45,
+          "attendees": ["{{contact_email}}", "vendas@empresa.com"],
+          "meeting_link": "auto_generate"
+        }
+      }
+    },
+    {
+      "id": "send_proposal",
+      "type": "message",
+      "position": { "x": 900, "y": 400 },
+      "data": {
+        "label": "Enviar Proposta",
+        "message": "📋 *Proposta Personalizada*\n\nBaseado em nossa conversa, preparei uma proposta especial:\n\n✅ *Benefícios para seu negócio:*\n• Redução de custos operacionais\n• Aumento da produtividade\n• Automação de processos\n• ROI em até 90 dias\n\n💰 *Condições especiais hoje:*\n• 30% de desconto na implementação\n• 3 meses de suporte gratuito\n• Migração sem custo adicional\n\n📄 *Próximos passos:*\n1️⃣ Proposta detalhada por email\n2️⃣ Demonstração técnica\n3️⃣ Proposta comercial final\n\n*Posso enviar a proposta completa agora?*"
+      }
+    },
+    {
+      "id": "follow_up_schedule",
+      "type": "message",
+      "position": { "x": 1100, "y": 400 },
+      "data": {
+        "label": "Agendar Follow-up",
+        "message": "⏰ *Vou acompanhar seu processo de decisão*\n\nPara garantir que você tenha todo suporte necessário:\n\n📞 *Follow-up programado:*\n• Em 2 dias: Verificar dúvidas\n• Em 1 semana: Status da decisão\n• Em 2 semanas: Proposta revisada\n\n🔔 *Notificações ativas*\n• WhatsApp: Lembretes importantes\n• Email: Materiais complementares\n• Telefone: Contato direto quando necessário\n\n*Alguma data específica que devo evitar entrar em contato?*"
+      }
+    },
+    {
+      "id": "webhook_schedule_followup",
+      "type": "webhook",
+      "position": { "x": 1300, "y": 400 },
+      "data": {
+        "label": "Programar Follow-up",
+        "url": "{{CRM_WEBHOOK_URL}}/followup",
+        "method": "POST",
+        "payload": {
+          "lead_id": "{{contact_email}}",
+          "follow_up_schedule": [
+            {
+              "date": "{{date_plus_2_days}}",
+              "type": "whatsapp",
+              "message_template": "followup_day2"
+            },
+            {
+              "date": "{{date_plus_7_days}}",
+              "type": "phone",
+              "message_template": "followup_week1"
+            },
+            {
+              "date": "{{date_plus_14_days}}",
+              "type": "email",
+              "message_template": "followup_week2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "closing_message",
+      "type": "message",
+      "position": { "x": 1500, "y": 400 },
+      "data": {
+        "label": "Mensagem de Fechamento",
+        "message": "🎉 *Obrigado pela oportunidade!*\n\nEstou muito animado com a possibilidade de termos você como cliente.\n\n📱 *Seus próximos passos:*\n✅ Proposta detalhada no seu email\n✅ Demonstração agendada\n✅ Follow-up programado\n✅ Contato direto disponível\n\n📞 *Contato direto:*\nVendas: (11) 9999-9999\nEmail: vendas@empresa.com\n\n💬 *Continue nossa conversa:*\nDigite *proposta* para revisar detalhes\nDigite *demo* para reagendar\nDigite *!flow stop* para encerrar\n\n*Vamos fechar esse negócio! 🤝*"
+      }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "start-1", "target": "welcome_sales" },
+    { "id": "e2", "source": "welcome_sales", "target": "qualify_lead" },
+    { "id": "e3", "source": "qualify_lead", "target": "check_lead_quality" },
+    { "id": "e4", "source": "check_lead_quality", "target": "high_priority_response", "label": "true" },
+    { "id": "e5", "source": "check_lead_quality", "target": "standard_response", "label": "false" },
+    { "id": "e6", "source": "high_priority_response", "target": "capture_contact_info" },
+    { "id": "e7", "source": "capture_contact_info", "target": "extract_contact_data" },
+    { "id": "e8", "source": "extract_contact_data", "target": "save_to_crm" },
+    { "id": "e9", "source": "save_to_crm", "target": "schedule_demo" },
+    { "id": "e10", "source": "standard_response", "target": "schedule_demo" },
+    { "id": "e11", "source": "schedule_demo", "target": "process_scheduling" },
+    { "id": "e12", "source": "process_scheduling", "target": "create_calendar_event" },
+    { "id": "e13", "source": "create_calendar_event", "target": "send_proposal" },
+    { "id": "e14", "source": "send_proposal", "target": "follow_up_schedule" },
+    { "id": "e15", "source": "follow_up_schedule", "target": "webhook_schedule_followup" },
+    { "id": "e16", "source": "webhook_schedule_followup", "target": "closing_message" }
+  ],
+  "configuration": {
+    "webhooks": {
+      "crm_integration": {
+        "base_url": "https://api.yourcrm.com",
+        "auth_header": "Authorization: Bearer {{CRM_API_KEY}}",
+        "timeout": 10000
+      },
+      "calendar_system": {
+        "base_url": "https://api.calendar.com",
+        "auth_header": "X-API-Key: {{CALENDAR_API_KEY}}",
+        "timeout": 5000
+      }
+    },
+    "variables": {
+      "CRM_WEBHOOK_URL": "https://api.yourcrm.com/v1",
+      "CALENDAR_WEBHOOK_URL": "https://api.calendar.com/v1",
+      "CRM_API_KEY": "your-crm-api-key",
+      "CALENDAR_API_KEY": "your-calendar-api-key"
+    },
+    "settings": {
+      "lead_scoring_enabled": true,
+      "auto_followup_enabled": true,
+      "demo_duration_minutes": 45,
+      "max_followup_attempts": 3,
+      "high_priority_threshold": ["Alto", "Imediata"]
+    }
+  }
+}

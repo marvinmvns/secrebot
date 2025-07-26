@@ -30,6 +30,9 @@ Como posso te ajudar hoje?
 7️⃣ *WhisperSilent API*
    _Monitore e controle sistemas de transcrição._
 
+8️⃣ *Status de APIs*
+   _Visualize status detalhado das APIs Ollama e Whisper._
+
 ─────────────────────────────
 💡 *Como usar:*
 • Digite o *número* da opção.
@@ -151,7 +154,26 @@ Qual método você prefere?
 
 0️⃣ Voltar ao Menu Principal
 
-🔗 _Conecte-se ao seu sistema WhisperSilent para monitoramento completo._`
+🔗 _Conecte-se ao seu sistema WhisperSilent para monitoramento completo._`,
+
+  status_apis: `📊 *Status Detalhado das APIs*
+
+*STATUS GERAL*
+8.1 🤖 Status da API Ollama
+8.2 🎤 Status da API Whisper
+8.3 📋 Relatório Completo de APIs
+
+*MODELOS DISPONÍVEIS*
+8.4 🧠 Modelos Ollama (todos os endpoints)
+8.5 🎙️ Modelos Whisper disponíveis
+
+*ENDPOINTS ATIVOS*
+8.6 🌐 Endpoints Ollama
+8.7 🔗 Endpoints Whisper
+
+0️⃣ Voltar ao Menu Principal
+
+📡 _Monitore o status completo das APIs de IA e transcrição._`
 };
 
 /**

@@ -75,7 +75,7 @@ SecreBot can be set up using automated installation scripts for Linux and Window
 
 **Automated Installation (Linux example):**
 ```bash
-wget https://raw.githubusercontent.com/seu-usuario/secrebot/main/install-secrebot-linux.sh
+wget https://raw.githubusercontent.com/seu-usuario/secrebot/main/scripts/install-secrebot-linux.sh
 chmod +x install-secrebot-linux.sh
 ./install-secrebot-linux.sh
 ```

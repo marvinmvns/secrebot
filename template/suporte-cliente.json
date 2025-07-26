@@ -1,0 +1,189 @@
+{
+  "id": "suporte-cliente-template",
+  "name": "Suporte ao Cliente",
+  "description": "Template para atendimento e suporte ao cliente com escalação automática",
+  "alias": "suporte",
+  "version": "1.0.0",
+  "metadata": {
+    "category": "suporte",
+    "isTemplate": true,
+    "tags": ["atendimento", "suporte", "cliente", "escalacao"],
+    "author": "SecreBot Templates",
+    "businessType": "any"
+  },
+  "nodes": [
+    {
+      "id": "start-1",
+      "type": "start",
+      "position": { "x": 100, "y": 100 },
+      "data": {
+        "label": "Início do Atendimento",
+        "message": "Atendimento iniciado"
+      }
+    },
+    {
+      "id": "welcome-message",
+      "type": "message", 
+      "position": { "x": 300, "y": 100 },
+      "data": {
+        "label": "Boas-vindas",
+        "message": "🤖 *Olá! Bem-vindo ao nosso suporte!*\n\nSou seu assistente virtual e estou aqui para ajudar.\n\n*Como posso ajudá-lo hoje?*\n\n1️⃣ Problemas técnicos\n2️⃣ Dúvidas sobre produtos/serviços\n3️⃣ Falar com atendente humano\n4️⃣ Informações de conta\n\nDigite o número da opção ou descreva seu problema.",
+        "isMainMenu": true
+      }
+    },
+    {
+      "id": "classify_issue",
+      "type": "llm",
+      "position": { "x": 500, "y": 100 },
+      "data": {
+        "label": "Classificar Problema",
+        "prompt": "Analise a mensagem do cliente e classifique o tipo de problema/solicitação:\n\nCategorias possíveis:\n- technical: Problemas técnicos (erro, bug, não funciona)\n- product: Dúvidas sobre produtos/serviços (características, preços, disponibilidade)\n- account: Questões de conta (login, dados, faturamento)\n- human: Solicitação explícita para falar com humano\n- complaint: Reclamação ou insatisfação\n- other: Outros assuntos\n\nMensagem do cliente: {{user_message}}\n\nResponda APENAS com a categoria (technical, product, account, human, complaint, other).",
+        "timeout": 15000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "route_by_category",
+      "type": "condition",
+      "position": { "x": 700, "y": 100 },
+      "data": {
+        "label": "Rotear por Categoria",
+        "condition": "llm_output === 'human' || llm_output === 'complaint'",
+        "description": "Verificar se precisa de atendimento humano"
+      }
+    },
+    {
+      "id": "technical_support",
+      "type": "llm",
+      "position": { "x": 500, "y": 300 },
+      "data": {
+        "label": "Suporte Técnico",
+        "prompt": "Você é um especialista em suporte técnico. O cliente relatou um problema técnico:\n\n{{user_message}}\n\nForneça uma solução clara e passo-a-passo. Se for um problema complexo, sugira contato com suporte especializado.\n\nSempre:\n- Seja claro e didático\n- Use numeração para passos\n- Ofereça alternativas quando possível\n- Pergunte se precisa de mais ajuda\n\nSe não conseguir resolver, diga que irá conectar com um especialista.",
+        "timeout": 20000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "product_info",
+      "type": "llm",
+      "position": { "x": 700, "y": 300 },
+      "data": {
+        "label": "Informações de Produto",
+        "prompt": "Você é um consultor de produtos especializado. O cliente tem dúvidas sobre:\n\n{{user_message}}\n\nForneça informações completas e úteis sobre:\n- Características do produto/serviço\n- Preços quando relevante\n- Disponibilidade\n- Como adquirir/contratar\n- Benefícios principais\n\nSeja comercial mas não insistente. Ofereça ajuda adicional.",
+        "timeout": 20000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "escalate_to_human",
+      "type": "message",
+      "position": { "x": 900, "y": 100 },
+      "data": {
+        "label": "Escalar para Humano",
+        "message": "🙋‍♂️ *Conectando você com um atendente humano...*\n\nUm de nossos especialistas irá atendê-lo em breve.\n\n⏱️ *Tempo médio de espera: 3-5 minutos*\n\nEnquanto aguarda, você pode:\n- Preparar detalhes do seu problema\n- Ter em mãos documentos relevantes\n- Anotar perguntas específicas\n\n*Aguarde, por favor...*"
+      }
+    },
+    {
+      "id": "webhook_create_ticket",
+      "type": "webhook",
+      "position": { "x": 1100, "y": 100 },
+      "data": {
+        "label": "Criar Ticket",
+        "url": "{{SUPPORT_WEBHOOK_URL}}/create-ticket",
+        "method": "POST",
+        "payload": {
+          "customer_id": "{{user_id}}",
+          "category": "{{issue_category}}",
+          "description": "{{user_message}}",
+          "priority": "normal",
+          "source": "whatsapp_bot"
+        }
+      }
+    },
+    {
+      "id": "satisfaction_survey",
+      "type": "message",
+      "position": { "x": 500, "y": 500 },
+      "data": {
+        "label": "Pesquisa de Satisfação",
+        "message": "⭐ *Como foi nosso atendimento?*\n\nSua opinião é muito importante!\n\n😃 Excelente\n🙂 Bom  \n😐 Regular\n😞 Ruim\n\nDigite sua avaliação ou use os emojis."
+      }
+    },
+    {
+      "id": "collect_feedback",
+      "type": "variable",
+      "position": { "x": 700, "y": 500 },
+      "data": {
+        "label": "Coletar Feedback",
+        "variableName": "feedback_rating",
+        "value": "{{user_message}}"
+      }
+    },
+    {
+      "id": "webhook_save_feedback",
+      "type": "webhook",
+      "position": { "x": 900, "y": 500 },
+      "data": {
+        "label": "Salvar Feedback",
+        "url": "{{SUPPORT_WEBHOOK_URL}}/feedback",
+        "method": "POST",
+        "payload": {
+          "customer_id": "{{user_id}}",
+          "rating": "{{feedback_rating}}",
+          "conversation_id": "{{session_id}}",
+          "timestamp": "{{current_time}}"
+        }
+      }
+    },
+    {
+      "id": "final_message",
+      "type": "message",
+      "position": { "x": 1100, "y": 500 },
+      "data": {
+        "label": "Mensagem Final",
+        "message": "✅ *Obrigado pelo seu contato!*\n\nFoi um prazer ajudá-lo. Se precisar de mais alguma coisa, estarei sempre aqui.\n\n🔄 Para voltar ao menu principal: digite *menu*\n🛑 Para encerrar: digite *!flow stop*\n\nTenha um ótimo dia! 😊"
+      }
+    },
+    {
+      "id": "error_handler",
+      "type": "message",
+      "position": { "x": 300, "y": 700 },
+      "data": {
+        "label": "Tratamento de Erro",
+        "message": "🚧 *Ops! Tivemos um problema técnico.*\n\nNão se preocupe, isso pode acontecer. Vamos tentar de novo:\n\n🔄 Digite *menu* para voltar ao início\n🙋‍♂️ Digite *humano* para falar com atendente\n🛑 Digite *!flow stop* para encerrar\n\nPedimos desculpas pelo inconveniente."
+      }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "start-1", "target": "welcome-message" },
+    { "id": "e2", "source": "welcome-message", "target": "classify_issue" },
+    { "id": "e3", "source": "classify_issue", "target": "route_by_category" },
+    { "id": "e4", "source": "route_by_category", "target": "escalate_to_human", "label": "true" },
+    { "id": "e5", "source": "route_by_category", "target": "technical_support", "label": "false" },
+    { "id": "e6", "source": "escalate_to_human", "target": "webhook_create_ticket" },
+    { "id": "e7", "source": "webhook_create_ticket", "target": "final_message" },
+    { "id": "e8", "source": "technical_support", "target": "satisfaction_survey" },
+    { "id": "e9", "source": "product_info", "target": "satisfaction_survey" },
+    { "id": "e10", "source": "satisfaction_survey", "target": "collect_feedback" },
+    { "id": "e11", "source": "collect_feedback", "target": "webhook_save_feedback" },
+    { "id": "e12", "source": "webhook_save_feedback", "target": "final_message" }
+  ],
+  "configuration": {
+    "webhooks": {
+      "support_system": {
+        "base_url": "https://api.yoursupport.com",
+        "auth_header": "Authorization: Bearer {{SUPPORT_API_KEY}}",
+        "timeout": 10000
+      }
+    },
+    "variables": {
+      "SUPPORT_WEBHOOK_URL": "https://api.yoursupport.com/v1",
+      "SUPPORT_API_KEY": "your-api-key-here"
+    },
+    "settings": {
+      "auto_escalation_timeout": 300,
+      "max_llm_attempts": 2,
+      "enable_satisfaction_survey": true
+    }
+  }
+}

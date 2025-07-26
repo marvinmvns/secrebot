@@ -18,6 +18,7 @@ import Utils from '../utils/index.js';
 import { CONFIG, COMMANDS, CONFIG_DESCRIPTIONS, CONFIG_ENV_MAP, CONFIG_EXAMPLES, WHISPER_MODELS_LIST } from '../config/index.js';
 import logger from '../utils/logger.js';
 import { exportFullConfig, importFullConfig } from '../services/configExportImportService.js';
+import { getMetricsService } from '../services/metricsService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -212,6 +213,24 @@ class RestAPI {
         message: 'API do Bot está operacional.',
         emoji: '🤖'
       });
+    });
+
+    // Metrics endpoint for Prometheus
+    this.app.get('/metrics', async (req, res) => {
+      try {
+        const metricsService = getMetricsService();
+        
+        if (!metricsService.enabled) {
+          return res.status(503).send('Metrics collection is disabled');
+        }
+
+        const metrics = await metricsService.getMetrics();
+        res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+        res.send(metrics);
+      } catch (error) {
+        logger.error('❌ Error generating metrics:', error);
+        res.status(500).send('Error generating metrics');
+      }
     });
 
 
@@ -2645,6 +2664,257 @@ class RestAPI {
         res.status(500).json({ 
           success: false,
           error: 'Erro interno no diagnóstico',
+          details: error.message 
+        });
+      }
+    });
+
+    // ============ Observabilidade Routes ============
+    
+    // Página de Observabilidade
+    this.app.get('/observabilidade', async (req, res) => {
+      try {
+        // Obter configuração atual
+        const currentConfig = await this.configService.getConfig();
+        if (!currentConfig) {
+          logger.info('⚠️ Configuração não encontrada, inicializando...');
+          currentConfig = await this.configService.init();
+        }
+
+        // Obter status dos serviços de monitoramento
+        const metricsService = getMetricsService();
+        const monitoringStatus = {
+          grafanaEnabled: currentConfig?.monitoring?.grafanaEnabled || false,
+          prometheusEnabled: currentConfig?.monitoring?.prometheusEnabled || false,
+          alertmanagerEnabled: currentConfig?.monitoring?.alertmanagerEnabled || false,
+          metricsCollectionEnabled: metricsService.enabled,
+          scrapeInterval: currentConfig?.monitoring?.scrapeInterval || '15s',
+          grafanaPort: currentConfig?.monitoring?.grafanaPort || 3001,
+          prometheusPort: currentConfig?.monitoring?.prometheusPort || 9090,
+          alertmanagerPort: currentConfig?.monitoring?.alertmanagerPort || 9093
+        };
+
+        res.render('observabilidade', {
+          config: currentConfig,
+          monitoringStatus
+        });
+      } catch (error) {
+        logger.error('Erro ao carregar página de observabilidade:', error);
+        res.status(500).render('error', { 
+          error: 'Erro ao carregar observabilidade',
+          details: error.message 
+        });
+      }
+    });
+
+    // API endpoint para obter status de monitoramento
+    this.app.get('/api/observabilidade/status', async (req, res) => {
+      try {
+        const currentConfig = await this.configService.getConfig();
+        const metricsService = getMetricsService();
+        
+        // Verificar se Docker Compose está rodando
+        let dockerStatus = {
+          grafana: false,
+          prometheus: false,
+          alertmanager: false
+        };
+
+        try {
+          // Obter portas configuradas
+          const grafanaPort = currentConfig?.monitoring?.grafanaPort || 3001;
+          const prometheusPort = currentConfig?.monitoring?.prometheusPort || 9090;
+          const alertmanagerPort = currentConfig?.monitoring?.alertmanagerPort || 9093;
+
+          // Tentar conectar com os serviços usando portas configuradas
+          const grafanaResponse = await fetch(`http://localhost:${grafanaPort}/api/health`, { 
+            timeout: 3000 
+          }).catch(() => null);
+          dockerStatus.grafana = grafanaResponse?.ok || false;
+
+          const prometheusResponse = await fetch(`http://localhost:${prometheusPort}/-/healthy`, { 
+            timeout: 3000 
+          }).catch(() => null);
+          dockerStatus.prometheus = prometheusResponse?.ok || false;
+
+          const alertmanagerResponse = await fetch(`http://localhost:${alertmanagerPort}/-/healthy`, { 
+            timeout: 3000 
+          }).catch(() => null);
+          dockerStatus.alertmanager = alertmanagerResponse?.ok || false;
+        } catch (error) {
+          logger.debug('Erro ao verificar status dos serviços Docker:', error.message);
+        }
+
+        // Obter métricas se disponível
+        let metrics = null;
+        if (metricsService.enabled) {
+          try {
+            metrics = await metricsService.getMetricsSummary();
+          } catch (error) {
+            logger.warn('Erro ao obter resumo de métricas:', error.message);
+          }
+        }
+
+        res.json({
+          success: true,
+          config: {
+            grafanaEnabled: currentConfig?.monitoring?.grafanaEnabled || false,
+            prometheusEnabled: currentConfig?.monitoring?.prometheusEnabled || false,
+            alertmanagerEnabled: currentConfig?.monitoring?.alertmanagerEnabled || false,
+            metricsCollectionEnabled: metricsService.enabled,
+            scrapeInterval: currentConfig?.monitoring?.scrapeInterval || '15s',
+            grafanaPort: currentConfig?.monitoring?.grafanaPort || 3001,
+            prometheusPort: currentConfig?.monitoring?.prometheusPort || 9090,
+            alertmanagerPort: currentConfig?.monitoring?.alertmanagerPort || 9093
+          },
+          dockerStatus,
+          metrics
+        });
+      } catch (error) {
+        logger.error('Erro ao obter status de observabilidade:', error);
+        res.status(500).json({ 
+          error: 'Erro ao obter status de observabilidade',
+          details: error.message 
+        });
+      }
+    });
+
+    // API endpoint para atualizar configurações de monitoramento
+    this.app.post('/api/observabilidade/config', async (req, res) => {
+      try {
+        const { 
+          grafanaEnabled, 
+          prometheusEnabled, 
+          alertmanagerEnabled, 
+          metricsCollectionEnabled,
+          scrapeInterval,
+          grafanaPort,
+          prometheusPort,
+          alertmanagerPort
+        } = req.body;
+
+        // Obter configuração atual
+        let currentConfig = await this.configService.getConfig();
+        if (!currentConfig) {
+          currentConfig = await this.configService.init();
+        }
+
+        // Atualizar configurações de monitoramento
+        if (!currentConfig.monitoring) {
+          currentConfig.monitoring = {};
+        }
+
+        currentConfig.monitoring.grafanaEnabled = grafanaEnabled === true;
+        currentConfig.monitoring.prometheusEnabled = prometheusEnabled === true;
+        currentConfig.monitoring.alertmanagerEnabled = alertmanagerEnabled === true;
+        currentConfig.monitoring.scrapeInterval = scrapeInterval || '15s';
+        
+        // Atualizar portas se fornecidas
+        if (grafanaPort && grafanaPort >= 1024 && grafanaPort <= 65535) {
+          currentConfig.monitoring.grafanaPort = grafanaPort;
+        }
+        if (prometheusPort && prometheusPort >= 1024 && prometheusPort <= 65535) {
+          currentConfig.monitoring.prometheusPort = prometheusPort;
+        }
+        if (alertmanagerPort && alertmanagerPort >= 1024 && alertmanagerPort <= 65535) {
+          currentConfig.monitoring.alertmanagerPort = alertmanagerPort;
+        }
+
+        // Salvar configuração
+        await this.configService.setConfig(currentConfig);
+
+        // Atualizar serviço de métricas se necessário
+        const metricsService = getMetricsService();
+        if (metricsCollectionEnabled !== undefined) {
+          if (metricsCollectionEnabled && !metricsService.enabled) {
+            await metricsService.enable();
+          } else if (!metricsCollectionEnabled && metricsService.enabled) {
+            await metricsService.disable();
+          }
+        }
+
+        logger.info('✅ Configurações de observabilidade atualizadas');
+
+        res.json({
+          success: true,
+          message: 'Configurações de observabilidade atualizadas com sucesso',
+          config: {
+            grafanaEnabled: currentConfig.monitoring.grafanaEnabled,
+            prometheusEnabled: currentConfig.monitoring.prometheusEnabled,
+            alertmanagerEnabled: currentConfig.monitoring.alertmanagerEnabled,
+            metricsCollectionEnabled: metricsService.enabled,
+            scrapeInterval: currentConfig.monitoring.scrapeInterval,
+            grafanaPort: currentConfig.monitoring.grafanaPort || 3001,
+            prometheusPort: currentConfig.monitoring.prometheusPort || 9090,
+            alertmanagerPort: currentConfig.monitoring.alertmanagerPort || 9093
+          }
+        });
+      } catch (error) {
+        logger.error('Erro ao atualizar configurações de observabilidade:', error);
+        res.status(500).json({ 
+          error: 'Erro ao atualizar configurações de observabilidade',
+          details: error.message 
+        });
+      }
+    });
+
+    // API endpoint para controlar Docker Compose de monitoramento
+    this.app.post('/api/observabilidade/docker/:action', async (req, res) => {
+      try {
+        const { action } = req.params;
+        const validActions = ['start', 'stop', 'restart'];
+        
+        if (!validActions.includes(action)) {
+          return res.status(400).json({
+            error: 'Ação inválida. Use: start, stop ou restart'
+          });
+        }
+
+        // Obter configuração atual para portas
+        const currentConfig = await this.configService.getConfig();
+        const grafanaPort = currentConfig?.monitoring?.grafanaPort || 3001;
+        const prometheusPort = currentConfig?.monitoring?.prometheusPort || 9090;
+        const alertmanagerPort = currentConfig?.monitoring?.alertmanagerPort || 9093;
+
+        const { exec } = await import('child_process');
+        const { promisify } = await import('util');
+        const execAsync = promisify(exec);
+
+        // Definir variáveis de ambiente para as portas
+        const env = {
+          ...process.env,
+          GRAFANA_PORT: grafanaPort.toString(),
+          PROMETHEUS_PORT: prometheusPort.toString(),
+          ALERTMANAGER_PORT: alertmanagerPort.toString()
+        };
+
+        let command;
+        switch (action) {
+          case 'start':
+            command = 'docker-compose -f docker-compose.monitoring.yml up -d';
+            break;
+          case 'stop':
+            command = 'docker-compose -f docker-compose.monitoring.yml down';
+            break;
+          case 'restart':
+            command = 'docker-compose -f docker-compose.monitoring.yml restart';
+            break;
+        }
+
+        const { stdout, stderr } = await execAsync(command, { env });
+        
+        logger.info(`✅ Docker Compose ${action} executado com sucesso`);
+        
+        res.json({
+          success: true,
+          message: `Stack de monitoramento ${action === 'start' ? 'iniciada' : action === 'stop' ? 'parada' : 'reiniciada'} com sucesso`,
+          stdout,
+          stderr
+        });
+      } catch (error) {
+        logger.error(`Erro ao ${req.params.action} Docker Compose:`, error);
+        res.status(500).json({ 
+          error: `Erro ao ${req.params.action} stack de monitoramento`,
           details: error.message 
         });
       }

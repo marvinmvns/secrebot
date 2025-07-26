@@ -14,6 +14,7 @@ class FlowExecutionService {
         this.executionHistory = new Map(); // userId -> history
         this.llmQueue = new Map(); // userId -> llmRequest info
         this.llmProcessing = new Set(); // userIds currently being processed
+        this.abTestingCache = new Map(); // userId -> variant selections
     }
 
     /**
@@ -737,6 +738,19 @@ class FlowExecutionService {
     async executeLlmNode(executionState, node) {
         try {
             let prompt = node.data.prompt || '';
+            
+            // A/B Testing: Select prompt variant if configured
+            if (node.data.promptVariants && node.data.promptVariants.length > 0) {
+                const selectedVariant = this.selectPromptVariant(executionState.userId, node.data.promptVariants);
+                prompt = selectedVariant.prompt;
+                
+                // Log the variant selection for analysis
+                logger.info(`🔀 A/B Test: Selected variant "${selectedVariant.name}" for user ${executionState.userId}`);
+                
+                // Store variant selection for tracking
+                executionState.variables.set('selectedPromptVariant', selectedVariant.name);
+                executionState.variables.set('selectedPromptVariantId', selectedVariant.id);
+            }
             
             // Debug log para sessões de teste
             if (executionState.initialData && executionState.initialData.isTestSession) {
@@ -1538,6 +1552,12 @@ class FlowExecutionService {
         const executionState = this.activeFlows.get(userId);
         
         if (executionState) {
+            // Record A/B test conversion if variants were used
+            const selectedVariantId = executionState.variables?.get('selectedPromptVariantId');
+            if (selectedVariantId) {
+                this.recordAbTestConversion(userId, selectedVariantId, 'flow_completion');
+            }
+            
             // Limpar timeout se existir
             if (executionState.inputTimeout) {
                 clearTimeout(executionState.inputTimeout);
@@ -1991,6 +2011,113 @@ class FlowExecutionService {
             loadedFlows: this.loadedFlows.size,
             totalExecutions: this.executionHistory.size
         };
+    }
+
+    /**
+     * A/B Testing: Selects a prompt variant for a user
+     * Supports different selection strategies: random, user-based, weighted
+     */
+    selectPromptVariant(userId, variants) {
+        if (!variants || variants.length === 0) {
+            throw new Error('No prompt variants provided');
+        }
+
+        if (variants.length === 1) {
+            return variants[0];
+        }
+
+        // Create cache key for this user and variant set
+        const variantIds = variants.map(v => v.id).sort().join('-');
+        const cacheKey = `${userId}-${variantIds}`;
+
+        // Check if user already has a cached selection for consistency
+        if (this.abTestingCache.has(cacheKey)) {
+            const cachedVariantId = this.abTestingCache.get(cacheKey);
+            const cachedVariant = variants.find(v => v.id === cachedVariantId);
+            if (cachedVariant) {
+                return cachedVariant;
+            }
+        }
+
+        let selectedVariant;
+
+        // Check if variants have selection strategy configured
+        const strategy = variants[0].selectionStrategy || 'random';
+
+        switch (strategy) {
+            case 'weighted':
+                selectedVariant = this.selectWeightedVariant(variants);
+                break;
+            
+            case 'user_hash':
+                selectedVariant = this.selectUserHashVariant(userId, variants);
+                break;
+            
+            case 'random':
+            default:
+                selectedVariant = this.selectRandomVariant(variants);
+                break;
+        }
+
+        // Cache the selection for consistency
+        this.abTestingCache.set(cacheKey, selectedVariant.id);
+
+        // Log for analytics
+        logger.info(`🔀 A/B Test selection: User ${userId}, Strategy: ${strategy}, Selected: ${selectedVariant.name}`);
+
+        return selectedVariant;
+    }
+
+    /**
+     * Selects a random variant with equal probability
+     */
+    selectRandomVariant(variants) {
+        const randomIndex = Math.floor(Math.random() * variants.length);
+        return variants[randomIndex];
+    }
+
+    /**
+     * Selects a variant based on configured weights
+     */
+    selectWeightedVariant(variants) {
+        const totalWeight = variants.reduce((sum, variant) => sum + (variant.weight || 1), 0);
+        let random = Math.random() * totalWeight;
+
+        for (const variant of variants) {
+            random -= (variant.weight || 1);
+            if (random <= 0) {
+                return variant;
+            }
+        }
+
+        // Fallback to last variant
+        return variants[variants.length - 1];
+    }
+
+    /**
+     * Selects a variant based on user ID hash for consistent assignment
+     */
+    selectUserHashVariant(userId, variants) {
+        // Simple hash function to ensure consistent assignment
+        let hash = 0;
+        for (let i = 0; i < userId.length; i++) {
+            const char = userId.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+
+        const index = Math.abs(hash) % variants.length;
+        return variants[index];
+    }
+
+    /**
+     * Records A/B test conversion for analytics
+     */
+    recordAbTestConversion(userId, variantId, conversionType = 'completion') {
+        logger.info(`📊 A/B Test Conversion: User ${userId}, Variant ${variantId}, Type: ${conversionType}`);
+        
+        // In a production system, this would be sent to analytics
+        // For now, we'll just log it for monitoring
     }
 }
 

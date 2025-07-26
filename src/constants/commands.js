@@ -20,6 +20,7 @@ export const COMMANDS = {
   LISTAR_ENDPOINTS_WHISPER: '!listarendpointswhisper',
   LISTAR_ENDPOINTS_OLLAMA: '!listarendpointsollama',
   STATUS_ENDPOINTS: '!statusendpoints',
+  STATUS_APIS: '!statusapis',
   SAIR: '!sair',
   FLOW_SAIR: '!flow sair',
   FLOW_STOP: '!flow stop',
@@ -39,6 +40,7 @@ export const NUMERIC_SHORTCUTS = {
   '5': 'submenu_config',
   '6': 'submenu_suporte',
   '7': 'submenu_whispersilent',
+  '8': 'submenu_status_apis',
   '0': COMMANDS.VOLTAR,
   
   // Agenda & Lembretes
@@ -91,7 +93,16 @@ export const NUMERIC_SHORTCUTS = {
   '7.11': 'ws_control_stop',
   '7.12': 'ws_send_unsent',
   '7.13': 'ws_export_data',
-  '7.14': COMMANDS.WHISPERSILENT
+  '7.14': COMMANDS.WHISPERSILENT,
+  
+  // Status de APIs
+  '8.1': 'api_status_ollama',
+  '8.2': 'api_status_whisper',
+  '8.3': 'api_status_complete',
+  '8.4': 'api_models_ollama',
+  '8.5': 'api_models_whisper',
+  '8.6': 'api_endpoints_ollama',
+  '8.7': 'api_endpoints_whisper'
 };
 
 export const CHAT_MODES = {
@@ -118,7 +129,8 @@ export const NAVIGATION_STATES = {
   SUBMENU_CONFIG: 'submenu_config',
   SUBMENU_SUPORTE: 'submenu_suporte',
   SUBMENU_VIDEO: 'submenu_video',
-  SUBMENU_WHISPERSILENT: 'submenu_whispersilent'
+  SUBMENU_WHISPERSILENT: 'submenu_whispersilent',
+  SUBMENU_STATUS_APIS: 'submenu_status_apis'
 };
 
 export const WHISPER_MODELS_LIST = [

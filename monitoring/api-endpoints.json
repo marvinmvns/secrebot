@@ -1,0 +1,70 @@
+{
+  "api_categories": {
+    "core_apis": {
+      "description": "APIs principais da aplicação",
+      "endpoints": [
+        "/api/chat",
+        "/api/transcribe",
+        "/api/video/summarize",
+        "/health",
+        "/metrics"
+      ]
+    },
+    "flow_management": {
+      "description": "APIs de gerenciamento de flows",
+      "endpoints": [
+        "/api/flow/save",
+        "/api/flow/list",
+        "/api/flow/:id",
+        "/api/flow/test",
+        "/api/flow/test/start",
+        "/api/flow/test/message",
+        "/api/flow/test/stop",
+        "/api/flow/validate",
+        "/api/flow/import",
+        "/api/flow/export"
+      ]
+    },
+    "system_management": {
+      "description": "APIs de gerenciamento do sistema",
+      "endpoints": [
+        "/api/system/stats",
+        "/api/processing/stats",
+        "/api/system/ollama-pool-status",
+        "/api/configs",
+        "/api/config/export",
+        "/api/config/import"
+      ]
+    },
+    "integrations": {
+      "description": "APIs de integrações externas",
+      "endpoints": [
+        "/api/linkedin/status",
+        "/api/linkedin/test",
+        "/api/whisper-api/status",
+        "/api/whisper-api/test",
+        "/api/ollama-api/status",
+        "/api/ollama-api/test",
+        "/api/ollama-api/models"
+      ]
+    },
+    "observability": {
+      "description": "APIs de observabilidade",
+      "endpoints": [
+        "/api/observabilidade/status",
+        "/api/observabilidade/config",
+        "/api/observabilidade/docker/:action"
+      ]
+    },
+    "content_processing": {
+      "description": "APIs de processamento de conteúdo",
+      "endpoints": [
+        "/describe",
+        "/calories",
+        "/summarize",
+        "/video",
+        "/transcribe"
+      ]
+    }
+  }
+}

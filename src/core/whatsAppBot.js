@@ -37,6 +37,7 @@ import TtsService from '../services/ttsService.js';
 import CalorieService from '../services/calorieService.js';
 import { loginAndGetLiAt } from '../services/linkedinScraper.js';
 import YouTubeService from '../services/youtubeService.js';
+import { getMetricsService } from '../services/metricsService.js';
 
 // ============ Bot do WhatsApp ============
 class WhatsAppBot {
@@ -48,6 +49,7 @@ class WhatsAppBot {
     this.ttsService = ttsService; // CORREÇÃO: Atribuir o serviço TTS
     this.whisperSilentService = whisperSilentService;
     this.sessionService = sessionService;
+    this.metricsService = getMetricsService();
     this.chatModes = new Map(); // Mantém cache local para performance
     this.navigationStates = new Map(); // Para navegação hierárquica
     this.userPreferences = new Map(); // Para armazenar preferências (ex: { voiceResponse: true/false })
@@ -379,6 +381,14 @@ class WhatsAppBot {
           this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_SUPORTE);
           await this.sendResponse(contactId, SUBMENU_MESSAGES.suporte);
           return true;
+        case '7':
+          this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_WHISPERSILENT);
+          await this.sendResponse(contactId, SUBMENU_MESSAGES.whispersilent);
+          return true;
+        case '8':
+          this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_STATUS_APIS);
+          await this.sendResponse(contactId, SUBMENU_MESSAGES.status_apis);
+          return true;
         case '0':
           await this.sendResponse(contactId, MENU_MESSAGE);
           return true;
@@ -406,6 +416,8 @@ class WhatsAppBot {
         return await this.handleSuporteSubmenu(msg, contactId, numericInput);
       case NAVIGATION_STATES.SUBMENU_VIDEO:
         return await this.handleVideoSubmenu(msg, contactId, numericInput);
+      case NAVIGATION_STATES.SUBMENU_STATUS_APIS:
+        return await this.handleStatusApisSubmenu(msg, contactId, numericInput);
       default:
         return false;
     }
@@ -569,6 +581,37 @@ class WhatsAppBot {
     return false;
   }
 
+  async handleStatusApisSubmenu(msg, contactId, input) {
+    switch (input) {
+      case '8.1':
+        await this.handleApiStatusOllama(contactId);
+        return true;
+      case '8.2':
+        await this.handleApiStatusWhisper(contactId);
+        return true;
+      case '8.3':
+        await this.handleApiStatusComplete(contactId);
+        return true;
+      case '8.4':
+        await this.handleApiModelsOllama(contactId);
+        return true;
+      case '8.5':
+        await this.handleApiModelsWhisper(contactId);
+        return true;
+      case '8.6':
+        await this.handleApiEndpointsOllama(contactId);
+        return true;
+      case '8.7':
+        await this.handleApiEndpointsWhisper(contactId);
+        return true;
+      case '0':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.sendResponse(contactId, MENU_MESSAGE);
+        return true;
+    }
+    return false;
+  }
+
   async showSubmenu(contactId, submenuType) {
     switch (submenuType) {
       case 'submenu_agenda':
@@ -602,6 +645,10 @@ class WhatsAppBot {
       case 'submenu_whispersilent':
         this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_WHISPERSILENT);
         await this.sendResponse(contactId, SUBMENU_MESSAGES.whispersilent);
+        break;
+      case 'submenu_status_apis':
+        this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_STATUS_APIS);
+        await this.sendResponse(contactId, SUBMENU_MESSAGES.status_apis);
         break;
       default:
         await this.sendResponse(contactId, MENU_MESSAGE);
@@ -723,6 +770,11 @@ class WhatsAppBot {
     const lowerText = text.toLowerCase();
 
     logger.verbose(`💬 Mensagem de ${contactId}: ${text || '[Mídia]'}`);
+
+    // Record user activity metrics
+    if (this.metricsService.enabled) {
+      this.metricsService.recordWhatsAppMessage(contactId, msg.type || 'text', text?.startsWith('!'));
+    }
 
     // Verificar se o usuário está respondendo a uma sugestão de resumo de áudio (modo geral)
     const awaitingSummarization = this.getUserPreference(contactId, 'awaitingSummarizationResponse', null);
@@ -3808,8 +3860,363 @@ usuario@email.com:senha
       await this.sendResponse(contactId, `❌ *ERRO AO OBTER STATUS*\n\n🚫 **Erro:** ${err.message}\n\n🔙 Para voltar ao menu: !voltar`);
     }
   }
+
+  // === Novos Métodos para Status Detalhado das APIs (Opção 8) ===
+
+  async handleApiStatusOllama(contactId) {
+    try {
+      await this.sendResponse(contactId, '🤖 Carregando status da API Ollama...', true);
+      
+      let message = '🤖 *STATUS DA API OLLAMA*\n\n';
+      
+      const ollamaStatus = await this.llmService.getOllamaApiStatus();
+      
+      message += `📊 **Status Geral:**\n`;
+      message += `• Habilitado: ${ollamaStatus.enabled ? '✅ Sim' : '❌ Não'}\n`;
+      message += `• Modo: ${ollamaStatus.mode}\n`;
+      message += `• Endpoints Totais: ${ollamaStatus.totalEndpoints}\n`;
+      message += `• Endpoints Saudáveis: ${ollamaStatus.healthyEndpoints}\n`;
+      message += `• Estratégia: ${ollamaStatus.strategy}\n\n`;
+      
+      if (ollamaStatus.message) {
+        message += `ℹ️ **Informação:** ${ollamaStatus.message}\n\n`;
+      }
+      
+      if (ollamaStatus.endpoints && ollamaStatus.endpoints.length > 0) {
+        message += '🌐 **Endpoints Detalhados:**\n\n';
+        ollamaStatus.endpoints.forEach((endpoint, index) => {
+          message += `${index + 1}. **${endpoint.url}**\n`;
+          message += `   Status: ${endpoint.healthy ? '🟢 Saudável' : '🔴 Indisponível'}\n`;
+          message += `   Prioridade: ${endpoint.priority}\n`;
+          if (endpoint.currentModel) {
+            message += `   Modelo Atual: ${endpoint.currentModel}\n`;
+          }
+          if (endpoint.runningModels !== undefined) {
+            message += `   Modelos Ativos: ${endpoint.runningModels}\n`;
+          }
+          if (endpoint.error) {
+            message += `   ❌ Erro: ${endpoint.error}\n`;
+          }
+          message += '\n';
+        });
+      }
+      
+      message += `🔄 Atualizado: ${new Date().toLocaleString('pt-BR')}\n`;
+      message += `🔙 Para voltar: digite 0`;
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao obter status Ollama para ${contactId}`, err);
+      await this.sendResponse(contactId, `❌ *ERRO NO STATUS OLLAMA*\n\n🚫 **Erro:** ${err.message}\n\n🔙 Para voltar: digite 0`);
+    }
+  }
+
+  async handleApiStatusWhisper(contactId) {
+    try {
+      await this.sendResponse(contactId, '🎤 Carregando status da API Whisper...', true);
+      
+      let message = '🎤 *STATUS DA API WHISPER*\n\n';
+      
+      const whisperStatus = await this.transcriber.getWhisperApiStatus();
+      
+      message += `📊 **Status Geral:**\n`;
+      message += `• Disponível: ${whisperStatus.available ? '✅ Sim' : '❌ Não'}\n`;
+      message += `• Modo: ${whisperStatus.mode}\n`;
+      message += `• Saudável: ${whisperStatus.healthy ? '✅ Sim' : '❌ Não'}\n`;
+      
+      if (whisperStatus.stats) {
+        message += `• Endpoints Totais: ${whisperStatus.stats.total}\n`;
+        message += `• Endpoints Saudáveis: ${whisperStatus.stats.healthy}\n`;
+        message += `• Endpoints Indisponíveis: ${whisperStatus.stats.unhealthy}\n`;
+      }
+      message += '\n';
+      
+      if (whisperStatus.error) {
+        message += `⚠️ **Erro:** ${whisperStatus.error}\n\n`;
+      }
+      
+      if (whisperStatus.clients && whisperStatus.clients.length > 0) {
+        message += '🌐 **Endpoints Detalhados:**\n\n';
+        whisperStatus.clients.forEach((client, index) => {
+          message += `${index + 1}. **${client.url}**\n`;
+          message += `   Status: ${client.healthy ? '🟢 Saudável' : '🔴 Indisponível'}\n`;
+          message += `   Prioridade: ${client.priority}\n`;
+          if (client.queueLength !== undefined) {
+            message += `   Fila: ${client.queueLength} itens\n`;
+          }
+          if (client.error) {
+            message += `   ❌ Erro: ${client.error}\n`;
+          }
+          message += '\n';
+        });
+      }
+      
+      message += `🔄 Atualizado: ${new Date().toLocaleString('pt-BR')}\n`;
+      message += `🔙 Para voltar: digite 0`;
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao obter status Whisper para ${contactId}`, err);
+      await this.sendResponse(contactId, `❌ *ERRO NO STATUS WHISPER*\n\n🚫 **Erro:** ${err.message}\n\n🔙 Para voltar: digite 0`);
+    }
+  }
+
+  async handleApiStatusComplete(contactId) {
+    try {
+      await this.sendResponse(contactId, '📋 Gerando relatório completo das APIs...', true);
+      
+      let message = '📋 *RELATÓRIO COMPLETO DAS APIS*\n\n';
+      
+      // Status Ollama
+      try {
+        const ollamaStatus = await this.llmService.getOllamaApiStatus();
+        message += '🤖 **OLLAMA API**\n';
+        message += `• Status: ${ollamaStatus.enabled ? '✅ Ativo' : '❌ Inativo'}\n`;
+        message += `• Modo: ${ollamaStatus.mode}\n`;
+        message += `• Endpoints: ${ollamaStatus.healthyEndpoints}/${ollamaStatus.totalEndpoints}\n`;
+        if (ollamaStatus.message) {
+          message += `• Info: ${ollamaStatus.message}\n`;
+        }
+        message += '\n';
+      } catch (err) {
+        message += '🤖 **OLLAMA API**\n';
+        message += `❌ Erro: ${err.message}\n\n`;
+      }
+      
+      // Status Whisper
+      try {
+        const whisperStatus = await this.transcriber.getWhisperApiStatus();
+        message += '🎤 **WHISPER API**\n';
+        message += `• Status: ${whisperStatus.available ? '✅ Disponível' : '❌ Indisponível'}\n`;
+        message += `• Modo: ${whisperStatus.mode}\n`;
+        message += `• Saudável: ${whisperStatus.healthy ? '✅ Sim' : '❌ Não'}\n`;
+        if (whisperStatus.stats) {
+          message += `• Endpoints: ${whisperStatus.stats.healthy}/${whisperStatus.stats.total}\n`;
+        }
+        if (whisperStatus.error) {
+          message += `• Erro: ${whisperStatus.error}\n`;
+        }
+        message += '\n';
+      } catch (err) {
+        message += '🎤 **WHISPER API**\n';
+        message += `❌ Erro: ${err.message}\n\n`;
+      }
+      
+      // Informações do Sistema
+      try {
+        const cpuInfo = await si.cpu();
+        const memInfo = await si.mem();
+        const loadInfo = await si.currentLoad();
+        
+        message += '💻 **SISTEMA**\n';
+        message += `• CPU: ${cpuInfo.brand}\n`;
+        message += `• Carga: ${loadInfo.currentLoad.toFixed(1)}%\n`;
+        message += `• Memória: ${((memInfo.used / memInfo.total) * 100).toFixed(1)}%\n`;
+        message += `• RAM: ${(memInfo.used / 1024 / 1024 / 1024).toFixed(1)}GB / ${(memInfo.total / 1024 / 1024 / 1024).toFixed(1)}GB\n\n`;
+      } catch (err) {
+        message += '💻 **SISTEMA**\n';
+        message += `❌ Erro: ${err.message}\n\n`;
+      }
+      
+      message += `🕒 **Gerado em:** ${new Date().toLocaleString('pt-BR')}\n`;
+      message += `🔙 Para voltar: digite 0`;
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao gerar relatório completo para ${contactId}`, err);
+      await this.sendResponse(contactId, `❌ *ERRO NO RELATÓRIO*\n\n🚫 **Erro:** ${err.message}\n\n🔙 Para voltar: digite 0`);
+    }
+  }
+
+  async handleApiModelsOllama(contactId) {
+    try {
+      await this.sendResponse(contactId, '🧠 Carregando modelos de todos os endpoints Ollama...', true);
+      
+      let message = '🧠 *MODELOS OLLAMA - TODOS OS ENDPOINTS*\n\n';
+      
+      const allModelsData = await this.llmService.listModelsFromAllEndpoints();
+      
+      // Resumo geral
+      message += `📊 **Resumo Geral:**\n`;
+      message += `• Total de Endpoints: ${allModelsData.endpoints.length}\n`;
+      message += `• Modelos Totais: ${allModelsData.totalModels}\n`;
+      message += `• Modelos Únicos: ${allModelsData.uniqueModels.length}\n`;
+      message += `• Endpoints Saudáveis: ${allModelsData.endpoints.filter(e => e.healthy).length}\n\n`;
+      
+      // Lista de modelos únicos com informações agregadas
+      if (allModelsData.uniqueModels.length > 0) {
+        message += '🎯 **MODELOS ÚNICOS DISPONÍVEIS:**\n\n';
+        
+        allModelsData.uniqueModels.forEach((modelName, index) => {
+          message += `${index + 1}. **${modelName}**\n`;
+          
+          // Encontrar onde este modelo está disponível
+          const availableIn = [];
+          let totalSize = 0;
+          let latestModified = null;
+          
+          allModelsData.endpoints.forEach(endpoint => {
+            const foundModel = endpoint.models.find(m => m.name === modelName);
+            if (foundModel) {
+              availableIn.push(`${endpoint.url} (${endpoint.type})`);
+              if (foundModel.size) {
+                totalSize = Math.max(totalSize, foundModel.size);
+              }
+              if (foundModel.modified_at) {
+                const modDate = new Date(foundModel.modified_at);
+                if (!latestModified || modDate > latestModified) {
+                  latestModified = modDate;
+                }
+              }
+            }
+          });
+          
+          message += `   🌍 Disponível em: ${availableIn.length} endpoint(s)\n`;
+          availableIn.forEach(location => {
+            message += `      📍 ${location}\n`;
+          });
+          
+          if (totalSize > 0) {
+            message += `   📦 Tamanho: ${(totalSize / 1024 / 1024 / 1024).toFixed(2)} GB\n`;
+          }
+          if (latestModified) {
+            message += `   📅 Modificado: ${latestModified.toLocaleString('pt-BR')}\n`;
+          }
+          
+          // Indicar se é o modelo atual
+          if (modelName === CONFIG.llm.model) {
+            message += `   ⭐ **MODELO ATUAL EM USO**\n`;
+          }
+          
+          message += '\n';
+        });
+      } else {
+        message += '📭 *Nenhum modelo encontrado em nenhum endpoint*\n\n';
+      }
+      
+      // Detalhes por endpoint
+      message += '🌐 **DETALHES POR ENDPOINT:**\n\n';
+      allModelsData.endpoints.forEach((endpoint, index) => {
+        message += `${index + 1}. **${endpoint.url}** (${endpoint.type})\n`;
+        message += `   Status: ${endpoint.healthy ? '🟢 Saudável' : '🔴 Indisponível'}\n`;
+        message += `   Prioridade: ${endpoint.priority}\n`;
+        message += `   Modelos: ${endpoint.models.length}\n`;
+        
+        if (endpoint.error) {
+          message += `   ❌ Erro: ${endpoint.error}\n`;
+        }
+        
+        if (endpoint.healthy && endpoint.models.length > 0) {
+          const modelNames = endpoint.models.map(m => m.name).join(', ');
+          message += `   📋 Lista: ${modelNames.length > 100 ? modelNames.substring(0, 100) + '...' : modelNames}\n`;
+        }
+        
+        message += '\n';
+      });
+      
+      // Informações do sistema atual
+      message += `🎯 **Configuração Atual:**\n`;
+      message += `• Modelo: ${CONFIG.llm.model}\n`;
+      message += `• Host: ${CONFIG.llm.host}\n`;
+      message += `• Pool API: ${await this.llmService.shouldUseApiPool() ? '✅ Ativo' : '❌ Inativo'}\n\n`;
+      
+      message += `🔄 Atualizado: ${new Date(allModelsData.timestamp).toLocaleString('pt-BR')}\n`;
+      message += `🔙 Para voltar: digite 0`;
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao listar modelos de todos os endpoints para ${contactId}`, err);
+      await this.sendResponse(contactId, `❌ *ERRO AO LISTAR MODELOS*\n\n🚫 **Erro:** ${err.message}\n\n💡 **Possíveis causas:**\n• Endpoints Ollama indisponíveis\n• Problemas de conectividade\n• Configuração incorreta\n\n🔙 Para voltar: digite 0`);
+    }
+  }
+
+  async handleApiModelsWhisper(contactId) {
+    try {
+      await this.sendResponse(contactId, '🎙️ Carregando informações dos modelos Whisper...', true);
+      
+      let message = '🎙️ *MODELOS WHISPER DISPONÍVEIS*\n\n';
+      
+      message += `🎯 **Modelo Atual:** ${CONFIG.audio.model}\n`;
+      message += `🌐 **Idioma:** ${CONFIG.audio.language}\n`;
+      message += `🔊 **Taxa de Amostragem:** ${CONFIG.audio.sampleRate}Hz\n\n`;
+      
+      message += '📋 **Modelos Suportados:**\n\n';
+      
+      WHISPER_MODELS_LIST.forEach((model, index) => {
+        const isCurrent = model === CONFIG.audio.model;
+        message += `${index + 1}. ${isCurrent ? '🎯 **' : ''}${model}${isCurrent ? '** (atual)' : ''}\n`;
+        
+        // Adicionar informações sobre o modelo
+        switch (model) {
+          case 'tiny':
+            message += '   📊 Tamanho: ~39MB | Velocidade: ⚡⚡⚡ | Precisão: ⭐⭐\n';
+            break;
+          case 'base':
+            message += '   📊 Tamanho: ~74MB | Velocidade: ⚡⚡ | Precisão: ⭐⭐⭐\n';
+            break;
+          case 'small':
+            message += '   📊 Tamanho: ~244MB | Velocidade: ⚡ | Precisão: ⭐⭐⭐⭐\n';
+            break;
+          case 'medium':
+            message += '   📊 Tamanho: ~769MB | Velocidade: ⚡ | Precisão: ⭐⭐⭐⭐⭐\n';
+            break;
+          case 'large':
+          case 'large-v1':
+          case 'large-v3-turbo':
+            message += '   📊 Tamanho: ~1550MB | Velocidade: 🐌 | Precisão: ⭐⭐⭐⭐⭐\n';
+            break;
+          default:
+            message += '   📊 Modelo especializado\n';
+        }
+        message += '\n';
+      });
+      
+      // Status do modo atual
+      const currentMode = await this.transcriber.getMode();
+      message += `🔧 **Modo Atual:** ${currentMode === 'api' ? '🌐 API Externa' : '🏠 Local (CPU)'}\n\n`;
+      
+      message += `🔄 Atualizado: ${new Date().toLocaleString('pt-BR')}\n`;
+      message += `🔙 Para voltar: digite 0`;
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao listar modelos Whisper para ${contactId}`, err);
+      await this.sendResponse(contactId, `❌ *ERRO AO LISTAR MODELOS*\n\n🚫 **Erro:** ${err.message}\n\n🔙 Para voltar: digite 0`);
+    }
+  }
+
+  async handleApiEndpointsOllama(contactId) {
+    try {
+      await this.sendResponse(contactId, '🌐 Carregando endpoints Ollama...', true);
+      
+      // Reutilizar o método existente
+      await this.handleListarEndpointsOllamaCommand(contactId);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao listar endpoints Ollama para ${contactId}`, err);
+      await this.sendResponse(contactId, `❌ *ERRO AO LISTAR ENDPOINTS*\n\n🚫 **Erro:** ${err.message}\n\n🔙 Para voltar: digite 0`);
+    }
+  }
+
+  async handleApiEndpointsWhisper(contactId) {
+    try {
+      await this.sendResponse(contactId, '🔗 Carregando endpoints Whisper...', true);
+      
+      // Reutilizar o método existente
+      await this.handleListarEndpointsWhisperCommand(contactId);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao listar endpoints Whisper para ${contactId}`, err);
+      await this.sendResponse(contactId, `❌ *ERRO AO LISTAR ENDPOINTS*\n\n🚫 **Erro:** ${err.message}\n\n🔙 Para voltar: digite 0`);
+    }
+  }
   
-  // === Fim dos Métodos de Gerenciamento de Endpoints ===
+  // === Fim dos Métodos de Status Detalhado das APIs ===
 
   // === WhisperSilent Integration Methods ===
 

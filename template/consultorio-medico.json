@@ -1,0 +1,271 @@
+{
+  "id": "consultorio-medico-template",
+  "name": "Consultório Médico",
+  "description": "Template para agendamento de consultas médicas com triagem e lembretes automáticos",
+  "alias": "consultorio",
+  "version": "1.0.0",
+  "metadata": {
+    "category": "saude",
+    "isTemplate": true,
+    "tags": ["medicina", "agendamento", "consulta", "triagem", "saude"],
+    "author": "SecreBot Templates",
+    "businessType": "healthcare"
+  },
+  "nodes": [
+    {
+      "id": "start-1",
+      "type": "start",
+      "position": { "x": 100, "y": 100 },
+      "data": {
+        "label": "Início Atendimento",
+        "message": "Atendimento médico iniciado"
+      }
+    },
+    {
+      "id": "medical_welcome",
+      "type": "message",
+      "position": { "x": 300, "y": 100 },
+      "data": {
+        "label": "Recepção Médica",
+        "message": "🏥 *Bem-vindo ao Consultório Dr. [Nome]*\n\nSou o assistente virtual e estou aqui para ajudá-lo.\n\n🩺 *Como posso ajudá-lo hoje?*\n\n📅 Agendar nova consulta\n🔄 Reagendar consulta existente\n❌ Cancelar consulta\n📋 Resultados de exames\n🆘 Emergência médica\n📞 Falar com recepcionista\n\n*Digite o número da opção ou descreva sua necessidade.*\n\n⚠️ *Em caso de emergência, ligue 192 (SAMU)*",
+        "isMainMenu": true
+      }
+    },
+    {
+      "id": "classify_request",
+      "type": "llm",
+      "position": { "x": 500, "y": 100 },
+      "data": {
+        "label": "Classificar Solicitação",
+        "prompt": "Analise a mensagem do paciente e classifique a solicitação médica:\n\nCategorias:\n- appointment: Agendar nova consulta\n- reschedule: Reagendar consulta existente\n- cancel: Cancelar consulta\n- results: Consultar resultados de exames\n- emergency: Situação de emergência\n- receptionist: Falar com recepcionista\n- info: Informações gerais\n- symptoms: Relatando sintomas\n\nMensagem: {{user_message}}\n\nResponda APENAS com a categoria (appointment, reschedule, cancel, results, emergency, receptionist, info, symptoms).",
+        "timeout": 15000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "check_emergency",
+      "type": "condition",
+      "position": { "x": 700, "y": 100 },
+      "data": {
+        "label": "Verificar Emergência",
+        "condition": "llm_output === 'emergency' || user_message.toLowerCase().includes('emergencia') || user_message.toLowerCase().includes('urgente')",
+        "description": "Identificar situações de emergência"
+      }
+    },
+    {
+      "id": "emergency_response",
+      "type": "message",
+      "position": { "x": 900, "y": 50 },
+      "data": {
+        "label": "Resposta Emergência",
+        "message": "🚨 *SITUAÇÃO DE EMERGÊNCIA DETECTADA*\n\n⚡ *AÇÃO IMEDIATA:*\n• Ligue 192 (SAMU) agora\n• Ou vá ao Pronto Socorro mais próximo\n\n🏥 *Endereços próximos:*\n• Hospital Municipal - Rua A, 123\n• UPA 24h - Av. B, 456\n\n📞 *Contatos emergência:*\n• SAMU: 192\n• Bombeiros: 193\n• Dr. [Nome]: (11) 99999-9999\n\n*Este assistente NÃO substitui atendimento médico presencial em emergências!*\n\n⚠️ *Conectando com recepcionista...*"
+      }
+    },
+    {
+      "id": "symptom_triage",
+      "type": "llm",
+      "position": { "x": 500, "y": 300 },
+      "data": {
+        "label": "Triagem de Sintomas",
+        "prompt": "Você é um assistente de triagem médica. Analise os sintomas relatados e determine a urgência:\n\nSintomas relatados: {{user_message}}\n\nClassifique como:\n- EMERGÊNCIA: Sintomas que requerem atendimento imediato\n- URGENTE: Deve ser visto em 24-48h\n- NORMAL: Pode aguardar consulta de rotina\n- ORIENTAÇÃO: Pode ser orientado por telefone\n\nSinais de alarme para EMERGÊNCIA:\n- Dor no peito intensa\n- Dificuldade respiratória severa\n- Perda de consciência\n- Sangramento intenso\n- Dor abdominal severa\n- Febre alta (>39°C) em crianças\n\nRetorne:\nCLASSIFICAÇÃO: [EMERGÊNCIA/URGENTE/NORMAL/ORIENTAÇÃO]\nJUSTIFICATIVA: [breve explicação]\nRECOMENDAÇÃO: [próximos passos]",
+        "timeout": 20000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "appointment_scheduling",
+      "type": "message",
+      "position": { "x": 700, "y": 300 },
+      "data": {
+        "label": "Agendamento",
+        "message": "📅 *Agendamento de Consulta*\n\nVou ajudá-lo a agendar sua consulta.\n\n*Preciso de algumas informações:*\n\n👤 *Nome completo*\n📱 *Telefone*\n🎂 *Data de nascimento*\n🆔 *CPF*\n💳 *Tipo de atendimento:*\n   • Particular\n   • Convênio (qual?)\n   • SUS\n\n⏰ *Preferência de horário:*\n   • Manhã (8h-12h)\n   • Tarde (13h-17h)\n   • Qualquer horário\n\n*Por favor, me informe esses dados.*"
+      }
+    },
+    {
+      "id": "collect_patient_data",
+      "type": "llm",
+      "position": { "x": 900, "y": 300 },
+      "data": {
+        "label": "Coletar Dados Paciente",
+        "prompt": "Extraia as informações do paciente da mensagem:\n\nMensagem: {{user_message}}\n\nRetorne no formato JSON:\n{\n  \"nome\": \"nome completo ou null\",\n  \"telefone\": \"telefone ou null\",\n  \"nascimento\": \"data nascimento ou null\",\n  \"cpf\": \"cpf ou null\",\n  \"convenio\": \"particular/convenio/sus ou null\",\n  \"convenio_nome\": \"nome do convênio ou null\",\n  \"preferencia_horario\": \"manha/tarde/qualquer ou null\"\n}\n\nSe alguma informação não estiver presente, use null.",
+        "timeout": 15000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "check_availability",
+      "type": "webhook",
+      "position": { "x": 1100, "y": 300 },
+      "data": {
+        "label": "Verificar Disponibilidade",
+        "url": "{{CLINIC_SYSTEM_URL}}/availability",
+        "method": "GET",
+        "payload": {
+          "doctor_id": "{{doctor_id}}",
+          "date_from": "{{current_date}}",
+          "date_to": "{{date_plus_30_days}}",
+          "period": "{{patient_preference}}"
+        }
+      }
+    },
+    {
+      "id": "show_available_slots",
+      "type": "llm",
+      "position": { "x": 1300, "y": 300 },
+      "data": {
+        "label": "Mostrar Horários",
+        "prompt": "Com base na disponibilidade retornada, crie uma mensagem amigável mostrando os horários disponíveis:\n\nDados do paciente: {{patient_data}}\nDisponibilidade: {{availability_data}}\n\nFormato da resposta:\n\"📅 *Horários disponíveis para você:*\n\n[Lista dos próximos 5 horários mais próximos]\n\n*Digite o número da opção escolhida:*\n1️⃣ [Data] às [Hora]\n2️⃣ [Data] às [Hora]\n...\n\n💡 *Dica: Confirme o horário o quanto antes para garantir sua vaga!*\"",
+        "timeout": 15000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "confirm_appointment",
+      "type": "message",
+      "position": { "x": 1500, "y": 300 },
+      "data": {
+        "label": "Confirmar Consulta",
+        "message": "✅ *Consulta Agendada com Sucesso!*\n\n📋 *Detalhes da sua consulta:*\n• Data: {{scheduled_date}}\n• Horário: {{scheduled_time}}\n• Paciente: {{patient_name}}\n• Convênio: {{insurance_type}}\n\n📍 *Local:*\nConsultório Dr. [Nome]\n[Endereço completo]\n\n⏰ *Importante:*\n• Chegue 15 minutos antes\n• Traga documento com foto\n• Traga carteirinha do convênio\n• Liste suas medicações atuais\n\n🔔 *Lembretes automáticos:*\n• 24h antes: WhatsApp\n• 2h antes: SMS\n\n*Deseja adicionar algo mais?*"
+      }
+    },
+    {
+      "id": "save_appointment",
+      "type": "webhook",
+      "position": { "x": 1700, "y": 300 },
+      "data": {
+        "label": "Salvar Consulta",
+        "url": "{{CLINIC_SYSTEM_URL}}/appointments",
+        "method": "POST",
+        "payload": {
+          "patient_data": "{{patient_info}}",
+          "appointment_datetime": "{{scheduled_datetime}}",
+          "doctor_id": "{{doctor_id}}",
+          "type": "consultation",
+          "status": "scheduled",
+          "source": "whatsapp_bot",
+          "reminders": {
+            "24h_before": true,
+            "2h_before": true
+          }
+        }
+      }
+    },
+    {
+      "id": "exam_results",
+      "type": "message",
+      "position": { "x": 500, "y": 500 },
+      "data": {
+        "label": "Resultados Exames",
+        "message": "📋 *Consulta de Resultados de Exames*\n\n*Para acessar seus resultados, preciso verificar sua identidade:*\n\n🆔 *CPF do paciente*\n🎂 *Data de nascimento*\n📅 *Data aproximada do exame*\n\n⚠️ *Por segurança e privacidade:*\n• Resultados só serão liberados após confirmação dos dados\n• Em caso de dúvida, fale com a recepcionista\n• Resultados alterados requerem consulta médica\n\n*Por favor, informe os dados solicitados.*"
+      }
+    },
+    {
+      "id": "verify_patient_identity",
+      "type": "webhook",
+      "position": { "x": 700, "y": 500 },
+      "data": {
+        "label": "Verificar Identidade",
+        "url": "{{CLINIC_SYSTEM_URL}}/verify-patient",
+        "method": "POST",
+        "payload": {
+          "cpf": "{{patient_cpf}}",
+          "birth_date": "{{patient_birth_date}}",
+          "exam_date": "{{exam_date_approx}}"
+        }
+      }
+    },
+    {
+      "id": "provide_results",
+      "type": "llm",
+      "position": { "x": 900, "y": 500 },
+      "data": {
+        "label": "Fornecer Resultados",
+        "prompt": "Com base nos resultados dos exames verificados, forneça uma resposta adequada:\n\nResultados: {{exam_results}}\nStatus: {{verification_status}}\n\nSe os resultados estão normais:\n- Parabenize o paciente\n- Reforce a importância dos exames preventivos\n- Oriente sobre próximos passos\n\nSe há alterações:\n- NÃO interprete resultados médicos\n- Oriente a agendar consulta com médico\n- Tranquilize sem minimizar\n- Ofereça agendamento prioritário\n\nSempre manter tom profissional e empático.",
+        "timeout": 20000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "schedule_followup",
+      "type": "message",
+      "position": { "x": 1100, "y": 500 },
+      "data": {
+        "label": "Agendar Retorno",
+        "message": "👨‍⚕️ *Consulta de Retorno Recomendada*\n\nPara melhor avaliação dos seus resultados, recomendamos:\n\n⚡ *Consulta prioritária disponível:*\n• Hoje: 16h30\n• Amanhã: 9h15, 14h45\n• Depois de amanhã: 10h30, 15h20\n\n📞 *Ou prefere que eu conecte com a recepcionista?*\n\n💡 *Dica: Consultas para discussão de exames têm prioridade no agendamento.*\n\n*Qual opção prefere?*"
+      }
+    },
+    {
+      "id": "medication_reminder",
+      "type": "message",
+      "position": { "x": 300, "y": 700 },
+      "data": {
+        "label": "Lembrete Medicação",
+        "message": "💊 *Central de Medicamentos*\n\n*Como posso ajudá-lo com suas medicações?*\n\n⏰ Configurar lembrete de medicação\n📋 Listar medicações atuais\n🔄 Alterar horário de medicação\n❌ Cancelar lembrete\n📱 Receber via WhatsApp\n📧 Receber via email\n\n*Qual opção deseja?*\n\n💡 *Lembretes automáticos aumentam a adesão ao tratamento em 40%!*"
+      }
+    },
+    {
+      "id": "health_tips",
+      "type": "llm",
+      "position": { "x": 500, "y": 700 },
+      "data": {
+        "label": "Dicas de Saúde",
+        "prompt": "Forneça uma dica de saúde relevante e personalizada baseada no contexto:\n\nContexto da conversa: {{conversation_context}}\nPerfil do paciente: {{patient_profile}}\n\nTemas para dicas:\n- Prevenção de doenças\n- Hábitos saudáveis\n- Exercícios apropriados\n- Alimentação balanceada\n- Saúde mental\n- Cuidados específicos por idade\n\nMantenha tom educativo, não prescritivo. Sempre sugira consultar médico para orientações específicas.",
+        "timeout": 15000,
+        "useBalancer": true
+      }
+    },
+    {
+      "id": "final_medical_message",
+      "type": "message",
+      "position": { "x": 700, "y": 700 },
+      "data": {
+        "label": "Mensagem Final",
+        "message": "🏥 *Obrigado por escolher nosso consultório!*\n\nSua saúde é nossa prioridade. Esperamos tê-lo ajudado da melhor forma.\n\n📞 *Contatos do consultório:*\n• Recepção: (11) 3333-3333\n• WhatsApp: (11) 9999-9999\n• Email: contato@consultorio.com\n\n🕐 *Horário de funcionamento:*\n• Segunda a Sexta: 8h às 18h\n• Sábado: 8h às 12h\n\n🔄 *Para usar novamente:*\n• Digite *menu* para voltar ao início\n• Digite *!flow stop* para encerrar\n\n*Cuide-se bem! 💚*"
+      }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "start-1", "target": "medical_welcome" },
+    { "id": "e2", "source": "medical_welcome", "target": "classify_request" },
+    { "id": "e3", "source": "classify_request", "target": "check_emergency" },
+    { "id": "e4", "source": "check_emergency", "target": "emergency_response", "label": "true" },
+    { "id": "e5", "source": "check_emergency", "target": "symptom_triage", "label": "false" },
+    { "id": "e6", "source": "symptom_triage", "target": "appointment_scheduling" },
+    { "id": "e7", "source": "appointment_scheduling", "target": "collect_patient_data" },
+    { "id": "e8", "source": "collect_patient_data", "target": "check_availability" },
+    { "id": "e9", "source": "check_availability", "target": "show_available_slots" },
+    { "id": "e10", "source": "show_available_slots", "target": "confirm_appointment" },
+    { "id": "e11", "source": "confirm_appointment", "target": "save_appointment" },
+    { "id": "e12", "source": "save_appointment", "target": "final_medical_message" },
+    { "id": "e13", "source": "medical_welcome", "target": "exam_results" },
+    { "id": "e14", "source": "exam_results", "target": "verify_patient_identity" },
+    { "id": "e15", "source": "verify_patient_identity", "target": "provide_results" },
+    { "id": "e16", "source": "provide_results", "target": "schedule_followup" },
+    { "id": "e17", "source": "schedule_followup", "target": "final_medical_message" }
+  ],
+  "configuration": {
+    "webhooks": {
+      "clinic_system": {
+        "base_url": "https://api.clinicsystem.com",
+        "auth_header": "Authorization: Bearer {{CLINIC_API_KEY}}",
+        "timeout": 10000
+      }
+    },
+    "variables": {
+      "CLINIC_SYSTEM_URL": "https://api.clinicsystem.com/v1",
+      "CLINIC_API_KEY": "your-clinic-api-key",
+      "doctor_id": "dr001",
+      "clinic_name": "Consultório Dr. [Nome]",
+      "clinic_address": "[Endereço completo]"
+    },
+    "settings": {
+      "emergency_phone": "192",
+      "clinic_phone": "(11) 3333-3333",
+      "appointment_duration": 30,
+      "max_advance_days": 60,
+      "reminder_24h": true,
+      "reminder_2h": true,
+      "privacy_verification_required": true
+    }
+  }
+}

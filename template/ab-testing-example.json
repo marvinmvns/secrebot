@@ -1,0 +1,176 @@
+{
+  "id": "ab-testing-example",
+  "name": "A/B Testing Example Flow",
+  "description": "Demonstra como usar testes A/B em prompts de LLM para otimização de conversões",
+  "version": "1.0.0",
+  "metadata": {
+    "created": "2025-01-26",
+    "author": "SecreBot",
+    "category": "example",
+    "tags": ["ab-testing", "llm", "optimization"]
+  },
+  "alias": "ab-test",
+  "isMainMenu": true,
+  "nodes": [
+    {
+      "id": "start-1",
+      "type": "start",
+      "position": { "x": 100, "y": 100 },
+      "data": {
+        "label": "Início"
+      },
+      "outputs": ["welcome-msg"]
+    },
+    {
+      "id": "welcome-msg",
+      "type": "message",
+      "position": { "x": 100, "y": 200 },
+      "data": {
+        "text": "🔬 *Bem-vindo ao Teste A/B!*\n\nEste fluxo demonstra como diferentes versões de prompts podem ser testadas para otimizar resultados.\n\n👨‍🏫 Você receberá uma consulta personalizada baseada em uma das variantes de prompt que estamos testando.\n\n🚀 Vamos começar!"
+      },
+      "outputs": ["ab-test-llm"]
+    },
+    {
+      "id": "ab-test-llm",
+      "type": "llm",
+      "position": { "x": 100, "y": 320 },
+      "data": {
+        "label": "LLM com A/B Testing",
+        "prompt": "Você é um consultor educacional experiente. Analise o perfil do usuário e forneça recomendações personalizadas para seu desenvolvimento profissional.",
+        "promptVariants": [
+          {
+            "id": "variant-a-formal",
+            "name": "Formal Professional",
+            "prompt": "Como consultor educacional sênior, conduzirei uma análise abrangente do seu perfil profissional. Baseado em metodologias comprovadas de desenvolvimento de carreira, apresentarei recomendações estruturadas e actionáveis para otimizar sua trajetória profissional. Qual é sua área de atuação atual e quais são seus objetivos de carreira?",
+            "weight": 40,
+            "selectionStrategy": "weighted"
+          },
+          {
+            "id": "variant-b-casual",
+            "name": "Casual Friendly",
+            "prompt": "Oi! 😊 Sou especialista em desenvolvimento profissional e estou aqui para te ajudar a dar o próximo passo na sua carreira! Vamos bater um papo sobre onde você está hoje e onde quer chegar? Me conta um pouco sobre o que você faz e quais são seus sonhos profissionais!",
+            "weight": 40,
+            "selectionStrategy": "weighted"
+          },
+          {
+            "id": "variant-c-direct",
+            "name": "Direct Action-Oriented",
+            "prompt": "Vamos direto ao ponto: para criar um plano de desenvolvimento eficaz, preciso saber 3 coisas: 1) Sua profissão atual, 2) Onde quer estar em 2 anos, 3) Principais obstáculos que enxerga. Responda essas 3 perguntas e criarei um roadmap prático para você.",
+            "weight": 20,
+            "selectionStrategy": "weighted"
+          }
+        ],
+        "model": "llama3.2",
+        "useBalancer": true,
+        "context": true,
+        "outputVariable": "career_analysis"
+      },
+      "outputs": ["user-input"]
+    },
+    {
+      "id": "user-input",
+      "type": "variable",
+      "position": { "x": 100, "y": 440 },
+      "data": {
+        "label": "Capturar Resposta do Usuário",
+        "variableName": "user_response",
+        "prompt": "Digite sua resposta sobre sua carreira:",
+        "waitForInput": true
+      },
+      "outputs": ["follow-up-llm"]
+    },
+    {
+      "id": "follow-up-llm",
+      "type": "llm",
+      "position": { "x": 100, "y": 560 },
+      "data": {
+        "label": "Follow-up Personalizado",
+        "prompt": "Baseado na resposta do usuário: {{user_response}}\n\nForneça 3 recomendações específicas e práticas para desenvolvimento profissional, incluindo recursos, cursos ou ações concretas que podem ser implementadas nos próximos 30 dias.",
+        "model": "llama3.2",
+        "useBalancer": true,
+        "outputVariable": "recommendations"
+      },
+      "outputs": ["satisfaction-check"]
+    },
+    {
+      "id": "satisfaction-check",
+      "type": "message",
+      "position": { "x": 100, "y": 680 },
+      "data": {
+        "text": "📋 *Recomendações entregues!*\n\n🎯 As sugestões foram úteis?\n\n1️⃣ Sim, muito úteis!\n2️⃣ Parcialmente úteis\n3️⃣ Não foram úteis\n\n💡 Sua resposta nos ajuda a melhorar nossos algoritmos de recomendação!"
+      },
+      "outputs": ["satisfaction-input"]
+    },
+    {
+      "id": "satisfaction-input",
+      "type": "variable",
+      "position": { "x": 100, "y": 800 },
+      "data": {
+        "label": "Capturar Satisfação",
+        "variableName": "satisfaction",
+        "prompt": "Digite 1, 2 ou 3:",
+        "waitForInput": true
+      },
+      "outputs": ["feedback-condition"]
+    },
+    {
+      "id": "feedback-condition",
+      "type": "condition",
+      "position": { "x": 100, "y": 920 },
+      "data": {
+        "label": "Avaliar Satisfação",
+        "condition": "{{satisfaction}} == '1'"
+      },
+      "outputs": ["positive-feedback", "improvement-needed"]
+    },
+    {
+      "id": "positive-feedback",
+      "type": "message",
+      "position": { "x": 50, "y": 1040 },
+      "data": {
+        "text": "🎉 *Ótimo!* Ficamos felizes que as recomendações foram úteis!\n\n📊 *Dados do Teste A/B:*\n• Variante selecionada: {{selectedPromptVariant}}\n• Resultado: Conversão positiva\n\n🚀 Continue acompanhando seu desenvolvimento!\n\n🏠 Para voltar ao menu: !menu"
+      },
+      "outputs": []
+    },
+    {
+      "id": "improvement-needed",
+      "type": "message",
+      "position": { "x": 150, "y": 1040 },
+      "data": {
+        "text": "💡 Obrigado pelo feedback! Vamos usar essa informação para melhorar.\n\n📊 *Dados do Teste A/B:*\n• Variante selecionada: {{selectedPromptVariant}}\n• Resultado: Necessita melhoria\n\n🔄 Gostaria de tentar uma abordagem diferente?\n\n1️⃣ Sim, tentar novamente\n2️⃣ Voltar ao menu principal\n\n🏠 Para menu: !menu"
+      },
+      "outputs": ["retry-option"]
+    },
+    {
+      "id": "retry-option",
+      "type": "variable",
+      "position": { "x": 150, "y": 1160 },
+      "data": {
+        "label": "Opção de Retry",
+        "variableName": "retry_choice",
+        "prompt": "Digite 1 ou 2:",
+        "waitForInput": true
+      },
+      "outputs": ["retry-condition"]
+    },
+    {
+      "id": "retry-condition",
+      "type": "condition",
+      "position": { "x": 150, "y": 1280 },
+      "data": {
+        "label": "Verificar Retry",
+        "condition": "{{retry_choice}} == '1'"
+      },
+      "outputs": ["ab-test-llm", "final-message"]
+    },
+    {
+      "id": "final-message",
+      "type": "message",
+      "position": { "x": 200, "y": 1400 },
+      "data": {
+        "text": "👋 Obrigado por participar do nosso teste A/B!\n\n📈 Seus dados ajudarão a melhorar a experiência para todos os usuários.\n\n🏠 Menu principal: !menu\n🔄 Reiniciar teste: !flow start ab-test"
+      },
+      "outputs": []
+    }
+  ]
+}

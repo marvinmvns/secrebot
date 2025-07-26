@@ -1,0 +1,43 @@
+{
+  "description": "Mock configuration specific to academia flow",
+  "flowId": "academia-flow",
+  "nodes": {
+    "llm_personal_trainer": {
+      "type": "llm",
+      "response": "Baseado no seu perfil, recomendo um treino de força 3x por semana focando em exercícios compostos como agachamento, supino e levantamento terra. Vamos começar com séries de 8-12 repetições."
+    },
+    "llm_nutrition_advice": {
+      "type": "llm", 
+      "response": "Para seus objetivos de ganho de massa muscular, recomendo uma dieta com 2g de proteína por kg de peso corporal. Inclua carnes magras, ovos, leguminosas e carboidratos complexos como aveia e batata doce."
+    },
+    "webhook_schedule_training": {
+      "type": "webhook",
+      "response": {
+        "success": true,
+        "data": {
+          "appointmentId": "apt_123456",
+          "date": "2024-01-15",
+          "time": "14:00",
+          "trainer": "João Silva",
+          "type": "Avaliação Física"
+        }
+      }
+    }
+  },
+  "scenarios": {
+    "beginner_user": {
+      "initialData": {
+        "user_level": "iniciante",
+        "user_goal": "ganho_massa",
+        "user_availability": "3x_semana"
+      }
+    },
+    "advanced_user": {
+      "initialData": {
+        "user_level": "avançado",
+        "user_goal": "definição",
+        "user_availability": "5x_semana"
+      }
+    }
+  }
+}

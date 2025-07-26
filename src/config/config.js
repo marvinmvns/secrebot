@@ -207,6 +207,41 @@ export const config = {
       voiceResponseToggle: process.env.TELEGRAM_FEATURE_VOICE_RESPONSE_TOGGLE !== 'true',
       advancedFileProcessing: process.env.TELEGRAM_FEATURE_ADVANCED_FILE_PROCESSING !== 'true'
     }
+  },
+  monitoring: {
+    enabled: process.env.MONITORING_ENABLED === 'true',
+    metrics: {
+      enabled: process.env.METRICS_ENABLED === 'true',
+      endpoint: process.env.METRICS_ENDPOINT || '/metrics',
+      port: parseInt(process.env.METRICS_PORT || '9090', 10),
+      collectDefaultMetrics: process.env.METRICS_COLLECT_DEFAULT !== 'false',
+      collectInterval: parseInt(process.env.METRICS_COLLECT_INTERVAL || '5000', 10)
+    },
+    grafana: {
+      enabled: process.env.GRAFANA_ENABLED === 'true',
+      url: process.env.GRAFANA_URL || 'http://localhost:3000',
+      adminUser: process.env.GRAFANA_ADMIN_USER || 'admin',
+      adminPassword: process.env.GRAFANA_ADMIN_PASSWORD || 'admin'
+    },
+    prometheus: {
+      enabled: process.env.PROMETHEUS_ENABLED === 'true',
+      url: process.env.PROMETHEUS_URL || 'http://localhost:9090',
+      scrapeInterval: process.env.PROMETHEUS_SCRAPE_INTERVAL || '15s',
+      retentionTime: process.env.PROMETHEUS_RETENTION_TIME || '15d'
+    },
+    alerts: {
+      enabled: process.env.ALERTS_ENABLED === 'true',
+      endpoints: {
+        slack: process.env.ALERT_SLACK_WEBHOOK || '',
+        webhook: process.env.ALERT_WEBHOOK_URL || ''
+      },
+      thresholds: {
+        errorRate: parseFloat(process.env.ALERT_ERROR_RATE_THRESHOLD || '0.05'), // 5%
+        responseTime: parseInt(process.env.ALERT_RESPONSE_TIME_THRESHOLD || '5000', 10), // 5s
+        memoryUsage: parseFloat(process.env.ALERT_MEMORY_USAGE_THRESHOLD || '0.8'), // 80%
+        cpuUsage: parseFloat(process.env.ALERT_CPU_USAGE_THRESHOLD || '0.8') // 80%
+      }
+    }
   }
 };
 

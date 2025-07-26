@@ -40,7 +40,7 @@
 
 ```bash
 # 1. Baixar o script
-wget https://raw.githubusercontent.com/seu-usuario/secrebot/main/install-secrebot-linux.sh
+wget https://raw.githubusercontent.com/seu-usuario/secrebot/main/scripts/install-secrebot-linux.sh
 
 # 2. Dar permissão de execução
 chmod +x install-secrebot-linux.sh
@@ -1268,10 +1268,12 @@ secrebot/
 │   ├── 📄 chat.ejs                  # 💬 Interface chat
 │   ├── 📄 config.ejs                # ⚙️ Configurações
 │   └── 📄 flow-builder.ejs          # 🔄 Interface Flow Builder
-├── 📂 scripts/                      # 🔧 Scripts de instalação
+├── 📂 scripts/                      # 🔧 Scripts organizados
+│   ├── 📂 monitoring/               # 📊 Scripts de monitoramento
+│   ├── 📂 testing/                  # 🧪 Scripts de teste
 │   ├── 📄 install-piper-simple.sh   # 🎤 Instalador Piper (recomendado)
 │   ├── 📄 install-piper.sh          # 🎤 Instalador completo
-│   └── 📄 README-PIPER.md           # 📖 Documentação Piper
+│   └── 📄 README.md                 # 📖 Documentação Scripts
 ├── 📂 test/                         # 🧪 Testes automatizados
 ├── 📂 piper/                        # 🔊 TTS local (auto-criado)
 ├── 📂 templates/                    # 🎯 Templates de exemplo
@@ -1535,7 +1537,46 @@ Feito com ❤️ para revolucionar seu WhatsApp
 
 ---
 
-*📅 Última atualização: Julho 2025*  
-*🔄 Versão: 2.0.0*
+*📅 Última atualização: Janeiro 2025*  
+*🔄 Versão: 2.0.0 - Com Monitoramento Grafana, A/B Testing e Flow Builder Avançado*
+
+---
+
+## 🆕 Novidades v2.0
+
+### 📊 **Sistema de Monitoramento Completo**
+- Dashboard Grafana profissional com métricas em tempo real
+- Alertas automáticos via Prometheus + Alertmanager  
+- Métricas de LLM, Whisper, WhatsApp e sistema
+- Docker Compose para deploy rápido
+
+### 🧪 **A/B Testing para Prompts**
+- Teste diferentes variações de prompts LLM
+- Estratégias: random, weighted, user-hash
+- Analytics detalhados de conversão
+- Otimização baseada em dados reais
+
+### ✅ **Validação e Testes Automatizados**
+- Validador de fluxos com regras de resiliência
+- Framework de testes com mocks e snapshots
+- CLI completo para gerenciamento
+- Integração CI/CD
+
+### 🎨 **Templates Expandidos**
+- Academia, jiu-jitsu, consultoria, educação
+- Importação com customização automática
+- Padrões resilientes pré-configurados
+
+### 🔧 **Acesso Rápido v2.0**
+- **Flow Builder**: http://localhost:3000/flow-builder
+- **Grafana**: http://localhost:3000/grafana (admin/admin)  
+- **Prometheus**: http://localhost:9090
+- **API Docs**: http://localhost:3000/api-docs
+
+### 📚 **Documentação v2.0**
+- [📖 Guia Início Rápido v2](docs/quick-start-v2.md)
+- [📊 Novas Funcionalidades](docs/new-features-v2.0.md)
+- [🧪 A/B Testing Guide](docs/ab-testing-guide.md)
+- [🔧 API Reference v2](docs/api-reference-v2.md)
 
 </div>

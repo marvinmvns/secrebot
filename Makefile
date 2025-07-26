@@ -1,6 +1,6 @@
 # Makefile para SecreBot - Facilita instalação e manutenção
 
-.PHONY: help install-piper install-piper-python clean-piper test-piper setup-env start
+.PHONY: help install-piper install-piper-python clean-piper test-piper setup-env start validate-flows test-flows flow-new flow-export flow-import
 
 # Cores para output
 GREEN := \033[0;32m
@@ -136,6 +136,34 @@ status: ## Mostra status das instalações
 	else \
 		echo "  ❌ Arquivo .env não encontrado"; \
 	fi
+
+validate-flows: ## Valida flows contra padrões de design resiliente
+	@echo "$(BLUE)🔍 Validando flows...$(NC)"
+	@node scripts/validate-flows.js
+
+test-flows: ## Executa testes de flows com mocks e snapshots
+	@echo "$(BLUE)🧪 Executando testes de flows...$(NC)"
+	@node test/flow-test-runner.js
+
+flow-new: ## Cria um novo flow interativamente
+	@echo "$(BLUE)🎯 Criando novo flow...$(NC)"
+	@node scripts/flow-new.js
+
+flow-export: ## Exporta flows para arquivos
+	@echo "$(BLUE)📦 Exportando flows...$(NC)"
+	@node scripts/flow-export.js
+
+flow-import: ## Importa flows de arquivos
+	@echo "$(BLUE)📥 Importando flows...$(NC)"
+	@node scripts/flow-import.js
+
+start-monitoring: ## Inicia stack de monitoramento
+	@echo "$(BLUE)📊 Iniciando monitoramento...$(NC)"
+	@scripts/monitoring/start-monitoring.sh
+
+test-monitoring: ## Testa conectividade do monitoramento
+	@echo "$(BLUE)🧪 Testando monitoramento...$(NC)"
+	@scripts/testing/test-api-monitoring.sh
 
 all: install-deps install-piper setup-env ## Instalação completa
 	@echo "$(GREEN)🎉 Instalação completa do SecreBot finalizada!$(NC)"

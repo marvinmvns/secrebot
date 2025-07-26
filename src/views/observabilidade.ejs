@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Observabilidade - SecreBot</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="/css/styles.css" rel="stylesheet">
+    <style>
+        .status-card {
+            border-left: 4px solid #dee2e6;
+            transition: all 0.3s ease;
+        }
+        .status-card.enabled {
+            border-left-color: #28a745;
+            background-color: #f8fff9;
+        }
+        .status-card.disabled {
+            border-left-color: #dc3545;
+            background-color: #fff8f8;
+        }
+        .status-card.running {
+            border-left-color: #007bff;
+            background-color: #f8fbff;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 30px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 30px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #28a745;
+        }
+        input:checked + .slider:before {
+            transform: translateX(30px);
+        }
+        .metric-card {
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+        }
+        .service-status {
+            font-size: 0.9rem;
+            padding: 4px 8px;
+            border-radius: 12px;
+        }
+        .status-running { background-color: #d4edda; color: #155724; }
+        .status-stopped { background-color: #f8d7da; color: #721c24; }
+        .status-unknown { background-color: #ffeaa7; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="h3 mb-0">📊 Observabilidade</h1>
+                        <p class="text-muted mb-0">Monitoramento e métricas do SecreBot</p>
+                    </div>
+                    <div>
+                        <a href="/" class="btn btn-outline-secondary me-2">
+                            <i class="fas fa-home"></i> Dashboard
+                        </a>
+                        <button id="refreshBtn" class="btn btn-primary">
+                            <i class="fas fa-sync-alt"></i> Atualizar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts -->
+        <div id="alertContainer"></div>
+
+        <!-- Feature Toggles -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-toggle-on text-primary"></i>
+                            Controles de Monitoramento
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 col-lg-3 mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">Coleta de Métricas</h6>
+                                        <small class="text-muted">Habilita coleta de dados</small>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="metricsCollectionToggle">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6 col-lg-3 mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">Grafana</h6>
+                                        <small class="text-muted">Dashboard visual</small>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="grafanaToggle">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6 col-lg-3 mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">Prometheus</h6>
+                                        <small class="text-muted">Coleta e armazenamento</small>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="prometheusToggle">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6 col-lg-3 mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">Alertmanager</h6>
+                                        <small class="text-muted">Notificações de alertas</small>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="alertmanagerToggle">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-3">
+                                <label for="scrapeInterval" class="form-label">Intervalo de Coleta</label>
+                                <select class="form-select" id="scrapeInterval">
+                                    <option value="5s">5 segundos</option>
+                                    <option value="15s">15 segundos</option>
+                                    <option value="30s">30 segundos</option>
+                                    <option value="1m">1 minuto</option>
+                                    <option value="5m">5 minutos</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="grafanaPort" class="form-label">Porta Grafana</label>
+                                <input type="number" class="form-control" id="grafanaPort" value="3001" min="1024" max="65535">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="prometheusPort" class="form-label">Porta Prometheus</label>
+                                <input type="number" class="form-control" id="prometheusPort" value="9090" min="1024" max="65535">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="alertmanagerPort" class="form-label">Porta Alertmanager</label>
+                                <input type="number" class="form-control" id="alertmanagerPort" value="9093" min="1024" max="65535">
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12 d-flex justify-content-end">
+                                <button id="saveConfigBtn" class="btn btn-success me-2">
+                                    <i class="fas fa-save"></i> Salvar Configurações
+                                </button>
+                                <button id="resetConfigBtn" class="btn btn-outline-warning">
+                                    <i class="fas fa-undo"></i> Resetar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status dos Serviços -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-server text-info"></i>
+                            Status dos Serviços Docker
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <div class="status-card card h-100" id="grafanaStatusCard">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-chart-line fa-2x mb-3 text-primary"></i>
+                                        <h6>Grafana</h6>
+                                        <span class="service-status" id="grafanaStatus">Verificando...</span>
+                                        <div class="mt-2">
+                                            <a href="#" id="grafanaLink" target="_blank" class="btn btn-sm btn-outline-primary me-1">
+                                                <i class="fas fa-external-link-alt"></i> Abrir
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="status-card card h-100" id="prometheusStatusCard">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-database fa-2x mb-3 text-warning"></i>
+                                        <h6>Prometheus</h6>
+                                        <span class="service-status" id="prometheusStatus">Verificando...</span>
+                                        <div class="mt-2">
+                                            <a href="#" id="prometheusLink" target="_blank" class="btn btn-sm btn-outline-warning me-1">
+                                                <i class="fas fa-external-link-alt"></i> Abrir
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="status-card card h-100" id="alertmanagerStatusCard">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-bell fa-2x mb-3 text-danger"></i>
+                                        <h6>Alertmanager</h6>
+                                        <span class="service-status" id="alertmanagerStatus">Verificando...</span>
+                                        <div class="mt-2">
+                                            <a href="#" id="alertmanagerLink" target="_blank" class="btn btn-sm btn-outline-danger me-1">
+                                                <i class="fas fa-external-link-alt"></i> Abrir
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12 text-center">
+                                <button id="startDockerBtn" class="btn btn-success me-2">
+                                    <i class="fas fa-play"></i> Iniciar Stack
+                                </button>
+                                <button id="stopDockerBtn" class="btn btn-danger me-2">
+                                    <i class="fas fa-stop"></i> Parar Stack
+                                </button>
+                                <button id="restartDockerBtn" class="btn btn-warning">
+                                    <i class="fas fa-redo"></i> Reiniciar Stack
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Métricas Resumo -->
+        <div class="row mb-4" id="metricsSection" style="display: none;">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-bar text-success"></i>
+                            Resumo de Métricas
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row" id="metricsContainer">
+                            <div class="col-md-3 mb-3">
+                                <div class="metric-card card">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-globe fa-2x text-primary mb-2"></i>
+                                        <h6>Requisições HTTP</h6>
+                                        <h4 class="text-primary" id="httpRequests">-</h4>
+                                        <small class="text-muted">Total</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="metric-card card">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-robot fa-2x text-info mb-2"></i>
+                                        <h6>Requisições LLM</h6>
+                                        <h4 class="text-info" id="llmRequests">-</h4>
+                                        <small class="text-muted">Total</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="metric-card card">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-microphone fa-2x text-warning mb-2"></i>
+                                        <h6>Transcrições</h6>
+                                        <h4 class="text-warning" id="whisperRequests">-</h4>
+                                        <small class="text-muted">Total</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="metric-card card">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-comments fa-2x text-success mb-2"></i>
+                                        <h6>Mensagens WhatsApp</h6>
+                                        <h4 class="text-success" id="whatsappMessages">-</h4>
+                                        <small class="text-muted">Total</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instruções de Setup -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle text-info"></i>
+                            Instruções de Setup
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-rocket"></i> Primeiros Passos</h6>
+                                <ol class="small">
+                                    <li>Habilite a "Coleta de Métricas" acima</li>
+                                    <li>Configure os toggles conforme necessário</li>
+                                    <li>Clique em "Iniciar Stack" para subir os serviços</li>
+                                    <li>Aguarde alguns minutos para coleta de dados</li>
+                                </ol>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-external-link-alt"></i> Links Úteis</h6>
+                                <ul class="small">
+                                    <li><a href="#" id="grafanaLinkText" target="_blank">Grafana Dashboard</a> (admin/admin)</li>
+                                    <li><a href="#" id="prometheusLinkText" target="_blank">Prometheus UI</a></li>
+                                    <li><a href="#" id="alertmanagerLinkText" target="_blank">Alertmanager</a></li>
+                                    <li><a href="/metrics" target="_blank">Endpoint de Métricas</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <h6><i class="fas fa-terminal"></i> Comandos Docker</h6>
+                                <div class="bg-dark text-light p-3 rounded">
+                                    <code># Iniciar stack de monitoramento<br>
+                                    docker-compose -f docker-compose.monitoring.yml up -d<br><br>
+                                    # Parar stack<br>
+                                    docker-compose -f docker-compose.monitoring.yml down<br><br>
+                                    # Ver logs<br>
+                                    docker-compose -f docker-compose.monitoring.yml logs -f</code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <div class="mt-3">
+                        <span id="loadingText">Processando...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Estado inicial
+        let currentConfig;
+        try {
+            currentConfig = <%- JSON.stringify(monitoringStatus) %>;
+        } catch (e) {
+            console.error('Error parsing initial config:', e);
+            currentConfig = {
+                grafanaEnabled: false,
+                prometheusEnabled: false,
+                alertmanagerEnabled: false,
+                metricsCollectionEnabled: false,
+                scrapeInterval: '15s',
+                grafanaPort: 3001,
+                prometheusPort: 9090,
+                alertmanagerPort: 9093
+            };
+        }
+        let loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+
+        // Função para mostrar alerta
+        function showAlert(type, message) {
+            const alertContainer = document.getElementById('alertContainer');
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    <i class="fas fa-${type === 'danger' ? 'exclamation-triangle' : type === 'success' ? 'check-circle' : 'info-circle'}"></i>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            alertContainer.innerHTML = alertHtml;
+            setTimeout(() => {
+                const alert = alertContainer.querySelector('.alert');
+                if (alert) alert.remove();
+            }, 5000);
+        }
+
+        // Função para atualizar toggles
+        function updateToggles() {
+            document.getElementById('metricsCollectionToggle').checked = currentConfig.metricsCollectionEnabled;
+            document.getElementById('grafanaToggle').checked = currentConfig.grafanaEnabled;
+            document.getElementById('prometheusToggle').checked = currentConfig.prometheusEnabled;
+            document.getElementById('alertmanagerToggle').checked = currentConfig.alertmanagerEnabled;
+            document.getElementById('scrapeInterval').value = currentConfig.scrapeInterval || '15s';
+            
+            // Atualizar portas
+            document.getElementById('grafanaPort').value = currentConfig.grafanaPort || 3001;
+            document.getElementById('prometheusPort').value = currentConfig.prometheusPort || 9090;
+            document.getElementById('alertmanagerPort').value = currentConfig.alertmanagerPort || 9093;
+            
+            // Atualizar links
+            updateServiceLinks();
+        }
+
+        // Função para atualizar links dos serviços
+        function updateServiceLinks() {
+            const grafanaPort = document.getElementById('grafanaPort').value;
+            const prometheusPort = document.getElementById('prometheusPort').value;
+            const alertmanagerPort = document.getElementById('alertmanagerPort').value;
+            
+            const grafanaUrl = `http://localhost:${grafanaPort}`;
+            const prometheusUrl = `http://localhost:${prometheusPort}`;
+            const alertmanagerUrl = `http://localhost:${alertmanagerPort}`;
+            
+            // Atualizar links dos botões
+            document.getElementById('grafanaLink').href = grafanaUrl;
+            document.getElementById('prometheusLink').href = prometheusUrl;
+            document.getElementById('alertmanagerLink').href = alertmanagerUrl;
+            
+            // Atualizar links da seção de instruções
+            document.getElementById('grafanaLinkText').href = grafanaUrl;
+            document.getElementById('prometheusLinkText').href = prometheusUrl;
+            document.getElementById('alertmanagerLinkText').href = alertmanagerUrl;
+        }
+
+        // Função para atualizar status dos serviços
+        function updateServiceStatus(dockerStatus) {
+            const services = [
+                { name: 'grafana', status: dockerStatus.grafana },
+                { name: 'prometheus', status: dockerStatus.prometheus },
+                { name: 'alertmanager', status: dockerStatus.alertmanager }
+            ];
+
+            services.forEach(service => {
+                const statusElement = document.getElementById(`${service.name}Status`);
+                const cardElement = document.getElementById(`${service.name}StatusCard`);
+                
+                cardElement.className = 'status-card card h-100';
+                
+                if (service.status) {
+                    statusElement.textContent = 'Rodando';
+                    statusElement.className = 'service-status status-running';
+                    cardElement.classList.add('running');
+                } else {
+                    statusElement.textContent = 'Parado';
+                    statusElement.className = 'service-status status-stopped';
+                }
+            });
+        }
+
+        // Função para atualizar métricas
+        function updateMetrics(metrics) {
+            if (metrics) {
+                document.getElementById('httpRequests').textContent = metrics.httpRequests || 0;
+                document.getElementById('llmRequests').textContent = metrics.llmRequests || 0;
+                document.getElementById('whisperRequests').textContent = metrics.whisperRequests || 0;
+                document.getElementById('whatsappMessages').textContent = metrics.whatsappMessages || 0;
+                document.getElementById('metricsSection').style.display = 'block';
+            } else {
+                document.getElementById('metricsSection').style.display = 'none';
+            }
+        }
+
+        // Função para carregar status
+        async function loadStatus() {
+            try {
+                const response = await fetch('/api/observabilidade/status');
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentConfig = data.config;
+                    updateToggles();
+                    updateServiceStatus(data.dockerStatus);
+                    updateMetrics(data.metrics);
+                } else {
+                    showAlert('danger', 'Erro ao carregar status: ' + (data.error || 'Erro desconhecido'));
+                }
+            } catch (error) {
+                showAlert('danger', 'Erro ao conectar com a API: ' + error.message);
+            }
+        }
+
+        // Função para salvar configurações
+        async function saveConfig() {
+            try {
+                loadingModal.show();
+                document.getElementById('loadingText').textContent = 'Salvando configurações...';
+
+                const config = {
+                    grafanaEnabled: document.getElementById('grafanaToggle').checked,
+                    prometheusEnabled: document.getElementById('prometheusToggle').checked,
+                    alertmanagerEnabled: document.getElementById('alertmanagerToggle').checked,
+                    metricsCollectionEnabled: document.getElementById('metricsCollectionToggle').checked,
+                    scrapeInterval: document.getElementById('scrapeInterval').value,
+                    grafanaPort: parseInt(document.getElementById('grafanaPort').value),
+                    prometheusPort: parseInt(document.getElementById('prometheusPort').value),
+                    alertmanagerPort: parseInt(document.getElementById('alertmanagerPort').value)
+                };
+
+                const response = await fetch('/api/observabilidade/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+
+                const data = await response.json();
+                
+                loadingModal.hide();
+                
+                if (data.success) {
+                    currentConfig = data.config;
+                    updateServiceLinks(); // Atualizar links com novas portas
+                    showAlert('success', data.message);
+                    await loadStatus(); // Recarregar status
+                } else {
+                    showAlert('danger', 'Erro ao salvar: ' + (data.error || 'Erro desconhecido'));
+                }
+            } catch (error) {
+                loadingModal.hide();
+                showAlert('danger', 'Erro ao salvar configurações: ' + error.message);
+            }
+        }
+
+        // Função para controlar Docker
+        async function controlDocker(action) {
+            try {
+                loadingModal.show();
+                document.getElementById('loadingText').textContent = `${action === 'start' ? 'Iniciando' : action === 'stop' ? 'Parando' : 'Reiniciando'} stack...`;
+
+                const response = await fetch(`/api/observabilidade/docker/${action}`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+                
+                loadingModal.hide();
+                
+                if (data.success) {
+                    showAlert('success', data.message);
+                    // Aguardar um pouco antes de verificar status
+                    setTimeout(loadStatus, 3000);
+                } else {
+                    showAlert('danger', 'Erro: ' + (data.error || 'Erro desconhecido'));
+                }
+            } catch (error) {
+                loadingModal.hide();
+                showAlert('danger', `Erro ao ${action} Docker: ` + error.message);
+            }
+        }
+
+        // Event listeners
+        document.getElementById('saveConfigBtn').addEventListener('click', saveConfig);
+        document.getElementById('resetConfigBtn').addEventListener('click', () => {
+            updateToggles();
+            showAlert('info', 'Configurações resetadas para os valores salvos');
+        });
+        document.getElementById('refreshBtn').addEventListener('click', loadStatus);
+        document.getElementById('startDockerBtn').addEventListener('click', () => controlDocker('start'));
+        document.getElementById('stopDockerBtn').addEventListener('click', () => controlDocker('stop'));
+        document.getElementById('restartDockerBtn').addEventListener('click', () => controlDocker('restart'));
+        
+        // Event listeners para atualizar links quando portas mudarem
+        document.getElementById('grafanaPort').addEventListener('input', updateServiceLinks);
+        document.getElementById('prometheusPort').addEventListener('input', updateServiceLinks);
+        document.getElementById('alertmanagerPort').addEventListener('input', updateServiceLinks);
+
+        // Carregar status inicial
+        updateToggles();
+        loadStatus();
+
+        // Auto-refresh a cada 30 segundos
+        setInterval(loadStatus, 30000);
+    </script>
+</body>
+</html>

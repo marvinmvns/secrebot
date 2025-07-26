@@ -10,6 +10,7 @@ import { CONFIG, __dirname, getDynamicConfig } from '../config/index.js'; // Aju
 import JobQueue from './jobQueue.js';
 import logger from '../utils/logger.js';
 import WhisperAPIPool from './whisperApiPool.js';
+import { getMetricsService } from './metricsService.js';
 
 // ============ Transcritor de Áudio ============
 class AudioTranscriber {
@@ -22,6 +23,7 @@ class AudioTranscriber {
     );
     this.whisperApiPool = new WhisperAPIPool(configService);
     this.realtimeSessions = new Map(); // Stores active real-time transcription sessions
+    this.metricsService = getMetricsService();
   }
 
   startRealtimeTranscription() {
@@ -237,8 +239,11 @@ class AudioTranscriber {
     return getDynamicConfig(mongoConfig);
   }
 
-  async transcribe(audioBuffer, inputFormat = 'ogg') {
+  async transcribe(audioBuffer, inputFormat = 'ogg', userId = 'unknown') {
     return this.queue.add(async () => {
+      const startTime = Date.now();
+      const audioSize = audioBuffer.length;
+      
       logger.service('🎤 Iniciando transcrição de áudio...');
       
       // Obter configuração efetiva (MongoDB tem prioridade)
@@ -253,14 +258,58 @@ class AudioTranscriber {
         enabled: effectiveConfig.whisperApi.enabled
       });
 
-      // Verifica se deve usar API ou modo local usando configuração efetiva
-      if (effectiveConfig.whisperApi.mode === 'api' && effectiveConfig.whisperApi.enabled && await this.whisperApiPool.isEnabled() && this.whisperApiPool.hasHealthyEndpoints()) {
-        logger.info('🌐 Usando modo API para transcrição (configuração do MongoDB)');
-        return await this.transcribeViaAPI(audioBuffer, inputFormat);
+      try {
+        let result;
+        let mode, endpoint;
+
+        // Verifica se deve usar API ou modo local usando configuração efetiva
+        if (effectiveConfig.whisperApi.mode === 'api' && effectiveConfig.whisperApi.enabled && await this.whisperApiPool.isEnabled() && this.whisperApiPool.hasHealthyEndpoints()) {
+          logger.info('🌐 Usando modo API para transcrição (configuração do MongoDB)');
+          mode = 'api';
+          endpoint = 'api_pool';
+          result = await this.transcribeViaAPI(audioBuffer, inputFormat);
+        } else {
+          logger.info('🏠 Usando modo local para transcrição');
+          mode = 'local';
+          endpoint = 'local';
+          result = await this.transcribeLocally(audioBuffer, inputFormat);
+        }
+
+        // Record metrics for successful transcription
+        const duration = (Date.now() - startTime) / 1000;
+        
+        if (this.metricsService.enabled) {
+          this.metricsService.recordWhisperRequest(
+            userId,
+            mode,
+            endpoint,
+            'success',
+            duration,
+            audioSize
+          );
+        }
+
+        return result;
+      } catch (error) {
+        // Record metrics for failed transcription
+        const duration = (Date.now() - startTime) / 1000;
+        const mode = effectiveConfig.whisperApi.mode === 'api' ? 'api' : 'local';
+        const endpoint = mode === 'api' ? 'api_pool' : 'local';
+        
+        if (this.metricsService.enabled) {
+          this.metricsService.recordWhisperRequest(
+            userId,
+            mode,
+            endpoint,
+            'error',
+            duration,
+            audioSize
+          );
+          this.metricsService.recordError('whisper_transcription_error', 'whisper_service', userId);
+        }
+
+        throw error;
       }
-      
-      logger.info('🏠 Usando modo local para transcrição');
-      return await this.transcribeLocally(audioBuffer, inputFormat);
     });
   }
 
@@ -562,11 +611,14 @@ class AudioTranscriber {
     }
   }
 
-  async transcribeAndSummarize(audioBuffer, inputFormat = 'ogg') {
+  async transcribeAndSummarize(audioBuffer, inputFormat = 'ogg', userId = 'unknown') {
+    const startTime = Date.now();
+    const audioSize = audioBuffer.length;
+    
     try {
       logger.service('🎤 Iniciando transcrição e resumo de áudio...');
       
-      const transcription = await this.transcribe(audioBuffer, inputFormat);
+      const transcription = await this.transcribe(audioBuffer, inputFormat, userId);
       
       logger.service('🧠 Gerando resumo com LLM...');
       const summaryPrompt = `Analise a seguinte transcrição de áudio e crie um resumo estruturado e claro:
@@ -596,6 +648,23 @@ Mantenha o resumo conciso mas informativo, destacando os pontos mais importantes
       
       const summaryText = typeof summary === 'string' ? summary : summary.response;
       
+      // Record metrics for successful transcription and summarization
+      const duration = (Date.now() - startTime) / 1000;
+      const effectiveConfig = await this.getEffectiveConfig();
+      const mode = effectiveConfig.whisperApi.mode === 'api' ? 'api' : 'local';
+      const endpoint = mode === 'api' ? 'api_pool' : 'local';
+      
+      if (this.metricsService.enabled) {
+        this.metricsService.recordWhisperRequest(
+          userId,
+          mode,
+          endpoint,
+          'success',
+          duration,
+          audioSize
+        );
+      }
+      
       return {
         transcription: transcription,
         summary: summaryText,
@@ -603,6 +672,24 @@ Mantenha o resumo conciso mas informativo, destacando os pontos mais importantes
       };
       
     } catch (err) {
+      // Record metrics for failed transcription and summarization
+      const duration = (Date.now() - startTime) / 1000;
+      const effectiveConfig = await this.getEffectiveConfig();
+      const mode = effectiveConfig.whisperApi.mode === 'api' ? 'api' : 'local';
+      const endpoint = mode === 'api' ? 'api_pool' : 'local';
+      
+      if (this.metricsService.enabled) {
+        this.metricsService.recordWhisperRequest(
+          userId,
+          mode,
+          endpoint,
+          'error',
+          duration,
+          audioSize
+        );
+        this.metricsService.recordError('whisper_transcribe_summarize_error', 'whisper_service', userId);
+      }
+      
       logger.error('❌ Erro na transcrição e resumo de áudio:', err);
       throw err;
     }

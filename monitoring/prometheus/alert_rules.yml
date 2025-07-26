@@ -1,0 +1,192 @@
+groups:
+  - name: secrebot.rules
+    rules:
+      # High error rate alerts
+      - alert: HighLLMErrorRate
+        expr: (rate(secrebot_llm_requests_total{status="error"}[5m]) / rate(secrebot_llm_requests_total[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: llm
+        annotations:
+          summary: "High LLM error rate detected"
+          description: "LLM error rate is {{ printf \"%.2f%%\" (mul $value 100) }} over the last 5 minutes"
+
+      - alert: HighWhisperErrorRate
+        expr: (rate(secrebot_whisper_requests_total{status="error"}[5m]) / rate(secrebot_whisper_requests_total[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: whisper
+        annotations:
+          summary: "High Whisper error rate detected"
+          description: "Whisper error rate is {{ printf \"%.2f%%\" (mul $value 100) }} over the last 5 minutes"
+
+      - alert: HighAPIErrorRate
+        expr: (rate(secrebot_http_requests_total{status_code=~"5.."}[5m]) / rate(secrebot_http_requests_total[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "High API error rate detected"
+          description: "API 5xx error rate is {{ printf \"%.2f%%\" (mul $value 100) }} over the last 5 minutes"
+
+      # High latency alerts
+      - alert: HighLLMLatency
+        expr: histogram_quantile(0.95, rate(secrebot_llm_request_duration_seconds_bucket[5m])) > 30
+        for: 3m
+        labels:
+          severity: warning
+          service: llm
+        annotations:
+          summary: "High LLM latency detected"
+          description: "95th percentile LLM latency is {{ $value }}s over the last 5 minutes"
+
+      - alert: HighWhisperLatency
+        expr: histogram_quantile(0.95, rate(secrebot_whisper_request_duration_seconds_bucket[5m])) > 60
+        for: 3m
+        labels:
+          severity: warning
+          service: whisper
+        annotations:
+          summary: "High Whisper latency detected"
+          description: "95th percentile Whisper latency is {{ $value }}s over the last 5 minutes"
+
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, rate(secrebot_http_request_duration_seconds_bucket[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "High API latency detected"
+          description: "95th percentile API latency is {{ $value }}s over the last 5 minutes"
+
+      # System resource alerts
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: LowDiskSpace
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 90
+        for: 10m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "Low disk space detected"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }} at {{ $labels.mountpoint }}"
+
+      # Queue and processing alerts
+      - alert: HighQueueLength
+        expr: secrebot_queue_length > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: queue
+        annotations:
+          summary: "High queue length detected"
+          description: "Queue {{ $labels.queue_type }} has {{ $value }} items"
+
+      - alert: LowRequestRate
+        expr: rate(secrebot_http_requests_total[5m]) < 0.1
+        for: 10m
+        labels:
+          severity: info
+          service: api
+        annotations:
+          summary: "Low request rate detected"
+          description: "API request rate is {{ $value }} requests/second over the last 5 minutes"
+
+      # Cost and usage alerts
+      - alert: HighTokenUsage
+        expr: rate(secrebot_llm_tokens_total[1h]) > 10000
+        for: 15m
+        labels:
+          severity: warning
+          service: cost
+        annotations:
+          summary: "High token usage detected"
+          description: "Token usage rate is {{ $value }} tokens/hour"
+
+      - alert: HighAudioProcessingVolume
+        expr: rate(secrebot_whisper_audio_size_bytes[1h]) > 100000000  # 100MB/hour
+        for: 15m
+        labels:
+          severity: info
+          service: whisper
+        annotations:
+          summary: "High audio processing volume"
+          description: "Audio processing rate is {{ $value }} bytes/hour"
+
+      # User activity alerts
+      - alert: HighUserActivity
+        expr: rate(secrebot_whatsapp_messages_total[5m]) > 50
+        for: 5m
+        labels:
+          severity: info
+          service: whatsapp
+        annotations:
+          summary: "High user activity detected"
+          description: "WhatsApp message rate is {{ $value }} messages/second"
+
+      # Service availability alerts
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: monitoring
+        annotations:
+          summary: "Service is down"
+          description: "{{ $labels.job }} on {{ $labels.instance }} has been down for more than 1 minute"
+
+      - alert: OllamaEndpointDown
+        expr: secrebot_endpoint_health == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: ollama
+        annotations:
+          summary: "Ollama endpoint is unhealthy"
+          description: "Endpoint {{ $labels.endpoint }} ({{ $labels.type }}) is unhealthy"
+
+  - name: secrebot.flow.rules
+    rules:
+      # Flow-specific alerts
+      - alert: FlowExecutionFailures
+        expr: rate(flow_executions_total{status="error"}[10m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: flows
+        annotations:
+          summary: "High flow execution failure rate"
+          description: "Flow {{ $labels.flow_id }} has {{ $value }} failures/second"
+
+      - alert: LongRunningFlows
+        expr: flow_execution_duration_seconds > 300  # 5 minutes
+        for: 0m
+        labels:
+          severity: warning
+          service: flows
+        annotations:
+          summary: "Long running flow detected"
+          description: "Flow {{ $labels.flow_id }} has been running for {{ $value }}s"

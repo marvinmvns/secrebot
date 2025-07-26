@@ -1,0 +1,15 @@
+{
+  "description": "Default mock configuration for LLM nodes",
+  "type": "llm",
+  "response": "Esta é uma resposta simulada do LLM para testes. O conteúdo foi processado com sucesso.",
+  "metadata": {
+    "model": "mock-llm",
+    "tokens": 20,
+    "processingTime": 500
+  },
+  "variations": [
+    "Resposta simulada do LLM - Variação 1",
+    "Mock LLM response - Variation 2", 
+    "Simulação de resposta inteligente para testes"
+  ]
+}

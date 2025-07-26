@@ -1,0 +1,62 @@
+{
+  "description": "Flow Test Runner Configuration",
+  "version": "1.0.0",
+  "defaultOptions": {
+    "source": "database",
+    "mockMode": "auto",
+    "timeout": 30000,
+    "maxExecutions": 50,
+    "verbose": false
+  },
+  "testSuites": {
+    "smoke": {
+      "description": "Quick smoke tests for critical flows",
+      "flows": [],
+      "options": {
+        "mockMode": "auto",
+        "timeout": 10000
+      }
+    },
+    "regression": {
+      "description": "Full regression test suite",
+      "flows": [],
+      "options": {
+        "source": "both",
+        "mockMode": "strict",
+        "verbose": true
+      }
+    },
+    "templates": {
+      "description": "Test all template flows",
+      "flows": [],
+      "options": {
+        "source": "templates",
+        "mockMode": "auto"
+      }
+    }
+  },
+  "mockDefaults": {
+    "llm": {
+      "response": "Mock LLM response for testing",
+      "delay": 500
+    },
+    "webhook": {
+      "response": { "success": true, "data": "mock data" },
+      "delay": 200
+    },
+    "delay": {
+      "testDelay": 100
+    }
+  },
+  "snapshotSettings": {
+    "autoUpdate": false,
+    "compareMode": "strict",
+    "ignoreFields": ["timestamp", "executionId", "sessionId"]
+  },
+  "reporting": {
+    "format": "text",
+    "outputDir": "test/reports",
+    "saveResults": true,
+    "generateHtml": false
+  }
+}

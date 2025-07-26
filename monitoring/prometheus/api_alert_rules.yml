@@ -1,0 +1,131 @@
+groups:
+  - name: secrebot.api.rules
+    rules:
+      # High error rate alerts by API category
+      - alert: HighAPIErrorRateByCategory
+        expr: (rate(secrebot_api_category_requests_total{status_code=~"5.."}[5m]) / rate(secrebot_api_category_requests_total[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "High error rate in {{ $labels.category }} APIs"
+          description: "{{ $labels.category }} API category has {{ $value }} error rate over the last 5 minutes"
+
+      # High latency alerts by API category
+      - alert: HighAPILatencyByCategory
+        expr: histogram_quantile(0.95, rate(secrebot_api_category_duration_seconds_bucket[5m])) > 10
+        for: 3m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "High latency in {{ $labels.category }} APIs"
+          description: "95th percentile latency for {{ $labels.category }} APIs is {{ $value }}s over the last 5 minutes"
+
+      # Core APIs specific alerts (more strict thresholds)
+      - alert: CoreAPIHighErrorRate
+        expr: (rate(secrebot_api_category_requests_total{category="core_apis",status_code=~"5.."}[5m]) / rate(secrebot_api_category_requests_total{category="core_apis"}[5m])) > 0.02
+        for: 1m
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: "High error rate in core APIs"
+          description: "Core APIs have {{ $value }} error rate over the last 5 minutes"
+
+      - alert: CoreAPIHighLatency
+        expr: histogram_quantile(0.95, rate(secrebot_api_category_duration_seconds_bucket{category="core_apis"}[5m])) > 5
+        for: 2m
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: "High latency in core APIs"
+          description: "95th percentile latency for core APIs is {{ $value }}s over the last 5 minutes"
+
+      # Flow management alerts
+      - alert: FlowAPIHighErrorRate
+        expr: (rate(secrebot_api_category_requests_total{category="flow_management",status_code=~"5.."}[5m]) / rate(secrebot_api_category_requests_total{category="flow_management"}[5m])) > 0.10
+        for: 3m
+        labels:
+          severity: warning
+          service: flows
+        annotations:
+          summary: "High error rate in flow management APIs"
+          description: "Flow management APIs have {{ $value }} error rate over the last 5 minutes"
+
+      # Integration APIs alerts
+      - alert: IntegrationAPIHighErrorRate
+        expr: (rate(secrebot_api_category_requests_total{category="integrations",status_code=~"5.."}[5m]) / rate(secrebot_api_category_requests_total{category="integrations"}[5m])) > 0.15
+        for: 5m
+        labels:
+          severity: warning
+          service: integrations
+        annotations:
+          summary: "High error rate in integration APIs"
+          description: "Integration APIs have {{ $value }} error rate over the last 5 minutes"
+
+      # Low request rate alerts
+      - alert: LowCoreAPIUsage
+        expr: rate(secrebot_api_category_requests_total{category="core_apis"}[10m]) < 0.01
+        for: 15m
+        labels:
+          severity: info
+          service: api
+        annotations:
+          summary: "Low usage of core APIs"
+          description: "Core APIs request rate is {{ $value }} requests/second over the last 10 minutes"
+
+      # HTTP status code distribution alerts
+      - alert: HighClientErrorRate
+        expr: (rate(secrebot_http_requests_total{status_code=~"4.."}[5m]) / rate(secrebot_http_requests_total[5m])) > 0.20
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "High client error rate (4xx)"
+          description: "Client error rate is {{ $value }} over the last 5 minutes"
+
+      # Specific endpoint alerts
+      - alert: HealthCheckFailure
+        expr: rate(secrebot_http_requests_total{route="/health",status_code!="200"}[5m]) > 0
+        for: 30s
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: "Health check endpoint failing"
+          description: "Health check endpoint is returning non-200 status codes"
+
+      - alert: MetricsEndpointDown
+        expr: rate(secrebot_http_requests_total{route="/metrics",status_code!="200"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: monitoring
+        annotations:
+          summary: "Metrics endpoint failing"
+          description: "Metrics endpoint is returning non-200 status codes"
+
+      # Request volume alerts
+      - alert: UnusuallyHighAPITraffic
+        expr: rate(secrebot_http_requests_total[5m]) > 100
+        for: 2m
+        labels:
+          severity: info
+          service: api
+        annotations:
+          summary: "Unusually high API traffic"
+          description: "API request rate is {{ $value }} requests/second over the last 5 minutes"
+
+      - alert: APITrafficSpike
+        expr: rate(secrebot_http_requests_total[5m]) > 500
+        for: 30s
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "API traffic spike detected"
+          description: "API request rate is {{ $value }} requests/second - possible spike or attack"

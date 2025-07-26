@@ -1,0 +1,61 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'secrebot-monitor'
+
+rule_files:
+  - "alert_rules_simple.yml"
+  - "api_alert_rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - localhost:9093
+
+scrape_configs:
+  # SecreBot Application Metrics (running on host)
+  - job_name: 'secrebot-app'
+    static_configs:
+      - targets: ['127.0.0.1:3000']  # Force IPv4 localhost
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    honor_labels: true
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Node Exporter (System metrics)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['localhost:9100']
+
+  # cAdvisor (Container metrics)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['localhost:8080']
+
+  # MongoDB Exporter (if you want to monitor MongoDB)
+  - job_name: 'mongodb-exporter'
+    static_configs:
+      - targets: ['host.docker.internal:9216']  # Add if you install mongodb_exporter
+    scrape_interval: 30s
+
+  # Ollama Metrics (if exposed)
+  - job_name: 'ollama'
+    static_configs:
+      - targets: ['host.docker.internal:11434']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+# Global config for remote write (optional - for long-term storage)
+# remote_write:
+#   - url: "https://your-remote-storage/api/v1/write"
+#     basic_auth:
+#       username: "your-username"
+#       password: "your-password"

@@ -125,6 +125,10 @@ class FlowDataService {
             await this.collection.createIndex({ createdAt: -1 });
             await this.collection.createIndex({ lastModified: -1 });
             await this.collection.createIndex({ 'metadata.isDefault': 1 });
+            await this.collection.createIndex({ 'versioning.status': 1 });
+            await this.collection.createIndex({ 'versioning.version': -1 });
+            await this.collection.createIndex({ 'flowId': 1, 'versioning.version': -1 });
+            await this.collection.createIndex({ 'versioning.publishedVersion': 1 });
             logger.verbose('📊 Índices criados para coleção flows');
         } catch (error) {
             logger.warn('⚠️ Erro ao criar índices:', error);
@@ -642,6 +646,453 @@ class FlowDataService {
             return false;
         }
     }
+
+    // ============ FLOW VERSIONING SYSTEM ============
+
+    /**
+     * Creates a new draft version of a flow
+     */
+    async createDraftVersion(flowId, flowData, createdBy = 'system') {
+        try {
+            const baseFlow = await this.getFlow(flowId);
+            if (!baseFlow) {
+                throw new Error(`Flow base ${flowId} não encontrado`);
+            }
+
+            // Get latest version number
+            const latestVersion = await this.getLatestVersion(flowId);
+            const newVersion = this.incrementVersion(latestVersion?.versioning?.version || '1.0.0');
+
+            const draftData = {
+                ...flowData,
+                _id: `${flowId}_v${newVersion}`,
+                flowId: flowId, // Reference to base flow
+                versioning: {
+                    version: newVersion,
+                    status: 'draft',
+                    createdAt: new Date(),
+                    createdBy: createdBy,
+                    baseVersion: baseFlow.versioning?.version || '1.0.0',
+                    parentId: flowId,
+                    publishedVersion: null,
+                    publishedAt: null,
+                    changes: this.calculateChanges(baseFlow, flowData),
+                    metadata: {
+                        changeReason: flowData.changeReason || 'Draft version created',
+                        tags: flowData.tags || [],
+                        branch: flowData.branch || 'main'
+                    }
+                },
+                lastModified: new Date()
+            };
+
+            await this.collection.insertOne(draftData);
+            
+            logger.info(`📝 Draft version ${newVersion} created for flow ${flowId}`);
+            
+            return {
+                success: true,
+                version: newVersion,
+                draftId: draftData._id,
+                changes: draftData.versioning.changes
+            };
+        } catch (error) {
+            logger.error(`❌ Error creating draft version for flow ${flowId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Publishes a draft version
+     */
+    async publishDraftVersion(draftId, publishedBy = 'system') {
+        try {
+            const draft = await this.collection.findOne({ _id: draftId });
+            if (!draft) {
+                throw new Error(`Draft ${draftId} não encontrado`);
+            }
+
+            if (draft.versioning.status !== 'draft') {
+                throw new Error(`Version ${draftId} is not a draft (status: ${draft.versioning.status})`);
+            }
+
+            // Update draft to published
+            const publishedData = {
+                ...draft,
+                versioning: {
+                    ...draft.versioning,
+                    status: 'published',
+                    publishedAt: new Date(),
+                    publishedBy: publishedBy,
+                    publishedVersion: draft.versioning.version
+                },
+                lastModified: new Date()
+            };
+
+            // Replace the base flow with published version
+            await this.collection.replaceOne({ _id: draft.flowId }, publishedData);
+            
+            // Mark the draft as published (keep for history)
+            await this.collection.updateOne(
+                { _id: draftId },
+                { 
+                    $set: { 
+                        'versioning.status': 'published',
+                        'versioning.publishedAt': new Date(),
+                        'versioning.publishedBy': publishedBy
+                    }
+                }
+            );
+
+            logger.info(`🚀 Draft ${draftId} published as ${draft.versioning.version} for flow ${draft.flowId}`);
+            
+            return {
+                success: true,
+                publishedVersion: draft.versioning.version,
+                flowId: draft.flowId
+            };
+        } catch (error) {
+            logger.error(`❌ Error publishing draft ${draftId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Gets all versions of a flow
+     */
+    async getFlowVersions(flowId) {
+        try {
+            const versions = await this.collection.find({
+                $or: [
+                    { _id: flowId },
+                    { flowId: flowId }
+                ]
+            }).sort({ 'versioning.version': -1 }).toArray();
+
+            return versions.map(version => ({
+                id: version._id,
+                version: version.versioning?.version || '1.0.0',
+                status: version.versioning?.status || 'published',
+                createdAt: version.versioning?.createdAt || version.createdAt,
+                createdBy: version.versioning?.createdBy || 'unknown',
+                publishedAt: version.versioning?.publishedAt,
+                publishedBy: version.versioning?.publishedBy,
+                changes: version.versioning?.changes || [],
+                changeReason: version.versioning?.metadata?.changeReason,
+                tags: version.versioning?.metadata?.tags || []
+            }));
+        } catch (error) {
+            logger.error(`❌ Error getting versions for flow ${flowId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Gets differences between two flow versions
+     */
+    async getVersionDiff(flowId, fromVersion, toVersion) {
+        try {
+            const fromFlow = await this.getFlowVersion(flowId, fromVersion);
+            const toFlow = await this.getFlowVersion(flowId, toVersion);
+
+            if (!fromFlow || !toFlow) {
+                throw new Error('One or both versions not found');
+            }
+
+            return this.calculateDetailedDiff(fromFlow, toFlow);
+        } catch (error) {
+            logger.error(`❌ Error calculating diff between versions ${fromVersion} and ${toVersion}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Rollback to a previous version
+     */
+    async rollbackToVersion(flowId, targetVersion, rolledBackBy = 'system') {
+        try {
+            const targetFlow = await this.getFlowVersion(flowId, targetVersion);
+            if (!targetFlow) {
+                throw new Error(`Target version ${targetVersion} not found for flow ${flowId}`);
+            }
+
+            // Create a new version based on the target
+            const currentLatest = await this.getLatestVersion(flowId);
+            const newVersion = this.incrementVersion(currentLatest?.versioning?.version || '1.0.0');
+
+            const rollbackData = {
+                ...targetFlow,
+                _id: flowId, // Replace current flow
+                versioning: {
+                    version: newVersion,
+                    status: 'published',
+                    createdAt: new Date(),
+                    createdBy: rolledBackBy,
+                    publishedAt: new Date(),
+                    publishedBy: rolledBackBy,
+                    publishedVersion: newVersion,
+                    rollbackTo: targetVersion,
+                    rollbackReason: `Rollback to version ${targetVersion}`,
+                    baseVersion: targetFlow.versioning?.version || targetVersion,
+                    parentId: flowId,
+                    changes: this.calculateChanges(currentLatest, targetFlow),
+                    metadata: {
+                        changeReason: `Rollback to version ${targetVersion}`,
+                        tags: ['rollback'],
+                        branch: 'main'
+                    }
+                },
+                lastModified: new Date()
+            };
+
+            await this.collection.replaceOne({ _id: flowId }, rollbackData);
+            
+            logger.info(`🔄 Flow ${flowId} rolled back to version ${targetVersion} as new version ${newVersion}`);
+            
+            return {
+                success: true,
+                newVersion: newVersion,
+                rolledBackTo: targetVersion
+            };
+        } catch (error) {
+            logger.error(`❌ Error rolling back flow ${flowId} to version ${targetVersion}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Gets a specific version of a flow
+     */
+    async getFlowVersion(flowId, version) {
+        try {
+            // Try to find by version-specific ID first
+            let flow = await this.collection.findOne({ _id: `${flowId}_v${version}` });
+            
+            // If not found, search by flowId and version
+            if (!flow) {
+                flow = await this.collection.findOne({
+                    flowId: flowId,
+                    'versioning.version': version
+                });
+            }
+
+            // If still not found and it's version 1.0.0, try the base flow
+            if (!flow && version === '1.0.0') {
+                flow = await this.collection.findOne({ _id: flowId });
+            }
+
+            return flow;
+        } catch (error) {
+            logger.error(`❌ Error getting flow ${flowId} version ${version}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Gets the latest version of a flow
+     */
+    async getLatestVersion(flowId) {
+        try {
+            const versions = await this.collection.find({
+                $or: [
+                    { _id: flowId },
+                    { flowId: flowId }
+                ]
+            }).sort({ 'versioning.version': -1 }).limit(1).toArray();
+
+            return versions[0] || null;
+        } catch (error) {
+            logger.error(`❌ Error getting latest version for flow ${flowId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Increments version number (semantic versioning)
+     */
+    incrementVersion(currentVersion) {
+        const parts = currentVersion.split('.');
+        const major = parseInt(parts[0]) || 1;
+        const minor = parseInt(parts[1]) || 0;
+        const patch = parseInt(parts[2]) || 0;
+
+        // For now, increment patch version
+        return `${major}.${minor}.${patch + 1}`;
+    }
+
+    /**
+     * Calculates changes between two flow versions
+     */
+    calculateChanges(oldFlow, newFlow) {
+        const changes = [];
+
+        // Compare basic properties
+        if (oldFlow.name !== newFlow.name) {
+            changes.push({
+                type: 'property_changed',
+                property: 'name',
+                oldValue: oldFlow.name,
+                newValue: newFlow.name
+            });
+        }
+
+        if (oldFlow.description !== newFlow.description) {
+            changes.push({
+                type: 'property_changed',
+                property: 'description',
+                oldValue: oldFlow.description,
+                newValue: newFlow.description
+            });
+        }
+
+        // Compare nodes
+        const oldNodes = oldFlow.nodes || [];
+        const newNodes = newFlow.nodes || [];
+        
+        const oldNodeIds = new Set(oldNodes.map(n => n.id));
+        const newNodeIds = new Set(newNodes.map(n => n.id));
+
+        // Find added nodes
+        for (const nodeId of newNodeIds) {
+            if (!oldNodeIds.has(nodeId)) {
+                const node = newNodes.find(n => n.id === nodeId);
+                changes.push({
+                    type: 'node_added',
+                    nodeId: nodeId,
+                    nodeType: node?.type,
+                    nodeData: node
+                });
+            }
+        }
+
+        // Find removed nodes
+        for (const nodeId of oldNodeIds) {
+            if (!newNodeIds.has(nodeId)) {
+                const node = oldNodes.find(n => n.id === nodeId);
+                changes.push({
+                    type: 'node_removed',
+                    nodeId: nodeId,
+                    nodeType: node?.type,
+                    nodeData: node
+                });
+            }
+        }
+
+        // Find modified nodes
+        for (const nodeId of newNodeIds) {
+            if (oldNodeIds.has(nodeId)) {
+                const oldNode = oldNodes.find(n => n.id === nodeId);
+                const newNode = newNodes.find(n => n.id === nodeId);
+                
+                if (JSON.stringify(oldNode) !== JSON.stringify(newNode)) {
+                    changes.push({
+                        type: 'node_modified',
+                        nodeId: nodeId,
+                        nodeType: newNode?.type,
+                        changes: this.calculateNodeChanges(oldNode, newNode)
+                    });
+                }
+            }
+        }
+
+        return changes;
+    }
+
+    /**
+     * Calculates detailed differences between two flows
+     */
+    calculateDetailedDiff(fromFlow, toFlow) {
+        return {
+            summary: {
+                fromVersion: fromFlow.versioning?.version || '1.0.0',
+                toVersion: toFlow.versioning?.version || '1.0.0',
+                changes: this.calculateChanges(fromFlow, toFlow)
+            },
+            nodeChanges: this.getNodeDifferences(fromFlow.nodes || [], toFlow.nodes || []),
+            propertyChanges: this.getPropertyDifferences(fromFlow, toFlow)
+        };
+    }
+
+    /**
+     * Calculates changes between individual nodes
+     */
+    calculateNodeChanges(oldNode, newNode) {
+        const changes = [];
+        
+        for (const key in newNode) {
+            if (oldNode[key] !== newNode[key]) {
+                changes.push({
+                    property: key,
+                    oldValue: oldNode[key],
+                    newValue: newNode[key]
+                });
+            }
+        }
+
+        return changes;
+    }
+
+    /**
+     * Gets differences between node arrays
+     */
+    getNodeDifferences(oldNodes, newNodes) {
+        const diff = {
+            added: [],
+            removed: [],
+            modified: []
+        };
+
+        const oldNodeMap = new Map(oldNodes.map(n => [n.id, n]));
+        const newNodeMap = new Map(newNodes.map(n => [n.id, n]));
+
+        // Find added and modified nodes
+        for (const [nodeId, newNode] of newNodeMap) {
+            if (!oldNodeMap.has(nodeId)) {
+                diff.added.push(newNode);
+            } else {
+                const oldNode = oldNodeMap.get(nodeId);
+                if (JSON.stringify(oldNode) !== JSON.stringify(newNode)) {
+                    diff.modified.push({
+                        nodeId,
+                        oldNode,
+                        newNode,
+                        changes: this.calculateNodeChanges(oldNode, newNode)
+                    });
+                }
+            }
+        }
+
+        // Find removed nodes
+        for (const [nodeId, oldNode] of oldNodeMap) {
+            if (!newNodeMap.has(nodeId)) {
+                diff.removed.push(oldNode);
+            }
+        }
+
+        return diff;
+    }
+
+    /**
+     * Gets differences between flow properties
+     */
+    getPropertyDifferences(oldFlow, newFlow) {
+        const changes = [];
+        const properties = ['name', 'description', 'alias', 'isActive'];
+
+        for (const prop of properties) {
+            if (oldFlow[prop] !== newFlow[prop]) {
+                changes.push({
+                    property: prop,
+                    oldValue: oldFlow[prop],
+                    newValue: newFlow[prop]
+                });
+            }
+        }
+
+        return changes;
+    }
+
+    // ============ END FLOW VERSIONING SYSTEM ============
 }
 
 export default FlowDataService;

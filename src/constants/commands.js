@@ -28,7 +28,13 @@ export const COMMANDS = {
   FLOW_VOLTAR: '!flow voltar',
   FLOW_STATUS: '!flow status',
   FLOW_LIST: '!flow list',
-  WHISPERSILENT: '!whispersilent'
+  WHISPERSILENT: '!whispersilent',
+  CRYPTO_MONITOR: '!crypto',
+  CRYPTO_START: '!cryptostart',
+  CRYPTO_STOP: '!cryptostop',
+  CRYPTO_STATUS: '!cryptostatus',
+  CRYPTO_CONFIG: '!cryptoconfig',
+  TTS_CONFIG: '!tts'
 };
 
 export const NUMERIC_SHORTCUTS = {
@@ -41,6 +47,7 @@ export const NUMERIC_SHORTCUTS = {
   '6': 'submenu_suporte',
   '7': 'submenu_whispersilent',
   '8': 'submenu_status_apis',
+  '9': 'submenu_crypto',
   '0': COMMANDS.VOLTAR,
   
   // Agenda & Lembretes
@@ -66,10 +73,11 @@ export const NUMERIC_SHORTCUTS = {
   
   // Configurações
   '5.1': COMMANDS.VOZ,
-  '5.2': COMMANDS.LISTAR_ENDPOINTS_WHISPER,
-  '5.3': COMMANDS.LISTAR_ENDPOINTS_OLLAMA,
-  '5.4': COMMANDS.STATUS_ENDPOINTS,
-  '5.5': COMMANDS.RECURSO,
+  '5.2': COMMANDS.TTS_CONFIG,
+  '5.3': COMMANDS.LISTAR_ENDPOINTS_WHISPER,
+  '5.4': COMMANDS.LISTAR_ENDPOINTS_OLLAMA,
+  '5.5': COMMANDS.STATUS_ENDPOINTS,
+  '5.6': COMMANDS.RECURSO,
   
   // Suporte & Sistema
   '6.1': COMMANDS.AJUDA,
@@ -102,7 +110,14 @@ export const NUMERIC_SHORTCUTS = {
   '8.4': 'api_models_ollama',
   '8.5': 'api_models_whisper',
   '8.6': 'api_endpoints_ollama',
-  '8.7': 'api_endpoints_whisper'
+  '8.7': 'api_endpoints_whisper',
+  
+  // Criptomoedas
+  '9.1': COMMANDS.CRYPTO_MONITOR,
+  '9.2': COMMANDS.CRYPTO_START,
+  '9.3': COMMANDS.CRYPTO_STOP,
+  '9.4': COMMANDS.CRYPTO_STATUS,
+  '9.5': COMMANDS.CRYPTO_CONFIG
 };
 
 export const CHAT_MODES = {
@@ -130,7 +145,8 @@ export const NAVIGATION_STATES = {
   SUBMENU_SUPORTE: 'submenu_suporte',
   SUBMENU_VIDEO: 'submenu_video',
   SUBMENU_WHISPERSILENT: 'submenu_whispersilent',
-  SUBMENU_STATUS_APIS: 'submenu_status_apis'
+  SUBMENU_STATUS_APIS: 'submenu_status_apis',
+  SUBMENU_CRYPTO: 'submenu_crypto'
 };
 
 export const WHISPER_MODELS_LIST = [

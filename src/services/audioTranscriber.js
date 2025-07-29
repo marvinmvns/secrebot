@@ -701,22 +701,31 @@ Mantenha o resumo conciso mas informativo, destacando os pontos mais importantes
 
     if (!isEnabled) {
       return {
+        enabled: false,
         available: false,
         mode: effectiveConfig.whisperApi.mode,
         message: 'Whisper API não está habilitado na configuração.',
-        clients: []
+        clients: [],
+        totalEndpoints: 0,
+        healthyEndpoints: 0,
+        strategy: effectiveConfig.whisperApi.loadBalancing?.strategy || 'queue_length',
+        endpoints: []
       };
     }
 
     try {
       const poolStatus = await this.whisperApiPool.getPoolStatus();
       
-      // O frontend espera uma propriedade `clients`
       return {
+        enabled: true,
         available: true,
         mode: effectiveConfig.whisperApi.mode,
         clients: poolStatus.endpoints || [], // Mapeia endpoints para clients
         healthy: poolStatus.healthyEndpoints > 0,
+        totalEndpoints: poolStatus.totalEndpoints,
+        healthyEndpoints: poolStatus.healthyEndpoints,
+        strategy: poolStatus.strategy,
+        endpoints: poolStatus.endpoints || [],
         stats: {
           total: poolStatus.totalEndpoints,
           healthy: poolStatus.healthyEndpoints,
@@ -726,11 +735,21 @@ Mantenha o resumo conciso mas informativo, destacando os pontos mais importantes
     } catch (error) {
       logger.error('Erro ao obter status do Whisper API Pool:', error);
       return {
+        enabled: true,
         available: true, // Still enabled, but in error state
         mode: effectiveConfig.whisperApi.mode,
         error: error.message,
         clients: [],
-        healthy: false
+        healthy: false,
+        totalEndpoints: 0,
+        healthyEndpoints: 0,
+        strategy: effectiveConfig.whisperApi.loadBalancing?.strategy || 'queue_length',
+        endpoints: [],
+        stats: {
+          total: 0,
+          healthy: 0,
+          unhealthy: 0
+        }
       };
     }
   }

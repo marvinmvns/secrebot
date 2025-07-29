@@ -8,7 +8,7 @@ class Logger {
       INFO: 2,
       DEBUG: 3
     };
-    this.currentLevel = CONFIG.debug?.logLevel?.toUpperCase() || process.env.LOG_LEVEL || 'INFO';
+    this.currentLevel = 'DEBUG'; // FORCING DEBUG LEVEL FOR TROUBLESHOOTING
     this.debugEnabled = CONFIG.debug?.enabled ?? (process.env.DEBUG_ENABLED === 'true' || process.env.NODE_ENV === 'development');
     this.verboseEnabled = CONFIG.debug?.verbose ?? (process.env.DEBUG_VERBOSE === 'true');
   }

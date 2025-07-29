@@ -42,12 +42,13 @@ import { getMetricsService } from '../services/metricsService.js';
 // ============ Bot do WhatsApp ============
 class WhatsAppBot {
   // CORREÇÃO: Adicionar ttsService ao construtor e atribuí-lo
-  constructor(scheduler, llmService, transcriber, ttsService, whisperSilentService, sessionService) {
+  constructor(scheduler, llmService, transcriber, ttsService, whisperSilentService, cryptoService, sessionService) {
     this.scheduler = scheduler;
     this.llmService = llmService;
     this.transcriber = transcriber;
     this.ttsService = ttsService; // CORREÇÃO: Atribuir o serviço TTS
     this.whisperSilentService = whisperSilentService;
+    this.cryptoService = cryptoService;
     this.sessionService = sessionService;
     this.metricsService = getMetricsService();
     this.chatModes = new Map(); // Mantém cache local para performance
@@ -154,6 +155,7 @@ class WhatsAppBot {
     this.client.on('ready', () => {
       logger.info('✅ Cliente WhatsApp pronto!');
       this.startScheduler();
+      this.startCryptoAlertsTimer();
     });
 
     this.client.on('authenticated', () => logger.info('🔐 WhatsApp autenticado.'));
@@ -389,6 +391,10 @@ class WhatsAppBot {
           this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_STATUS_APIS);
           await this.sendResponse(contactId, SUBMENU_MESSAGES.status_apis);
           return true;
+        case '9':
+          this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_CRYPTO);
+          await this.sendResponse(contactId, SUBMENU_MESSAGES.crypto);
+          return true;
         case '0':
           await this.sendResponse(contactId, MENU_MESSAGE);
           return true;
@@ -418,6 +424,8 @@ class WhatsAppBot {
         return await this.handleVideoSubmenu(msg, contactId, numericInput);
       case NAVIGATION_STATES.SUBMENU_STATUS_APIS:
         return await this.handleStatusApisSubmenu(msg, contactId, numericInput);
+      case NAVIGATION_STATES.SUBMENU_CRYPTO:
+        return await this.handleCryptoSubmenu(msg, contactId, numericInput);
       default:
         return false;
     }
@@ -523,17 +531,21 @@ class WhatsAppBot {
         return true;
       case '5.2':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
-        await this.handleMessage({ ...msg, body: COMMANDS.LISTAR_ENDPOINTS_WHISPER });
+        await this.handleMessage({ ...msg, body: COMMANDS.TTS_CONFIG });
         return true;
       case '5.3':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
-        await this.handleMessage({ ...msg, body: COMMANDS.LISTAR_ENDPOINTS_OLLAMA });
+        await this.handleMessage({ ...msg, body: COMMANDS.LISTAR_ENDPOINTS_WHISPER });
         return true;
       case '5.4':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
-        await this.handleMessage({ ...msg, body: COMMANDS.STATUS_ENDPOINTS });
+        await this.handleMessage({ ...msg, body: COMMANDS.LISTAR_ENDPOINTS_OLLAMA });
         return true;
       case '5.5':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.STATUS_ENDPOINTS });
+        return true;
+      case '5.6':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
         await this.handleMessage({ ...msg, body: COMMANDS.RECURSO });
         return true;
@@ -612,6 +624,31 @@ class WhatsAppBot {
     return false;
   }
 
+  async handleCryptoSubmenu(msg, contactId, input) {
+    switch (input) {
+      case '9.1':
+        await this.handleCryptoQuotes(contactId);
+        return true;
+      case '9.2':
+        await this.handleCryptoStartMonitoring(contactId);
+        return true;
+      case '9.3':
+        await this.handleCryptoStopMonitoring(contactId);
+        return true;
+      case '9.4':
+        await this.handleCryptoStatus(contactId);
+        return true;
+      case '9.5':
+        await this.handleCryptoConfig(contactId);
+        return true;
+      case '0':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.sendResponse(contactId, MENU_MESSAGE);
+        return true;
+    }
+    return false;
+  }
+
   async showSubmenu(contactId, submenuType) {
     switch (submenuType) {
       case 'submenu_agenda':
@@ -650,6 +687,10 @@ class WhatsAppBot {
         this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_STATUS_APIS);
         await this.sendResponse(contactId, SUBMENU_MESSAGES.status_apis);
         break;
+      case 'submenu_crypto':
+        this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_CRYPTO);
+        await this.sendResponse(contactId, SUBMENU_MESSAGES.crypto);
+        break;
       default:
         await this.sendResponse(contactId, MENU_MESSAGE);
     }
@@ -669,6 +710,7 @@ class WhatsAppBot {
       [COMMANDS.LINKEDIN]: 'Analisar LinkedIn',
       [COMMANDS.DELETAR]: 'Deletar Compromisso',
       [COMMANDS.VOZ]: 'Alternar Voz/Texto',
+      [COMMANDS.TTS_CONFIG]: 'Configurar TTS',
       [COMMANDS.RECURSO]: 'Recursos do Sistema',
       [COMMANDS.RESUMIR]: 'Resumir Documento',
       [COMMANDS.RESUMIRVIDEO]: 'Resumir Vídeo',
@@ -737,7 +779,9 @@ class WhatsAppBot {
   async sendResponse(contactId, textContent, forceText = false) {
     const useVoice = this.getUserPreference(contactId, 'voiceResponse', false) && !forceText;
 
-    // CORREÇÃO: A verificação 'this.ttsService' garante que o serviço foi injetado
+    logger.debug(`[sendResponse] contactId: ${contactId}, useVoice: ${useVoice}, forceText: ${forceText}`);
+    logger.debug(`[sendResponse] ttsService available: ${!!this.ttsService}, ttsService.client: ${!!this.ttsService?.client}, ttsService.piperEnabled: ${!!this.ttsService?.piperEnabled}`);
+
     if (useVoice && this.ttsService && (this.ttsService.client || this.ttsService.piperEnabled)) { // Verifica também Piper
       try {
         logger.service(`🗣️ Gerando resposta em áudio para ${contactId}...`);
@@ -755,6 +799,7 @@ class WhatsAppBot {
       }
     } else {
       // Enviar como texto se a preferência for texto, se TTS falhou na inicialização, ou se forçado
+      logger.debug(`[sendResponse] Enviando como texto para ${contactId}. useVoice: ${useVoice}, ttsService: ${!!this.ttsService}`);
       await this.client.sendMessage(contactId, textContent);
     }
   }
@@ -842,6 +887,12 @@ class WhatsAppBot {
       if (lowerText === 'voltar' || lowerText === 'voltar menu' || lowerText === 'menu' || lowerText === 'início' || lowerText === 'inicio') {
         // Permitir acesso ao menu principal mesmo durante flow
         await this.sendResponse(contactId, `📋 *MENU PRINCIPAL* (Flow ativo: ${this.flowExecutionService.getActiveFlowInfo(contactId)?.flowName || 'Desconhecido'})\n\n${MENU_MESSAGE}\n\n🔄 Para voltar ao flow: envie qualquer mensagem\n🛑 Para encerrar flow: !flow stop`);
+        return;
+      }
+      
+      // Bloquear comandos do sistema durante flow ativo
+      if (lowerText.startsWith('!') && !lowerText.startsWith('!flow')) {
+        await this.sendResponse(contactId, `⚠️ *Comando bloqueado durante flow ativo*\n\nComando: "${text}"\n\n🛑 Para usar comandos do sistema, primeiro pare o flow:\n\n🛑 !flow stop - Encerrar flow\n🔄 !flow restart - Reiniciar flow\n📊 !flow status - Ver status\n\n💡 Ou continue interagindo com o flow ativo.`);
         return;
       }
       
@@ -991,11 +1042,17 @@ class WhatsAppBot {
           [COMMANDS.LISTAR]: () => this.handleListarCommand(contactId),
           [COMMANDS.DELETAR]: () => this.handleDeletarCommand(contactId),
           [COMMANDS.VOZ]: () => this.handleVozCommand(contactId),
+          [COMMANDS.TTS_CONFIG]: () => this.handleTTSConfigCommand(contactId),
           [COMMANDS.RECURSO]: () => this.handleRecursoCommand(contactId),
           [COMMANDS.RESUMIR]: () => this.handleResumirCommand(msg, contactId),
           [COMMANDS.RESUMIRVIDEO]: () => this.handleResumirVideoCommand(msg, contactId),
           [COMMANDS.RESUMIRVIDEO2]: () => this.handleResumirVideo2Command(msg, contactId),
           [COMMANDS.IMPORTAR_AGENDA]: () => this.handleImportarAgendaCommand(msg, contactId),
+          [COMMANDS.CRYPTO_MONITOR]: () => this.handleCryptoQuotes(contactId),
+          [COMMANDS.CRYPTO_START]: () => this.handleCryptoStartMonitoring(contactId),
+          [COMMANDS.CRYPTO_STOP]: () => this.handleCryptoStopMonitoring(contactId),
+          [COMMANDS.CRYPTO_STATUS]: () => this.handleCryptoStatus(contactId),
+          [COMMANDS.CRYPTO_CONFIG]: () => this.handleCryptoConfig(contactId, originalText),
           [COMMANDS.FOTO]: async () => {
               await this.sendResponse(contactId, ERROR_MESSAGES.IMAGE_REQUIRED);
           },
@@ -1122,6 +1179,31 @@ class WhatsAppBot {
       const voiceEnabled = this.toggleVoicePreference(contactId);
       const message = voiceEnabled ? SUCCESS_MESSAGES.VOICE_ENABLED : SUCCESS_MESSAGES.VOICE_DISABLED;
       // Enviar confirmação sempre em texto para clareza
+      await this.sendResponse(contactId, message, true);
+  }
+
+  async handleTTSConfigCommand(contactId) {
+      const configUrl = `${CONFIG.app.webUrl || 'http://localhost:3000'}/tts-config`;
+      const message = `🔊 *Configuração de Text-to-Speech*
+
+Para configurar o TTS (ElevenLabs ou Piper), acesse:
+${configUrl}
+
+*Funcionalidades Disponíveis:*
+• ⚙️ Configuração de ElevenLabs
+• 🖥️ Configuração de Piper TTS local
+• 🔊 Controles globais de ativação
+• 🎤 Testes de funcionalidade
+• 📊 Carregamento automático de vozes
+
+*Configurações Atuais:*
+• TTS Global: ${CONFIG.tts?.enabled ? '✅ Ativo' : '❌ Inativo'}
+• ElevenLabs: ${CONFIG.elevenlabs?.apiKey ? '✅ Configurado' : '❌ Não configurado'}
+• Piper: ${CONFIG.piper?.enabled ? '✅ Ativo' : '❌ Inativo'}
+• Telegram TTS: ${CONFIG.telegram?.enableTTS ? '✅ Ativo' : '❌ Inativo'}
+
+Use o link acima para configurar todos os parâmetros de TTS.`;
+
       await this.sendResponse(contactId, message, true);
   }
 
@@ -2806,15 +2888,41 @@ usuario@email.com:senha
     try {
       await this.sendResponse(contactId, '📅 Processando agendamento...', true);
       const responseText = await this.llmService.getChatGPTResponse(contactId, text);
+      
+      let scheduleDataRaw;
       try {
-        const scheduleDataRaw = JSON.parse(responseText);
-        await this.createSchedule(contactId, scheduleDataRaw);
-        await this.sendResponse(contactId, SUCCESS_MESSAGES.SCHEDULE_CREATED);
-        this.llmService.clearContext(contactId, CHAT_MODES.AGENDABOT);
+        scheduleDataRaw = JSON.parse(responseText);
       } catch (parseError) {
-        logger.verbose('LLM não retornou JSON, enviando como texto.');
-        await this.sendResponse(contactId, responseText);
+        logger.verbose('LLM não retornou JSON válido, tentando novamente com prompt mais restritivo...');
+        
+        // Tentar novamente com prompt mais restritivo
+        const restrictivePrompt = `CRITICAL: Responda APENAS com JSON válido. Nenhum texto adicional. Use esta estrutura:
+{
+  "message": "Texto do lembrete extraído da mensagem do usuário",
+  "status": "approved",
+  "scheduledTime": { "$date": "DATA_EM_ISO8601_UTC" },
+  "expiryTime": { "$date": "DATA_EM_ISO8601_UTC" },
+  "sentAt": null,
+  "attempts": 0,
+  "lastAttemptAt": null
+}
+
+Mensagem do usuário: ${text}`;
+        
+        try {
+          const retryResponse = await this.llmService.chat(contactId, restrictivePrompt, CHAT_MODES.AGENDABOT);
+          scheduleDataRaw = JSON.parse(retryResponse);
+        } catch (retryError) {
+          logger.error('Falha ao obter JSON válido mesmo após tentativa restritiva:', retryError);
+          await this.sendResponse(contactId, `❌ **Erro de processamento**\n\nNão consegui processar seu agendamento. Tente ser mais específico com data, hora e mensagem.\n\n**Exemplo:**\n"Lembrar de reunião amanhã às 14h"\n\n**Resposta original do sistema:**\n${responseText}`);
+          return;
+        }
       }
+
+      await this.createSchedule(contactId, scheduleDataRaw);
+      await this.sendResponse(contactId, SUCCESS_MESSAGES.SCHEDULE_CREATED);
+      this.llmService.clearContext(contactId, CHAT_MODES.AGENDABOT);
+      
     } catch (err) {
       logger.error(`❌ Erro ao processar mensagem Agendabot para ${contactId}`, err);
       await this.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
@@ -3454,7 +3562,11 @@ usuario@email.com:senha
     try {
       const stopped = await this.stopFlow(contactId);
       if (stopped) {
-        await this.sendResponse(contactId, '✅ Flow interrompido com sucesso!');
+        // Limpar completamente todos os estados do usuário
+        await this.setMode(contactId, null); // Limpa chat modes e contextos LLM
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU); // Reset navegação
+        
+        await this.sendResponse(contactId, '✅ Flow interrompido com sucesso!\n\n📋 *MENU PRINCIPAL*\n\n' + MENU_MESSAGE);
       } else {
         await this.sendResponse(contactId, '❌ Nenhum flow ativo encontrado.');
       }
@@ -3476,7 +3588,11 @@ usuario@email.com:senha
       // Parar o flow usando o mesmo método que o stop
       const stopped = await this.stopFlow(contactId);
       if (stopped) {
-        await this.sendResponse(contactId, '🚪 Você saiu do flow com sucesso!\n\n📋 Digite !menu para ver as opções disponíveis.');
+        // Limpar completamente todos os estados do usuário
+        await this.setMode(contactId, null); // Limpa chat modes e contextos LLM
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU); // Reset navegação
+        
+        await this.sendResponse(contactId, '🚪 Você saiu do flow com sucesso!\n\n📋 *MENU PRINCIPAL*\n\n' + MENU_MESSAGE);
       } else {
         await this.sendResponse(contactId, '❌ Não foi possível sair do flow.');
       }
@@ -4312,6 +4428,251 @@ usuario@email.com:senha
   }
 
   // === Fim dos Métodos WhisperSilent ===
+
+  // === Métodos de Criptomoedas ===
+  
+  async handleCryptoQuotes(contactId) {
+    try {
+      await this.sendResponse(contactId, '📊 Buscando cotações atuais...', true);
+      
+      const prices = await this.cryptoService.getCurrentPrices();
+      const formattedMessage = this.cryptoService.formatPrices(prices);
+      
+      await this.sendResponse(contactId, formattedMessage);
+    } catch (error) {
+      logger.error(`Erro ao buscar cotações crypto para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro ao obter cotações: ${error.message}\n\n💡 Tente novamente em alguns minutos.`);
+    }
+  }
+
+  async handleCryptoStartMonitoring(contactId) {
+    try {
+      const status = this.cryptoService.getMonitoringStatus(contactId);
+      
+      if (status.active) {
+        const config = status.config;
+        await this.sendResponse(contactId, `🔔 *Monitoramento já ativo!*\n\n📊 Configuração atual:\n🎯 Threshold: ${config.thresholdPercentage || 1.0}%\n⏱️ Timeframe: ${config.timeframe || '1m'}\n📈 Alta: ${config.alertOnRise ? '✅' : '❌'}\n📉 Queda: ${config.alertOnFall ? '✅' : '❌'}\n\n💡 Use 9.3 para desativar, 9.4 para status ou 9.5 para configurar.`);
+        return;
+      }
+
+      const config = this.cryptoService.activateMonitoring(contactId, {
+        thresholdPercentage: 1.0, // 1% de variação padrão
+        notifications: true
+      });
+
+      await this.sendResponse(contactId, `🔔 *Monitoramento ativado!*\n\n✅ Configuração padrão:\n🎯 Threshold: ${config.thresholdPercentage}%\n⏱️ Timeframe: ${config.timeframe}\n📈 Alertar alta: ${config.alertOnRise ? '✅' : '❌'}\n📉 Alertar queda: ${config.alertOnFall ? '✅' : '❌'}\n⏰ Cooldown: ${config.cooldownMinutes} min\n\n💡 Use 9.5 para personalizar as configurações`);
+      
+      logger.info(`Monitoramento crypto ativado para ${contactId}`);
+    } catch (error) {
+      logger.error(`Erro ao ativar monitoramento crypto para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro ao ativar monitoramento: ${error.message}`);
+    }
+  }
+
+  async handleCryptoStopMonitoring(contactId) {
+    try {
+      const status = this.cryptoService.getMonitoringStatus(contactId);
+      
+      if (!status.active) {
+        await this.sendResponse(contactId, `🔕 *Monitoramento não estava ativo*\n\n💡 Use 9.2 para ativar alertas automáticos de variação.`);
+        return;
+      }
+
+      this.cryptoService.deactivateMonitoring(contactId);
+
+      await this.sendResponse(contactId, `🔕 *Monitoramento desativado!*\n\n❌ Você não receberá mais alertas automáticos de variação.\n\n💡 Use 9.2 para reativar ou 9.1 para ver cotações manuais.`);
+      
+      logger.info(`Monitoramento crypto desativado para ${contactId}`);
+    } catch (error) {
+      logger.error(`Erro ao desativar monitoramento crypto para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro ao desativar monitoramento: ${error.message}`);
+    }
+  }
+
+  async handleCryptoStatus(contactId) {
+    try {
+      const status = this.cryptoService.getMonitoringStatus(contactId);
+      
+      const statusIcon = status.active ? '🔔' : '🔕';
+      const statusText = status.active ? 'ATIVO' : 'INATIVO';
+      
+      let message = `📈 *STATUS DO MONITORAMENTO* 📈\n\n`;
+      message += `${statusIcon} *Status:* ${statusText}\n`;
+      
+      if (status.active) {
+        const config = status.config;
+        message += `🎯 *Threshold:* ${config.thresholdPercentage || config.threshold || 1.0}%\n`;
+        message += `⏱️ *Timeframe:* ${config.timeframe || '1m'}\n`;
+        message += `💰 *Moedas:* ${config.coins ? config.coins.join(', ') : 'Bitcoin, Ethereum'}\n`;
+        message += `📈 *Alertar alta:* ${config.alertOnRise ? '✅' : '❌'}\n`;
+        message += `📉 *Alertar queda:* ${config.alertOnFall ? '✅' : '❌'}\n`;
+        message += `⏰ *Cooldown:* ${config.cooldownMinutes || 15} min\n`;
+      }
+      
+      message += `👥 *Usuários monitorando:* ${status.totalUsers}\n`;
+      message += `🌐 *Sistema global:* ${status.isGlobalActive ? 'Ativo' : 'Inativo'}\n\n`;
+      
+      if (status.active) {
+        message += `💡 *Use 9.3 para desativar ou 9.5 para configurar*`;
+      } else {
+        message += `💡 *Use 9.2 para ativar*`;
+      }
+
+      await this.sendResponse(contactId, message);
+    } catch (error) {
+      logger.error(`Erro ao verificar status crypto para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro ao verificar status: ${error.message}`);
+    }
+  }
+
+  async handleCryptoConfig(contactId, originalText = '') {
+    try {
+      // Parse command parameters
+      const parts = originalText.trim().split(/\s+/);
+      const parameter = parts[1]?.toLowerCase();
+      const value = parts[2];
+      
+      // If no parameters, show current configuration
+      if (!parameter) {
+        return await this.showCryptoConfig(contactId);
+      }
+      
+      // Check if monitoring is active for configuration changes
+      const currentConfig = this.cryptoService.getUserConfig(contactId);
+      if (!currentConfig) {
+        await this.sendResponse(contactId, `❌ *Monitoramento não está ativo*\n\n💡 Use 9.2 para ativar primeiro e depois configure os parâmetros.`);
+        return;
+      }
+      
+      // Handle configuration updates
+      let updateObj = {};
+      let successMessage = '';
+      
+      switch (parameter) {
+        case 'threshold':
+          const thresholdValue = parseFloat(value);
+          if (isNaN(thresholdValue)) {
+            await this.sendResponse(contactId, `❌ Valor inválido para threshold. Use um número entre 0.1 e 50.\n\n💡 Exemplo: ${COMMANDS.CRYPTO_CONFIG} threshold 2.5`);
+            return;
+          }
+          updateObj.thresholdPercentage = thresholdValue;
+          successMessage = `🎯 Threshold atualizado para ${thresholdValue}%`;
+          break;
+          
+        case 'timeframe':
+          const validTimeframes = ['1m', '5m', '15m', '1h'];
+          if (!validTimeframes.includes(value)) {
+            await this.sendResponse(contactId, `❌ Timeframe inválido. Use: ${validTimeframes.join(', ')}\n\n💡 Exemplo: ${COMMANDS.CRYPTO_CONFIG} timeframe 5m`);
+            return;
+          }
+          updateObj.timeframe = value;
+          successMessage = `⏱️ Timeframe atualizado para ${value}`;
+          break;
+          
+        case 'cooldown':
+          const cooldownValue = parseInt(value);
+          if (isNaN(cooldownValue) || cooldownValue < 1 || cooldownValue > 120) {
+            await this.sendResponse(contactId, `❌ Valor inválido para cooldown. Use um número entre 1 e 120 minutos.\n\n💡 Exemplo: ${COMMANDS.CRYPTO_CONFIG} cooldown 30`);
+            return;
+          }
+          updateObj.cooldownMinutes = cooldownValue;
+          successMessage = `⏰ Cooldown atualizado para ${cooldownValue} minutos`;
+          break;
+          
+        case 'alta':
+          const alertOnRise = value !== 'off' && value !== 'false' && value !== '0';
+          updateObj.alertOnRise = alertOnRise;
+          successMessage = `📈 Alertas de alta ${alertOnRise ? 'ativados' : 'desativados'}`;
+          break;
+          
+        case 'queda':
+          const alertOnFall = value !== 'off' && value !== 'false' && value !== '0';
+          updateObj.alertOnFall = alertOnFall;
+          successMessage = `📉 Alertas de queda ${alertOnFall ? 'ativados' : 'desativados'}`;
+          break;
+          
+        default:
+          await this.sendResponse(contactId, `❌ Parâmetro desconhecido: "${parameter}"\n\n📝 Parâmetros disponíveis:\n• threshold\n• timeframe\n• cooldown\n• alta\n• queda\n\n💡 Exemplo: ${COMMANDS.CRYPTO_CONFIG} threshold 2.5`);
+          return;
+      }
+      
+      // Apply configuration update
+      const updatedConfig = this.cryptoService.updateMonitoringConfig(contactId, updateObj);
+      
+      await this.sendResponse(contactId, `✅ ${successMessage}\n\n📊 *Configuração Atualizada:*\n🎯 Threshold: ${updatedConfig.thresholdPercentage}%\n⏱️ Timeframe: ${updatedConfig.timeframe}\n📈 Alta: ${updatedConfig.alertOnRise ? '✅' : '❌'}\n📉 Queda: ${updatedConfig.alertOnFall ? '✅' : '❌'}\n⏰ Cooldown: ${updatedConfig.cooldownMinutes} min`);
+      
+    } catch (error) {
+      logger.error(`Erro ao configurar crypto para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro ao aplicar configuração: ${error.message}`);
+    }
+  }
+  
+  async showCryptoConfig(contactId) {
+    try {
+      const currentConfig = this.cryptoService.getUserConfig(contactId);
+      
+      let message = `⚙️ *CONFIGURAÇÃO DE CRIPTOMOEDAS* ⚙️\n\n`;
+      
+      if (currentConfig) {
+        message += `📊 *Configurações Atuais:*\n`;
+        message += `🎯 Threshold: ${currentConfig.thresholdPercentage}%\n`;
+        message += `⏱️ Timeframe: ${currentConfig.timeframe}\n`;
+        message += `💰 Moedas: ${currentConfig.coins.join(', ')}\n`;
+        message += `📈 Alertar alta: ${currentConfig.alertOnRise ? '✅' : '❌'}\n`;
+        message += `📉 Alertar queda: ${currentConfig.alertOnFall ? '✅' : '❌'}\n`;
+        message += `⏰ Cooldown: ${currentConfig.cooldownMinutes} min\n\n`;
+        
+        message += `📝 *Para Alterar:*\n`;
+        message += `• "${COMMANDS.CRYPTO_CONFIG} threshold 2.5" - Define threshold para 2.5%\n`;
+        message += `• "${COMMANDS.CRYPTO_CONFIG} timeframe 5m" - Define timeframe para 5 minutos\n`;
+        message += `• "${COMMANDS.CRYPTO_CONFIG} cooldown 30" - Define cooldown para 30 minutos\n`;
+        message += `• "${COMMANDS.CRYPTO_CONFIG} alta off" - Desativa alertas de alta\n`;
+        message += `• "${COMMANDS.CRYPTO_CONFIG} queda off" - Desativa alertas de queda\n\n`;
+      } else {
+        message += `❌ *Monitoramento não está ativo*\n\n`;
+        message += `💡 Use 9.2 para ativar primeiro e depois configure os parâmetros.\n\n`;
+      }
+      
+      message += `📋 *Opções Disponíveis:*\n`;
+      message += `🎯 Threshold: 0.1% a 50%\n`;
+      message += `⏱️ Timeframes: 1m, 5m, 15m, 1h\n`;
+      message += `⏰ Cooldown: 1 a 120 minutos\n`;
+      message += `💰 Moedas: bitcoin, ethereum\n\n`;
+      
+      message += `💡 _Exemplo: ${COMMANDS.CRYPTO_CONFIG} threshold 1.5_`;
+
+      await this.sendResponse(contactId, message);
+    } catch (error) {
+      logger.error(`Erro ao mostrar configuração crypto para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro ao acessar configurações: ${error.message}`);
+    }
+  }
+
+  // Método para verificar e enviar alertas pendentes (chamado periodicamente)
+  async checkAndSendCryptoAlerts() {
+    try {
+      const pendingAlerts = this.cryptoService.getPendingAlerts();
+      
+      for (const alert of pendingAlerts) {
+        await this.sendResponse(alert.userId, alert.message);
+        logger.info(`Alerta crypto enviado para ${alert.userId}`);
+      }
+    } catch (error) {
+      logger.error('Erro ao enviar alertas crypto:', error);
+    }
+  }
+
+  // Inicia timer para verificar alertas crypto
+  startCryptoAlertsTimer() {
+    // Verificar alertas a cada 30 segundos
+    this.cryptoAlertsTimer = setInterval(async () => {
+      await this.checkAndSendCryptoAlerts();
+    }, 30000);
+    
+    logger.info('⏰ Timer de alertas crypto iniciado (30s)');
+  }
+
+  // === Fim dos Métodos de Criptomoedas ===
 }
 
 export default WhatsAppBot;

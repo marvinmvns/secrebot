@@ -10,10 +10,12 @@ echo "🔍 Iniciando stack de monitoramento completo..."
 
 # Parar serviços existentes para evitar conflitos
 echo "📛 Parando serviços existentes..."
-docker-compose -f docker-compose.monitoring.yml down 2>/dev/null
+docker rm -f secrebot_node_exporter secrebot_prometheus secrebot_cadvisor secrebot_grafana secrebot_alertmanager 2>/dev/null
+docker system prune -f
+docker-compose -f docker-compose.monitoring.yml down --volumes --remove-orphans
 
 # Aguardar um pouco
-sleep 2
+sleep 5
 
 # Iniciar todos os serviços
 echo "🚀 Iniciando todos os serviços de monitoramento..."

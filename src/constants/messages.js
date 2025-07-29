@@ -33,6 +33,9 @@ Como posso te ajudar hoje?
 8️⃣ *Status de APIs*
    _Visualize status detalhado das APIs Ollama e Whisper._
 
+9️⃣ *Criptomoedas*
+   _Monitore Bitcoin e Ethereum com alertas automáticos._
+
 ─────────────────────────────
 💡 *Como usar:*
 • Digite o *número* da opção.
@@ -96,14 +99,15 @@ export const SUBMENU_MESSAGES = {
 
 *RESPOSTAS*
 5.1 🔊 Alterar modo (Texto/Voz)
+5.2 🔊 Configurar TTS (Text-to-Speech)
 
 *GERENCIAMENTO DE ENDPOINTS*
-5.2 🎤 Listar endpoints Whisper API
-5.3 🤖 Listar endpoints Ollama API
-5.4 📊 Status de todos os endpoints
+5.3 🎤 Listar endpoints Whisper API
+5.4 🤖 Listar endpoints Ollama API
+5.5 📊 Status de todos os endpoints
 
 *SISTEMA*
-5.5 ⚡ Ver recursos do sistema
+5.6 ⚡ Ver recursos do sistema
 
 0️⃣ Voltar ao Menu Principal`,
 
@@ -173,7 +177,19 @@ Qual método você prefere?
 
 0️⃣ Voltar ao Menu Principal
 
-📡 _Monitore o status completo das APIs de IA e transcrição._`
+📡 _Monitore o status completo das APIs de IA e transcrição._`,
+
+  crypto: `₿ *Monitoramento de Criptomoedas*
+
+9.1 📊 Ver cotações atuais (Bitcoin/Ethereum)
+9.2 🔔 Ativar alertas de variação
+9.3 🔕 Desativar alertas de variação
+9.4 📈 Status do monitoramento
+9.5 ⚙️ Configurar parâmetros de oscilação
+
+0️⃣ Voltar ao Menu Principal
+
+💰 _Acompanhe Bitcoin e Ethereum em tempo real com alertas automáticos personalizáveis._`
 };
 
 /**
@@ -378,20 +394,24 @@ Por favor, use apenas PDF, TXT, DOCX ou CSV.`,
  * =================================================================
  */
 export const PROMPTS = {
-  agenda: (date) => `Você é Marvin, um assistente especialista em agendamentos. A data e hora atuais são: ${date}. Sua tarefa é extrair "message" e "scheduledTime" da fala do usuário para criar um evento. Responda APENAS com o objeto JSON estruturado abaixo. Não adicione nenhuma explicação ou texto fora do JSON.
+  agenda: (date) => `CRITICAL: Você DEVE responder APENAS com JSON válido. Nenhum texto adicional, nenhuma explicação, apenas o JSON.
 
-Exemplo de estrutura de resposta:
+Data/hora atual: ${date}
+
+Extraia message e scheduledTime da mensagem do usuário. O expiryTime deve ser 1 hora após scheduledTime.
+
+FORMATO OBRIGATÓRIO:
 {
-  "message": "Mensagem do lembrete",
+  "message": "texto_extraído_da_mensagem",
   "status": "approved",
-  "scheduledTime": { "$date": "DATA_EM_ISO8601" },
-  "expiryTime": { "$date": "DATA_EM_ISO8601" },
+  "scheduledTime": { "$date": "YYYY-MM-DDTHH:mm:ss.000Z" },
+  "expiryTime": { "$date": "YYYY-MM-DDTHH:mm:ss.000Z" },
   "sentAt": null,
   "attempts": 0,
   "lastAttemptAt": null
 }
 
-Sempre retorne um JSON válido neste formato. As datas devem estar em formato ISO8601 UTC.`,
+IMPORTANTE: Resposta deve ser JSON válido que passa em JSON.parse().`,
   
   assistant: (date) => `Você é o SecreBot, um assistente virtual amigável, prestativo e um pouco espirituoso. Responda de forma útil, clara e concisa. Use emojis para deixar a conversa mais leve e agradável. A data atual é ${date}.`,
   

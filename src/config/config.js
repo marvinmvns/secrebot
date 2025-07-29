@@ -173,6 +173,11 @@ export const config = {
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     redirect: process.env.GOOGLE_REDIRECT || 'http://localhost:3000/oauth2callback'
   },
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY || '',
+    baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com',
+    defaultModel: process.env.OPENAI_DEFAULT_MODEL || 'gpt-4'
+  },
   linkedin: {
     user: process.env.LINKEDIN_USER || '',
     pass: process.env.LINKEDIN_PASS || '',

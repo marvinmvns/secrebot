@@ -547,16 +547,16 @@ class RestAPI {
           try {
             // Se modelo específico foi selecionado, usar com endpoint específico
             if (model) {
-              answer = await this.bot.llmService.chatWithSpecificEndpointAndModel('web', message, endpoint, model);
+              answer = await this.bot.llmService.chatWithSpecificEndpointAndModel(sessionId, message, endpoint, model);
               usedModel = model;
             } else {
-              answer = await this.bot.llmService.chatWithSpecificEndpoint('web', message, endpoint);
+              answer = await this.bot.llmService.chatWithSpecificEndpoint(sessionId, message, endpoint);
             }
             usedEndpoint = endpoint;
             logger.info(`Resposta obtida do endpoint específico: ${endpoint}${model ? ` com modelo: ${model}` : ''}`);
           } catch (endpointErr) {
             logger.warn(`Erro no endpoint específico ${endpoint}, usando padrão:`, endpointErr);
-            answer = await this.bot.llmService.getAssistantResponse('web', message);
+            answer = await this.bot.llmService.getAssistantResponse(sessionId, message);
             usedEndpoint = 'Padrão (endpoint específico falhou)';
             usedModel = null;
           }
@@ -588,6 +588,17 @@ class RestAPI {
       let usedEndpoint = null;
       let usedModel = null;
 
+      // Gerar ou recuperar session ID para contexto web
+      let sessionId = req.body.sessionId;
+      if (!sessionId) {
+        // Gerar novo sessionId baseado em IP + User-Agent + timestamp
+        const ip = req.ip || req.connection.remoteAddress || 'unknown';
+        const userAgent = req.get('User-Agent') || 'unknown';
+        const timestamp = Date.now();
+        sessionId = `web_${Buffer.from(`${ip}-${userAgent}-${timestamp}`).toString('base64').substring(0, 16)}`;
+        logger.info(`🆔 Novo sessionId criado para chat web: ${sessionId}`);
+      }
+
       try {
         // Processar áudio se fornecido
         if (audioData && !message.trim()) {
@@ -617,18 +628,62 @@ class RestAPI {
         // Usar endpoint específico se fornecido
         if (endpoint) {
           try {
-            // Se modelo específico foi selecionado, usar com endpoint específico
-            if (model) {
-              answer = await this.bot.llmService.chatWithSpecificEndpointAndModel('web', message, endpoint, model);
-              usedModel = model;
+            // Verificar se é endpoint ChatGPT
+            const endpointType = req.body.endpointType || '';
+            if (endpointType === 'chatgpt' || endpoint.includes('api.openai.com')) {
+              // Usar ChatGPT API
+              let openaiApiKey = process.env.OPENAI_API_KEY;
+              
+              // Buscar API key do MongoDB se não estiver nas env vars
+              if (!openaiApiKey && this.configService) {
+                try {
+                  const mongoConfig = await this.configService.getConfig();
+                  // Buscar API key em openai.apiKey ou nos endpoints ollamaApi do tipo chatgpt
+                  openaiApiKey = mongoConfig?.openai?.apiKey;
+                  
+                  // Se não encontrou em openai.apiKey, buscar nos endpoints ChatGPT
+                  if (!openaiApiKey && mongoConfig?.ollamaApi?.endpoints) {
+                    const chatgptEndpoint = mongoConfig.ollamaApi.endpoints.find(ep => 
+                      ep.type === 'chatgpt' && ep.enabled && ep.apikey
+                    );
+                    if (chatgptEndpoint) {
+                      openaiApiKey = chatgptEndpoint.apikey;
+                      logger.debug('Usando API key do endpoint ChatGPT para chat');
+                    }
+                  }
+                } catch (error) {
+                  logger.warn('Erro ao buscar configuração OpenAI do MongoDB para chat:', error.message);
+                }
+              }
+              
+              if (!openaiApiKey) {
+                throw new Error('API Key da OpenAI não configurada (verifique configurações)');
+              }
+
+              // Usar LLMService para manter contexto (similar ao Ollama)
+              if (model) {
+                answer = await this.bot.llmService.chatWithSpecificEndpointAndModel(sessionId, message, endpoint, model);
+                usedModel = model;
+              } else {
+                answer = await this.bot.llmService.chatWithSpecificEndpoint(sessionId, message, endpoint);
+              }
+              usedEndpoint = endpoint;
+              
+              logger.info(`Resposta obtida do ChatGPT: ${endpoint} com modelo: ${usedModel}`);
             } else {
-              answer = await this.bot.llmService.chatWithSpecificEndpoint('web', message, endpoint);
+              // Usar Ollama API (comportamento original)
+              if (model) {
+                answer = await this.bot.llmService.chatWithSpecificEndpointAndModel(sessionId, message, endpoint, model);
+                usedModel = model;
+              } else {
+                answer = await this.bot.llmService.chatWithSpecificEndpoint(sessionId, message, endpoint);
+              }
+              usedEndpoint = endpoint;
+              logger.info(`Resposta obtida do endpoint Ollama: ${endpoint}${model ? ` com modelo: ${model}` : ''}`);
             }
-            usedEndpoint = endpoint;
-            logger.info(`Resposta obtida do endpoint específico: ${endpoint}${model ? ` com modelo: ${model}` : ''}`);
           } catch (endpointErr) {
             logger.warn(`Erro no endpoint específico ${endpoint}, usando padrão:`, endpointErr);
-            answer = await this.bot.llmService.getAssistantResponse('web', message);
+            answer = await this.bot.llmService.getAssistantResponse(sessionId, message);
             usedEndpoint = 'Padrão (endpoint específico falhou)';
             usedModel = null;
           }
@@ -643,7 +698,8 @@ class RestAPI {
           success: true,
           result: answer, 
           usedEndpoint, 
-          usedModel 
+          usedModel,
+          sessionId  // Retornar sessionId para o frontend
         });
       } catch (err) {
         logger.error('Erro em /api/chat', err);
@@ -2092,6 +2148,13 @@ class RestAPI {
       }
     });
 
+    // ============ TTS Routes ============
+    
+    // Página de configuração do TTS
+    this.app.get('/tts-config', (req, res) => {
+      res.render('tts-config');
+    });
+
     // ============ Ollama API Routes ============
     
     // Página de configuração do Ollama API
@@ -2301,6 +2364,387 @@ class RestAPI {
           error: 'Erro ao listar modelos do endpoint',
           details: error.message,
           type: req.body.type || 'ollama'
+        });
+      }
+    });
+
+    // API endpoint para listar modelos ChatGPT/OpenAI
+    this.app.post('/api/chatgpt/models', async (req, res) => {
+      try {
+        const { url } = req.body;
+        let apikey = process.env.OPENAI_API_KEY;
+        
+        // Buscar API key do MongoDB se não estiver nas env vars
+        if (!apikey && this.configService) {
+          try {
+            const mongoConfig = await this.configService.getConfig();
+            // Buscar API key em openai.apiKey ou nos endpoints ollamaApi do tipo chatgpt
+            apikey = mongoConfig?.openai?.apiKey;
+            
+            // Se não encontrou em openai.apiKey, buscar nos endpoints ChatGPT
+            if (!apikey && mongoConfig?.ollamaApi?.endpoints) {
+              const chatgptEndpoint = mongoConfig.ollamaApi.endpoints.find(ep => 
+                ep.type === 'chatgpt' && ep.enabled && ep.apikey
+              );
+              if (chatgptEndpoint) {
+                apikey = chatgptEndpoint.apikey;
+                logger.debug('Usando API key do endpoint ChatGPT para modelos');
+              }
+            }
+          } catch (error) {
+            logger.warn('Erro ao buscar configuração OpenAI do MongoDB para modelos:', error.message);
+          }
+        }
+        
+        if (!apikey) {
+          return res.status(400).json({ 
+            success: false,
+            error: 'API Key da OpenAI não configurada (verifique configurações)' 
+          });
+        }
+
+        // Create ChatGPT client to list models
+        const chatGPTModule = await import('../services/chatgptApiClient.js');
+        const { ChatGPTAPIClient } = chatGPTModule;
+        
+        const client = new ChatGPTAPIClient(url || 'https://api.openai.com', apikey);
+        const models = await client.listModels();
+        
+        res.json({
+          success: true,
+          url: url || 'https://api.openai.com',
+          type: 'chatgpt',
+          models: models.models || [],
+          timestamp: new Date().toISOString()
+        });
+
+      } catch (error) {
+        logger.error(`Erro ao listar modelos ChatGPT:`, error);
+        res.status(500).json({ 
+          success: false,
+          error: 'Erro ao listar modelos ChatGPT',
+          details: error.message,
+          type: 'chatgpt'
+        });
+      }
+    });
+
+    // API endpoint para status do ChatGPT/OpenAI
+    this.app.get('/api/chatgpt/status', async (req, res) => {
+      try {
+        // Verificar se há configurações de ChatGPT no MongoDB primeiro
+        let openaiApiKey = process.env.OPENAI_API_KEY;
+        
+        if (!openaiApiKey && this.configService) {
+          try {
+            const mongoConfig = await this.configService.getConfig();
+            // Buscar API key em openai.apiKey ou nos endpoints ollamaApi do tipo chatgpt
+            openaiApiKey = mongoConfig?.openai?.apiKey;
+            
+            // Se não encontrou em openai.apiKey, buscar nos endpoints ChatGPT
+            if (!openaiApiKey && mongoConfig?.ollamaApi?.endpoints) {
+              const chatgptEndpoint = mongoConfig.ollamaApi.endpoints.find(ep => 
+                ep.type === 'chatgpt' && ep.enabled && ep.apikey
+              );
+              if (chatgptEndpoint) {
+                openaiApiKey = chatgptEndpoint.apikey;
+                logger.debug('Usando API key do endpoint ChatGPT configurado');
+              }
+            }
+          } catch (error) {
+            logger.warn('Erro ao buscar configuração OpenAI do MongoDB:', error.message);
+          }
+        }
+        
+        // Fallback para configuração estática
+        if (!openaiApiKey) {
+          const { config } = await import('../config/index.js');
+          openaiApiKey = config?.openai?.apiKey;
+        }
+        
+        if (!openaiApiKey) {
+          return res.json({
+            enabled: false,
+            endpoints: [],
+            message: 'API Key da OpenAI não configurada'
+          });
+        }
+
+        // Criar client ChatGPT para testar conectividade
+        const chatGPTModule = await import('../services/chatgptApiClient.js');
+        const { ChatGPTAPIClient } = chatGPTModule;
+        
+        // Buscar base URL do MongoDB se disponível
+        let baseURL = process.env.OPENAI_BASE_URL;
+        if (!baseURL && this.configService) {
+          try {
+            const mongoConfig = await this.configService.getConfig();
+            baseURL = mongoConfig?.openai?.baseURL;
+          } catch (error) {
+            logger.debug('Usando base URL padrão para ChatGPT');
+          }
+        }
+        if (!baseURL) {
+          const { config } = await import('../config/index.js');
+          baseURL = config?.openai?.baseURL || 'https://api.openai.com';
+        }
+        const client = new ChatGPTAPIClient(baseURL, openaiApiKey);
+        
+        try {
+          const health = await client.getHealth();
+          const models = await client.listModels();
+          
+          res.json({
+            enabled: true,
+            endpoints: [{
+              url: baseURL,
+              type: 'chatgpt',
+              healthy: true,
+              currentModel: models.models?.[0]?.name || 'gpt-4',
+              models: models.models || [],
+              lastCheck: new Date().toISOString()
+            }],
+            message: 'ChatGPT API conectada com sucesso'
+          });
+        } catch (healthError) {
+          res.json({
+            enabled: true,
+            endpoints: [{
+              url: baseURL,
+              type: 'chatgpt',
+              healthy: false,
+              error: healthError.message,
+              lastCheck: new Date().toISOString()
+            }],
+            message: 'Erro de conectividade com ChatGPT API'
+          });
+        }
+      } catch (error) {
+        logger.error(`Erro ao verificar status ChatGPT:`, error);
+        res.status(500).json({
+          enabled: false,
+          endpoints: [],
+          error: 'Erro interno ao verificar ChatGPT',
+          details: error.message
+        });
+      }
+    });
+
+    // API endpoint para chat com ChatGPT
+    this.app.post('/api/chatgpt/chat', async (req, res) => {
+      try {
+        const { message, model = 'gpt-4' } = req.body;
+        
+        if (!message) {
+          return res.status(400).json({ error: 'Mensagem é obrigatória' });
+        }
+
+        const openaiApiKey = process.env.OPENAI_API_KEY;
+        if (!openaiApiKey) {
+          return res.status(400).json({ error: 'API Key da OpenAI não configurada' });
+        }
+
+        const chatGPTModule = await import('../services/chatgptApiClient.js');
+        const { ChatGPTAPIClient } = chatGPTModule;
+        
+        const baseURL = process.env.OPENAI_BASE_URL || config?.openai?.baseURL || 'https://api.openai.com';
+        const client = new ChatGPTAPIClient(baseURL, openaiApiKey, { model });
+        
+        const messages = [{ role: 'user', content: message }];
+        const response = await client.chat(messages, { model, stream: false });
+        
+        res.json({
+          success: true,
+          result: response.message.content,
+          usedEndpoint: baseURL,
+          usedModel: model,
+          provider: 'chatgpt'
+        });
+      } catch (error) {
+        logger.error(`Erro no chat ChatGPT:`, error);
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao processar chat com ChatGPT',
+          details: error.message
+        });
+      }
+    });
+
+    // ============ TTS API Endpoints ============
+
+    // API endpoint para testar TTS
+    this.app.post('/api/tts/test', async (req, res) => {
+      try {
+        const { provider, text, config } = req.body;
+        
+        if (!provider || !text) {
+          return res.status(400).json({ error: 'Provider e text são obrigatórios' });
+        }
+
+        if (provider === 'elevenlabs') {
+          const { ElevenLabsClient } = await import('elevenlabs');
+          const client = new ElevenLabsClient({ apiKey: config.apiKey });
+          
+          // Test voice synthesis
+          await client.generate({
+            voice: config.voiceId,
+            model_id: config.modelId,
+            text: text.substring(0, 100), // Limit test text
+            voice_settings: {
+              stability: config.stability,
+              similarity_boost: config.similarityBoost
+            }
+          });
+          
+          res.json({
+            success: true,
+            message: 'Teste ElevenLabs realizado com sucesso',
+            provider: 'elevenlabs'
+          });
+        } else {
+          res.status(400).json({ error: 'Provider não suportado' });
+        }
+
+      } catch (error) {
+        logger.error(`Erro no teste TTS:`, error);
+        res.status(500).json({ 
+          success: false,
+          error: 'Erro no teste TTS',
+          details: error.message
+        });
+      }
+    });
+
+    // API endpoint para testar instalação do Piper
+    this.app.post('/api/tts/test-piper', async (req, res) => {
+      try {
+        const { executable, model } = req.body;
+        
+        const { spawn } = await import('child_process');
+        const fs = await import('fs');
+        
+        // Test if executable exists and is accessible
+        try {
+          fs.accessSync(executable || 'piper', fs.constants.X_OK);
+        } catch {
+          return res.json({
+            success: false,
+            error: 'Executável Piper não encontrado ou não executável'
+          });
+        }
+        
+        // Test if model exists (if provided)
+        if (model && !model.startsWith('pt_BR-') && !model.startsWith('en_US-')) {
+          try {
+            fs.accessSync(model, fs.constants.R_OK);
+          } catch {
+            return res.json({
+              success: false,
+              error: 'Arquivo do modelo não encontrado'
+            });
+          }
+        }
+        
+        res.json({
+          success: true,
+          message: 'Piper TTS está corretamente configurado',
+          executable: executable || 'piper',
+          model: model || 'Modelo não especificado'
+        });
+
+      } catch (error) {
+        logger.error(`Erro no teste Piper:`, error);
+        res.status(500).json({ 
+          success: false,
+          error: 'Erro no teste Piper',
+          details: error.message
+        });
+      }
+    });
+
+    // API endpoint para instalar Piper
+    this.app.post('/api/tts/install-piper', async (req, res) => {
+      try {
+        const { spawn } = await import('child_process');
+        
+        // Try to run make install-piper
+        const makeProcess = spawn('make', ['install-piper'], {
+          cwd: process.cwd(),
+          stdio: 'pipe'
+        });
+        
+        let output = '';
+        let errorOutput = '';
+        
+        makeProcess.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+        
+        makeProcess.stderr.on('data', (data) => {
+          errorOutput += data.toString();
+        });
+        
+        makeProcess.on('close', (code) => {
+          if (code === 0) {
+            res.json({
+              success: true,
+              message: 'Piper TTS instalado com sucesso',
+              output: output
+            });
+          } else {
+            res.json({
+              success: false,
+              error: 'Falha na instalação do Piper',
+              details: errorOutput || output
+            });
+          }
+        });
+        
+        // Timeout after 5 minutes
+        setTimeout(() => {
+          makeProcess.kill();
+          res.json({
+            success: false,
+            error: 'Timeout na instalação do Piper'
+          });
+        }, 300000);
+
+      } catch (error) {
+        logger.error(`Erro na instalação Piper:`, error);
+        res.status(500).json({ 
+          success: false,
+          error: 'Erro na instalação Piper',
+          details: error.message
+        });
+      }
+    });
+
+    // API endpoint para carregar vozes do ElevenLabs
+    this.app.post('/api/tts/voices', async (req, res) => {
+      try {
+        const { apiKey } = req.body;
+        
+        if (!apiKey) {
+          return res.status(400).json({ error: 'API Key é obrigatória' });
+        }
+        
+        const { ElevenLabsClient } = await import('elevenlabs');
+        const client = new ElevenLabsClient({ apiKey });
+        
+        const voices = await client.voices.getAll();
+        
+        res.json({
+          success: true,
+          voices: voices.voices || [],
+          count: voices.voices?.length || 0
+        });
+
+      } catch (error) {
+        logger.error(`Erro ao carregar vozes ElevenLabs:`, error);
+        res.status(500).json({ 
+          success: false,
+          error: 'Erro ao carregar vozes',
+          details: error.message
         });
       }
     });

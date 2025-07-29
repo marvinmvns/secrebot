@@ -1,6 +1,8 @@
 import { ApplicationFactory } from './core/applicationFactory.js';
 import logger from './utils/logger.js';
 
+logger.debug('Application starting up...'); // Added for debugging logger initialization
+
 async function main() {
   const appFactory = new ApplicationFactory();
   

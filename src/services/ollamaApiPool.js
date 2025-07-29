@@ -43,20 +43,53 @@ class OllamaAPIPool {
     }
   }
 
+  isChatGPTEndpoint(endpoint) {
+    // Check configured type first
+    if (endpoint.type) {
+      return endpoint.type === 'chatgpt';
+    }
+    
+    // Fallback: detect by URL for existing configurations
+    try {
+      const parsedUrl = new URL(endpoint.url || endpoint);
+      return parsedUrl.hostname === 'api.openai.com';
+    } catch (error) {
+      logger.warn(`⚠️ URL inválida para detecção ChatGPT: ${endpoint.url || endpoint}`);
+      return false;
+    }
+  }
+
+  getEndpointType(endpoint) {
+    if (this.isChatGPTEndpoint(endpoint)) return 'chatgpt';
+    if (this.isRKLlamaEndpoint(endpoint)) return 'rkllama';
+    return 'ollama';
+  }
+
   // Create appropriate client based on endpoint type
-  createClient(endpoint) {
-    const isRKLlama = this.isRKLlamaEndpoint(endpoint);
+  async createClient(endpoint) {
+    const endpointType = this.getEndpointType(endpoint);
     
     logger.debug(`🔧 Criando cliente para endpoint:`, {
       url: endpoint.url,
       type: endpoint.type,
       enabled: endpoint.enabled,
       priority: endpoint.priority,
-      isRKLlama
+      detectedType: endpointType
     });
     
     try {
-      if (isRKLlama) {
+      if (endpointType === 'chatgpt') {
+        logger.info(`🚀 Criando cliente ChatGPT para: ${endpoint.url}`);
+        const chatGPTModule = await import('./chatgptApiClient.js');
+        const { ChatGPTAPIClient } = chatGPTModule;
+        
+        const options = {
+          useStreaming: endpoint.useStreaming !== false, // Default true
+          model: endpoint.model || 'gpt-4'
+        };
+        
+        return new ChatGPTAPIClient(endpoint.url, endpoint.apikey, options);
+      } else if (endpointType === 'rkllama') {
         logger.info(`🤖 Criando cliente RKLLama para: ${endpoint.url}`);
         return new RKLlamaAPIClient(endpoint.url);
       } else {
@@ -83,10 +116,10 @@ class OllamaAPIPool {
       return;
     }
 
-    this.clients = effectiveConfig.ollamaApi.endpoints
+    const clientPromises = effectiveConfig.ollamaApi.endpoints
       .filter(endpoint => endpoint.enabled)
-      .map(endpoint => {
-        const client = this.createClient(endpoint);
+      .map(async endpoint => {
+        const client = await this.createClient(endpoint);
         client.endpoint = endpoint;
         client.retryCount = 0;
         
@@ -94,6 +127,8 @@ class OllamaAPIPool {
         logger.info(`📡 Endpoint ${clientType} configurado: ${endpoint.url} (prioridade: ${endpoint.priority})`);
         return client;
       });
+
+    this.clients = await Promise.all(clientPromises);
 
     this.clients.sort((a, b) => a.endpoint.priority - b.endpoint.priority);
     
@@ -187,6 +222,9 @@ class OllamaAPIPool {
       case 'queue_length':
         return this.selectByLoad(healthyClients);
       
+      case 'response_efficiency':
+        return this.selectByResponseEfficiency(healthyClients);
+      
       default:
         logger.warn(`⚠️ Estratégia desconhecida: ${strategy}, usando priority`);
         return this.selectByPriority(healthyClients);
@@ -234,6 +272,46 @@ class OllamaAPIPool {
 
     logger.debug(`📊 Load balancing selecionou: ${client.baseURL} (score: ${client.getLoadScore()}, ativo: ${client.activeRequests})`);
     return client;
+  }
+
+  selectByResponseEfficiency(clients) {
+    if (clients.length === 0) return null;
+    
+    // Calcula eficiência: Tempo estimado para completar próxima requisição
+    const clientsWithEfficiency = clients.map(client => {
+      const status = client.getProcessingStatus();
+      const avgResponseTime = Math.max(status.averageResponseTime, 10); // Mínimo 10ms para evitar divisão por zero
+      const queueSize = client.activeRequests;
+      
+      // Tempo estimado = (tempo médio de resposta × (fila + 1))
+      // +1 porque nossa requisição seria a próxima na fila
+      const estimatedTime = avgResponseTime * (queueSize + 1);
+      
+      return {
+        client,
+        avgResponseTime,
+        queueSize,
+        estimatedTime,
+        url: client.baseURL
+      };
+    });
+
+    // Log para debug
+    const debugInfo = clientsWithEfficiency.map(c => ({
+      url: c.url,
+      avgTime: c.avgResponseTime + 'ms',
+      queue: c.queueSize,
+      estimatedTime: c.estimatedTime + 'ms'
+    }));
+    logger.debug('🚀 Análise de eficiência de endpoints:', debugInfo);
+
+    // Seleciona cliente com menor tempo estimado
+    const bestClient = clientsWithEfficiency.reduce((best, current) => 
+      current.estimatedTime < best.estimatedTime ? current : best
+    );
+
+    logger.debug(`🎯 Response efficiency selecionou: ${bestClient.url} (tempo estimado: ${bestClient.estimatedTime}ms, fila: ${bestClient.queueSize})`);
+    return bestClient.client;
   }
 
   async selectBestClient() {
@@ -330,8 +408,28 @@ class OllamaAPIPool {
     // Override model if a specific model is configured for this endpoint
     const finalOptions = { ...options };
     if (selectedClient.endpoint.model) {
-      finalOptions.model = selectedClient.endpoint.model;
-      logger.debug(`🔧 Usando modelo específico do endpoint: ${finalOptions.model}`);
+      const endpointType = this.getEndpointType(selectedClient.endpoint);
+      
+      // For ChatGPT endpoints, ensure we use OpenAI-compatible chat models
+      if (endpointType === 'chatgpt') {
+        const isValidChatModel = (selectedClient.endpoint.model.includes('gpt') || 
+                                 selectedClient.endpoint.model.includes('o3') || 
+                                 selectedClient.endpoint.model.includes('o4')) &&
+                                !selectedClient.endpoint.model.includes('instruct'); // Instruct models are not chat models
+        
+        if (isValidChatModel) {
+          finalOptions.model = selectedClient.endpoint.model;
+          logger.debug(`🔧 Usando modelo OpenAI específico do endpoint: ${finalOptions.model}`);
+        } else {
+          // Use default GPT-4 for ChatGPT endpoints with invalid models
+          finalOptions.model = 'gpt-4';
+          logger.warn(`⚠️ Modelo ${selectedClient.endpoint.model} não é compatível com chat completions, usando gpt-4`);
+        }
+      } else {
+        // For Ollama/RKLLama endpoints, use the configured model as-is
+        finalOptions.model = selectedClient.endpoint.model;
+        logger.debug(`🔧 Usando modelo específico do endpoint: ${finalOptions.model}`);
+      }
     }
 
     const startTime = Date.now();
@@ -339,7 +437,19 @@ class OllamaAPIPool {
       const processingStatus = selectedClient.getProcessingStatus();
       logger.info(`🎯 Req #${this.requestCount}: Usando ${selectedClient.baseURL} (ativo: ${processingStatus.activeRequests}, score: ${selectedClient.getLoadScore()})`);
       
-      const result = await selectedClient.generate(finalOptions);
+      // For ChatGPT endpoints, use different call format
+      let result;
+      const endpointType = this.getEndpointType(selectedClient.endpoint);
+      if (endpointType === 'chatgpt') {
+        // ChatGPT generate expects prompt as first parameter
+        const prompt = finalOptions.prompt || '';
+        const generateOptions = { ...finalOptions };
+        delete generateOptions.prompt; // Remove prompt from options
+        result = await selectedClient.generate(prompt, generateOptions);
+      } else {
+        // Ollama and RKLLama expect options object
+        result = await selectedClient.generate(finalOptions);
+      }
       
       const duration = Date.now() - startTime;
       logger.success(`✅ Req #${this.requestCount}: Geração bem-sucedida via ${selectedClient.baseURL} em ${duration}ms`);
@@ -377,14 +487,46 @@ class OllamaAPIPool {
       // Override model if a specific model is configured for this endpoint
       const finalOptions = { ...options };
       if (client.endpoint.model) {
-        finalOptions.model = client.endpoint.model;
-        logger.debug(`🔧 Usando modelo específico do endpoint para fallback: ${finalOptions.model}`);
+        const endpointType = this.getEndpointType(client.endpoint);
+        
+        // For ChatGPT endpoints, ensure we use OpenAI-compatible chat models
+        if (endpointType === 'chatgpt') {
+          const isValidChatModel = (client.endpoint.model.includes('gpt') || 
+                                   client.endpoint.model.includes('o3') || 
+                                   client.endpoint.model.includes('o4')) &&
+                                  !client.endpoint.model.includes('instruct'); // Instruct models are not chat models
+          
+          if (isValidChatModel) {
+            finalOptions.model = client.endpoint.model;
+            logger.debug(`🔧 Usando modelo OpenAI específico do endpoint para fallback: ${finalOptions.model}`);
+          } else {
+            // Use default GPT-4 for ChatGPT endpoints with invalid models
+            finalOptions.model = 'gpt-4';
+            logger.warn(`⚠️ Modelo ${client.endpoint.model} não é compatível com chat completions no fallback, usando gpt-4`);
+          }
+        } else {
+          // For Ollama/RKLLama endpoints, use the configured model as-is
+          finalOptions.model = client.endpoint.model;
+          logger.debug(`🔧 Usando modelo específico do endpoint para fallback: ${finalOptions.model}`);
+        }
       }
 
       try {
         logger.info(`🎯 Tentando chat com ${client.baseURL}`);
         
-        const result = await client.chat(finalOptions);
+        // For ChatGPT endpoints, use different call format
+        let result;
+        const endpointType = this.getEndpointType(client.endpoint);
+        if (endpointType === 'chatgpt') {
+          // ChatGPT expects messages as first parameter
+          const messages = finalOptions.messages || [];
+          const chatOptions = { ...finalOptions };
+          delete chatOptions.messages; // Remove messages from options
+          result = await client.chat(messages, chatOptions);
+        } else {
+          // Ollama and RKLLama expect options object
+          result = await client.chat(finalOptions);
+        }
         
         logger.success(`✅ Chat bem-sucedido via ${client.baseURL}`);
         return result;
@@ -434,8 +576,28 @@ class OllamaAPIPool {
     // Override model if a specific model is configured for this endpoint
     const finalOptions = { ...options };
     if (selectedClient.endpoint.model) {
-      finalOptions.model = selectedClient.endpoint.model;
-      logger.debug(`🔧 Usando modelo específico do endpoint: ${finalOptions.model}`);
+      const endpointType = this.getEndpointType(selectedClient.endpoint);
+      
+      // For ChatGPT endpoints, ensure we use OpenAI-compatible chat models
+      if (endpointType === 'chatgpt') {
+        const isValidChatModel = (selectedClient.endpoint.model.includes('gpt') || 
+                                 selectedClient.endpoint.model.includes('o3') || 
+                                 selectedClient.endpoint.model.includes('o4')) &&
+                                !selectedClient.endpoint.model.includes('instruct'); // Instruct models are not chat models
+        
+        if (isValidChatModel) {
+          finalOptions.model = selectedClient.endpoint.model;
+          logger.debug(`🔧 Usando modelo OpenAI específico do endpoint: ${finalOptions.model}`);
+        } else {
+          // Use default GPT-4 for ChatGPT endpoints with invalid models
+          finalOptions.model = 'gpt-4';
+          logger.warn(`⚠️ Modelo ${selectedClient.endpoint.model} não é compatível com chat completions, usando gpt-4`);
+        }
+      } else {
+        // For Ollama/RKLLama endpoints, use the configured model as-is
+        finalOptions.model = selectedClient.endpoint.model;
+        logger.debug(`🔧 Usando modelo específico do endpoint: ${finalOptions.model}`);
+      }
     }
 
     const startTime = Date.now();
@@ -443,7 +605,19 @@ class OllamaAPIPool {
       const processingStatus = selectedClient.getProcessingStatus();
       logger.info(`🎯 Chat #${this.requestCount}: Usando ${selectedClient.baseURL} (ativo: ${processingStatus.activeRequests}, score: ${selectedClient.getLoadScore()})`);
       
-      const result = await selectedClient.chat(finalOptions);
+      // For ChatGPT endpoints, use different call format
+      let result;
+      const endpointType = this.getEndpointType(selectedClient.endpoint);
+      if (endpointType === 'chatgpt') {
+        // ChatGPT expects messages as first parameter
+        const messages = finalOptions.messages || [];
+        const chatOptions = { ...finalOptions };
+        delete chatOptions.messages; // Remove messages from options
+        result = await selectedClient.chat(messages, chatOptions);
+      } else {
+        // Ollama and RKLLama expect options object
+        result = await selectedClient.chat(finalOptions);
+      }
       
       const duration = Date.now() - startTime;
       logger.success(`✅ Chat #${this.requestCount}: Chat bem-sucedido via ${selectedClient.baseURL} em ${duration}ms`);
@@ -518,7 +692,13 @@ class OllamaAPIPool {
         ...options
       };
       
-      const result = await client.chat(chatOptions);
+      // Use método específico para ChatGPT se disponível
+      let result;
+      if (client.chatWithSpecificEndpointAndModel && this.isChatGPTEndpoint(client.endpoint)) {
+        result = await client.chatWithSpecificEndpointAndModel(endpointUrl, model, chatOptions);
+      } else {
+        result = await client.chat(chatOptions);
+      }
       
       const duration = Date.now() - startTime;
       logger.success(`✅ Chat direto: Sucesso via ${endpointUrl} com modelo ${model} em ${duration}ms`);
@@ -709,7 +889,7 @@ class OllamaAPIPool {
       enabled: effectiveConfig.ollamaApi.enabled,
       mode: effectiveConfig.ollamaApi.mode || 'local',
       totalEndpoints: this.clients.length,
-      healthyEndpoints: this.getHealthyClients().length,
+      healthyEndpoints: 0, // Will be calculated after health checks
       strategy: CONFIG.ollamaApi.loadBalancing.strategy,
       endpoints: []
     };
@@ -718,7 +898,7 @@ class OllamaAPIPool {
       try {
         const health = await client.getHealth();
         const runningModels = await client.listRunningModels();
-        const clientType = this.isRKLlamaEndpoint(client.endpoint) ? 'RKLLama' : 'Ollama';
+        const clientType = this.getEndpointType(client.endpoint);
         
         const processingStatus = client.getProcessingStatus ? client.getProcessingStatus() : {
           activeRequests: 0,
@@ -742,7 +922,7 @@ class OllamaAPIPool {
           processing: processingStatus
         });
       } catch (error) {
-        const clientType = this.isRKLlamaEndpoint(client.endpoint) ? 'RKLLama' : 'Ollama';
+        const clientType = this.getEndpointType(client.endpoint);
         const processingStatus = client.getProcessingStatus ? client.getProcessingStatus() : {
           activeRequests: 0,
           totalRequests: 0,
@@ -763,6 +943,9 @@ class OllamaAPIPool {
         });
       }
     }
+
+    // Calculate healthy endpoints after all health checks are done
+    status.healthyEndpoints = this.getHealthyClients().length;
 
     return status;
   }
@@ -803,14 +986,22 @@ class OllamaAPIPool {
         // Load models for both Ollama and RKLLama endpoints
         if (endpoint.model && endpoint.enabled) {
           try {
-            const endpointType = this.isRKLlamaEndpoint(endpoint) ? 'RKLLama' : 'Ollama';
-            logger.info(`🔄 Carregando modelo salvo ${endpoint.model} para ${endpointType} ${endpoint.url}`);
+            const endpointType = this.getEndpointType(endpoint);
+            
+            // ChatGPT endpoints don't need model loading/pulling
+            if (endpointType === 'chatgpt') {
+              logger.info(`🚀 Endpoint ChatGPT ${endpoint.url} configurado com modelo ${endpoint.model} (sem pré-carregamento necessário)`);
+              continue;
+            }
+            
+            const endpointTypeName = endpointType === 'rkllama' ? 'RKLLama' : 'Ollama';
+            logger.info(`🔄 Carregando modelo salvo ${endpoint.model} para ${endpointTypeName} ${endpoint.url}`);
 
             // Check if endpoint is healthy first
             await client.checkHealth();
 
             if (client.isHealthy) {
-              if (endpointType === 'RKLLama') {
+              if (endpointType === 'rkllama') {
                 // For RKLLama, use loadModel method
                 await client.loadModel(endpoint.model);
                 logger.success(`✅ Modelo ${endpoint.model} carregado automaticamente em RKLLama ${endpoint.url}`);
@@ -823,8 +1014,9 @@ class OllamaAPIPool {
               logger.warn(`⚠️ Endpoint ${endpoint.url} não está saudável, pulando carregamento do modelo ${endpoint.model}`);
             }
           } catch (error) {
-            const endpointType = this.isRKLlamaEndpoint(endpoint) ? 'RKLLama' : 'Ollama';
-            logger.warn(`⚠️ Falha ao carregar modelo ${endpoint.model} para ${endpointType} ${endpoint.url}: ${error.message}`);
+            const endpointType = this.getEndpointType(endpoint);
+            const endpointTypeName = endpointType === 'rkllama' ? 'RKLLama' : endpointType === 'chatgpt' ? 'ChatGPT' : 'Ollama';
+            logger.warn(`⚠️ Falha ao carregar modelo ${endpoint.model} para ${endpointTypeName} ${endpoint.url}: ${error.message}`);
           }
         }
       }

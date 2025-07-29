@@ -23,22 +23,20 @@ services:
     image: grafana/grafana:10.0.0
     container_name: secrebot_grafana
     restart: unless-stopped
-    ports:
-      - "${GRAFANA_PORT:-3001}:3000"  # Configurable port to avoid conflicts
+    network_mode: host
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
       - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/secrebot-overview.json
+      - GF_SERVER_HTTP_PORT=${GRAFANA_PORT:-3001}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
     depends_on:
       - prometheus
-    networks:
-      - monitoring
 
   node-exporter:
     image: prom/node-exporter:v1.6.0
@@ -62,10 +60,15 @@ services:
     image: prom/alertmanager:v0.25.0
     container_name: secrebot_alertmanager
     restart: unless-stopped
-    network_mode: host
+    networks:
+      - monitoring
+    extra_hosts:
+      - "host.docker.internal:172.17.0.1" # Adjust this IP if your Docker host has a different IP
     volumes:
       - ./monitoring/alertmanager:/etc/alertmanager
       - alertmanager_data:/alertmanager
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
@@ -105,4 +108,4 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.29.0.0/16
+        - subnet: 172.30.0.0/16

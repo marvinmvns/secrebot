@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuração TTS - SecreBot</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .config-card {
+            transition: all 0.3s ease;
+            border: 2px solid #e9ecef;
+        }
+        .config-card:hover {
+            border-color: #007bff;
+            box-shadow: 0 4px 12px rgba(0,123,255,0.15);
+        }
+        .config-card.active {
+            border-color: #28a745;
+            background-color: #f8fff9;
+        }
+        .provider-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .test-result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .test-result.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .test-result.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f1b0b7;
+        }
+        .voice-preview {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        .range-value {
+            font-weight: bold;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1><i class="fas fa-volume-up text-primary"></i> Configuração de Text-to-Speech (TTS)</h1>
+                    <div>
+                        <a href="/configs" class="btn btn-outline-secondary me-2">
+                            <i class="fas fa-arrow-left"></i> Voltar
+                        </a>
+                        <button class="btn btn-success" onclick="saveConfiguration()">
+                            <i class="fas fa-save"></i> Salvar Configuração
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Global TTS Controls -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5><i class="fas fa-toggle-on text-success"></i> Controles Globais de TTS</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="tts_global_enabled">
+                                    <label class="form-check-label fw-bold" for="tts_global_enabled">
+                                        Ativar TTS Globalmente
+                                    </label>
+                                    <div class="form-text">Habilita/desabilita TTS em todo o sistema</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="telegram_tts_enabled">
+                                    <label class="form-check-label fw-bold" for="telegram_tts_enabled">
+                                        TTS no Telegram
+                                    </label>
+                                    <div class="form-text">Permite TTS em mensagens do Telegram</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="telegram_tts_feature">
+                                    <label class="form-check-label fw-bold" for="telegram_tts_feature">
+                                        Feature TTS Telegram
+                                    </label>
+                                    <div class="form-text">Ativa funcionalidade TTS como feature</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Additional TTS Features -->
+                        <hr class="my-4">
+                        <h6><i class="fas fa-cogs"></i> Recursos Avançados de TTS</h6>
+                        <div class="row mt-3">
+                            <div class="col-md-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="telegram_voice_response_toggle">
+                                    <label class="form-check-label fw-bold" for="telegram_voice_response_toggle">
+                                        Resposta por Voz
+                                    </label>
+                                    <div class="form-text">Permite alternar resposta por voz</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="telegram_ai_chat">
+                                    <label class="form-check-label fw-bold" for="telegram_ai_chat">
+                                        Chat AI
+                                    </label>
+                                    <div class="form-text">Habilita chat com IA</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="telegram_audio_transcription">
+                                    <label class="form-check-label fw-bold" for="telegram_audio_transcription">
+                                        Transcrição de Áudio
+                                    </label>
+                                    <div class="form-text">Transcrever áudios automaticamente</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="telegram_media_processing">
+                                    <label class="form-check-label fw-bold" for="telegram_media_processing">
+                                        Processamento de Mídia
+                                    </label>
+                                    <div class="form-text">Processa arquivos de mídia</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Telegram File Size Configuration -->
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Tamanho Máximo de Arquivo (MB)</label>
+                                <input type="number" class="form-control" id="telegram_max_file_size" 
+                                       min="1" max="2048" step="1" placeholder="20">
+                                <div class="form-text">Tamanho máximo permitido para upload de arquivos (1-2048 MB)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Provider Selection -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card config-card h-100" id="elevenlabs-card">
+                            <div class="card-body text-center">
+                                <div class="provider-icon text-primary">
+                                    <i class="fas fa-cloud"></i>
+                                </div>
+                                <h4>ElevenLabs</h4>
+                                <p class="text-muted">Serviço em nuvem com vozes ultra-realistas e suporte multilíngue</p>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="ttsProvider" id="provider_elevenlabs" value="elevenlabs">
+                                    <label class="form-check-label fw-bold" for="provider_elevenlabs">
+                                        Usar ElevenLabs
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card config-card h-100" id="piper-card">
+                            <div class="card-body text-center">
+                                <div class="provider-icon text-success">
+                                    <i class="fas fa-desktop"></i>
+                                </div>
+                                <h4>Piper TTS</h4>
+                                <p class="text-muted">TTS local rápido e gratuito, ideal para uso offline</p>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="ttsProvider" id="provider_piper" value="piper">
+                                    <label class="form-check-label fw-bold" for="provider_piper">
+                                        Usar Piper TTS
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ElevenLabs Configuration -->
+                <div class="card mb-4" id="elevenlabs-config" style="display: none;">
+                    <div class="card-header">
+                        <h5><i class="fas fa-cloud text-primary"></i> Configuração ElevenLabs</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">API Key</label>
+                                    <input type="password" class="form-control" id="elevenlabs_apiKey" placeholder="sk-...">
+                                    <div class="form-text">
+                                        Sua chave de API da ElevenLabs. <a href="https://elevenlabs.io/" target="_blank">Obter chave</a>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Voice ID</label>
+                                    <select class="form-control" id="elevenlabs_voiceId">
+                                        <option value="">Selecione uma voz</option>
+                                        <option value="21m00Tcm4TlvDq8ikWAM">Rachel (English)</option>
+                                        <option value="AZnzlk1XvdvUeBnXmlld">Domi (English)</option>
+                                        <option value="EXAVITQu4vr4xnSDxMaL">Bella (English)</option>
+                                        <option value="ErXwobaYiN019PkySvjV">Antoni (English)</option>
+                                        <option value="MF3mGyEYCl7XYWbV9V6O">Elli (English)</option>
+                                        <option value="TxGEqnHWrfWFTfGW9XjX">Josh (English)</option>
+                                        <option value="VR6AewLTigWG4xSOukaG">Arnold (English)</option>
+                                        <option value="pNInz6obpgDQGcFmaJgB">Adam (English)</option>
+                                        <option value="yoZ06aMxZJJ28mfd3POQ">Sam (English)</option>
+                                    </select>
+                                    <div class="form-text">
+                                        Ou insira um Voice ID personalizado
+                                    </div>
+                                    <input type="text" class="form-control mt-2" id="elevenlabs_customVoiceId" placeholder="Voice ID personalizado">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Modelo</label>
+                                    <select class="form-control" id="elevenlabs_modelId">
+                                        <option value="eleven_multilingual_v2">Eleven Multilingual v2 (Recomendado)</option>
+                                        <option value="eleven_multilingual_v1">Eleven Multilingual v1</option>
+                                        <option value="eleven_monolingual_v1">Eleven Monolingual v1</option>
+                                        <option value="eleven_turbo_v2">Eleven Turbo v2 (Mais rápido)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">
+                                        Estabilidade: <span class="range-value" id="stabilityValue">0.5</span>
+                                    </label>
+                                    <input type="range" class="form-range" id="elevenlabs_stability" 
+                                           min="0" max="1" step="0.1" value="0.5">
+                                    <div class="form-text">
+                                        Controla a consistência da voz (0 = variável, 1 = estável)
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">
+                                        Similarity Boost: <span class="range-value" id="similarityValue">0.75</span>
+                                    </label>
+                                    <input type="range" class="form-range" id="elevenlabs_similarityBoost" 
+                                           min="0" max="1" step="0.05" value="0.75">
+                                    <div class="form-text">
+                                        Intensifica a semelhança com a voz original
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="elevenlabs_enabled">
+                                        <label class="form-check-label fw-bold" for="elevenlabs_enabled">
+                                            Ativar ElevenLabs
+                                        </label>
+                                        <div class="form-text">
+                                            Habilita o uso do ElevenLabs como provider de TTS
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="voice-preview">
+                                    <h6><i class="fas fa-play-circle"></i> Teste de Voz</h6>
+                                    <input type="text" class="form-control mb-2" id="testText" 
+                                           value="Olá! Esta é uma demonstração da síntese de voz." placeholder="Texto para teste">
+                                    <button class="btn btn-primary btn-sm" onclick="testVoice()">
+                                        <i class="fas fa-play"></i> Testar Voz
+                                    </button>
+                                    <button class="btn btn-secondary btn-sm ms-2" onclick="loadVoices()">
+                                        <i class="fas fa-download"></i> Carregar Vozes
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Piper Configuration -->
+                <div class="card mb-4" id="piper-config" style="display: none;">
+                    <div class="card-header">
+                        <h5><i class="fas fa-desktop text-success"></i> Configuração Piper TTS</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Caminho do Executável</label>
+                                    <input type="text" class="form-control" id="piper_executable" 
+                                           value="piper" placeholder="/usr/local/bin/piper">
+                                    <div class="form-text">
+                                        Caminho para o executável do Piper TTS
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Modelo de Voz</label>
+                                    <select class="form-control" id="piper_model">
+                                        <option value="">Selecione um modelo</option>
+                                        <option value="pt_BR-faber-medium">Português BR - Faber (Medium)</option>
+                                        <option value="pt_BR-edresson-low">Português BR - Edresson (Low)</option>
+                                        <option value="en_US-amy-medium">English US - Amy (Medium)</option>
+                                        <option value="en_US-danny-low">English US - Danny (Low)</option>
+                                        <option value="en_US-libritts-high">English US - LibriTTS (High)</option>
+                                    </select>
+                                    <div class="form-text">
+                                        Modelo de voz a ser usado pelo Piper
+                                    </div>
+                                    <input type="text" class="form-control mt-2" id="piper_customModel" 
+                                           placeholder="Ou caminho personalizado para modelo .onnx">
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="piper_enabled">
+                                        <label class="form-check-label" for="piper_enabled">
+                                            Habilitar Piper TTS
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="alert alert-info">
+                                    <h6><i class="fas fa-info-circle"></i> Informações do Piper</h6>
+                                    <ul class="mb-0">
+                                        <li>TTS totalmente local e gratuito</li>
+                                        <li>Não requer conexão com internet</li>
+                                        <li>Modelos em português disponíveis</li>
+                                        <li>Baixa latência e uso de CPU</li>
+                                    </ul>
+                                </div>
+
+                                <div class="voice-preview">
+                                    <h6><i class="fas fa-play-circle"></i> Teste de Instalação</h6>
+                                    <button class="btn btn-primary btn-sm" onclick="testPiperInstallation()">
+                                        <i class="fas fa-check"></i> Verificar Instalação
+                                    </button>
+                                    <button class="btn btn-success btn-sm ms-2" onclick="installPiper()">
+                                        <i class="fas fa-download"></i> Instalar Piper
+                                    </button>
+                                </div>
+
+                                <div class="mt-3">
+                                    <small class="text-muted">
+                                        <strong>Instalação:</strong> Execute <code>make install-piper</code> ou instale manualmente
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status and Test Results -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-heartbeat"></i> Status e Testes</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="testResults"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentConfig = {};
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCurrentConfiguration();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            // Provider selection
+            document.querySelectorAll('input[name="ttsProvider"]').forEach(radio => {
+                radio.addEventListener('change', toggleProvider);
+            });
+
+            // Range input updates
+            document.getElementById('elevenlabs_stability').addEventListener('input', function() {
+                document.getElementById('stabilityValue').textContent = this.value;
+            });
+
+            document.getElementById('elevenlabs_similarityBoost').addEventListener('input', function() {
+                document.getElementById('similarityValue').textContent = this.value;
+            });
+
+            // Custom voice ID
+            document.getElementById('elevenlabs_customVoiceId').addEventListener('input', function() {
+                if (this.value) {
+                    document.getElementById('elevenlabs_voiceId').value = this.value;
+                }
+            });
+
+            // Custom model path
+            document.getElementById('piper_customModel').addEventListener('input', function() {
+                if (this.value) {
+                    document.getElementById('piper_model').value = this.value;
+                }
+            });
+        }
+
+        async function loadCurrentConfiguration() {
+            try {
+                const response = await fetch('/api/configs');
+                const config = await response.json();
+                currentConfig = config;
+
+                // Load Global TTS config
+                document.getElementById('tts_global_enabled').checked = config.tts?.enabled || false;
+                document.getElementById('telegram_tts_enabled').checked = config.telegram?.enableTTS || false;
+                document.getElementById('telegram_tts_feature').checked = config.telegram?.features?.tts || false;
+                
+                // Load Telegram Features
+                document.getElementById('telegram_voice_response_toggle').checked = config.telegram?.features?.voiceResponseToggle || false;
+                document.getElementById('telegram_ai_chat').checked = config.telegram?.features?.aiChat || false;
+                document.getElementById('telegram_audio_transcription').checked = config.telegram?.features?.audioTranscription || false;
+                document.getElementById('telegram_media_processing').checked = config.telegram?.features?.mediaProcessing || false;
+                
+                // Load File Size Configuration
+                const maxFileSize = config.telegram?.maxFileSize ? Math.round(config.telegram.maxFileSize / (1024 * 1024)) : 20;
+                document.getElementById('telegram_max_file_size').value = maxFileSize;
+
+                // Load ElevenLabs config
+                if (config.elevenlabs) {
+                    document.getElementById('elevenlabs_apiKey').value = config.elevenlabs.apiKey || '';
+                    document.getElementById('elevenlabs_voiceId').value = config.elevenlabs.voiceId || '';
+                    document.getElementById('elevenlabs_modelId').value = config.elevenlabs.modelId || 'eleven_multilingual_v2';
+                    document.getElementById('elevenlabs_stability').value = config.elevenlabs.stability || 0.5;
+                    document.getElementById('elevenlabs_similarityBoost').value = config.elevenlabs.similarityBoost || 0.75;
+                    document.getElementById('elevenlabs_enabled').checked = !!config.elevenlabs.apiKey;
+                    
+                    // Update range displays
+                    document.getElementById('stabilityValue').textContent = config.elevenlabs.stability || 0.5;
+                    document.getElementById('similarityValue').textContent = config.elevenlabs.similarityBoost || 0.75;
+                }
+
+                // Load Piper config
+                if (config.piper) {
+                    document.getElementById('piper_executable').value = config.piper.executable || 'piper';
+                    document.getElementById('piper_model').value = config.piper.model || '';
+                    document.getElementById('piper_enabled').checked = config.piper.enabled || false;
+                }
+
+                // Determine active provider
+                if (config.elevenlabs?.apiKey) {
+                    document.getElementById('provider_elevenlabs').checked = true;
+                    toggleProvider();
+                } else if (config.piper?.enabled) {
+                    document.getElementById('provider_piper').checked = true;
+                    toggleProvider();
+                }
+
+            } catch (error) {
+                showAlert('Erro ao carregar configuração: ' + error.message, 'danger');
+            }
+        }
+
+        function toggleProvider() {
+            const selectedProvider = document.querySelector('input[name="ttsProvider"]:checked')?.value;
+            
+            // Hide all configs
+            document.getElementById('elevenlabs-config').style.display = 'none';
+            document.getElementById('piper-config').style.display = 'none';
+            
+            // Remove active classes
+            document.getElementById('elevenlabs-card').classList.remove('active');
+            document.getElementById('piper-card').classList.remove('active');
+            
+            // Show selected config
+            if (selectedProvider === 'elevenlabs') {
+                document.getElementById('elevenlabs-config').style.display = 'block';
+                document.getElementById('elevenlabs-card').classList.add('active');
+            } else if (selectedProvider === 'piper') {
+                document.getElementById('piper-config').style.display = 'block';
+                document.getElementById('piper-card').classList.add('active');
+            }
+        }
+
+        async function testVoice() {
+            const testText = document.getElementById('testText').value;
+            const apiKey = document.getElementById('elevenlabs_apiKey').value;
+            const voiceId = document.getElementById('elevenlabs_voiceId').value;
+            
+            if (!apiKey || !voiceId || !testText) {
+                showAlert('Preencha API Key, Voice ID e texto para teste', 'warning');
+                return;
+            }
+
+            try {
+                showTestResult('Testando síntese de voz...', 'info');
+                
+                const response = await fetch('/api/tts/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        provider: 'elevenlabs',
+                        text: testText,
+                        config: {
+                            apiKey: apiKey,
+                            voiceId: voiceId,
+                            modelId: document.getElementById('elevenlabs_modelId').value,
+                            stability: parseFloat(document.getElementById('elevenlabs_stability').value),
+                            similarityBoost: parseFloat(document.getElementById('elevenlabs_similarityBoost').value)
+                        }
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showTestResult('✅ Teste de voz realizado com sucesso!', 'success');
+                    if (result.audioUrl) {
+                        // Play the generated audio
+                        const audio = new Audio(result.audioUrl);
+                        audio.play();
+                    }
+                } else {
+                    showTestResult('❌ Erro no teste: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showTestResult('❌ Erro na conexão: ' + error.message, 'error');
+            }
+        }
+
+        async function testPiperInstallation() {
+            try {
+                showTestResult('Verificando instalação do Piper...', 'info');
+                
+                const response = await fetch('/api/tts/test-piper', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        executable: document.getElementById('piper_executable').value,
+                        model: document.getElementById('piper_model').value || document.getElementById('piper_customModel').value
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showTestResult('✅ Piper TTS está instalado e funcionando!\n' + result.message, 'success');
+                } else {
+                    showTestResult('❌ Problema com Piper: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showTestResult('❌ Erro na verificação: ' + error.message, 'error');
+            }
+        }
+
+        async function installPiper() {
+            try {
+                showTestResult('Iniciando instalação do Piper TTS...', 'info');
+                
+                const response = await fetch('/api/tts/install-piper', {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showTestResult('✅ Piper TTS instalado com sucesso!\n' + result.message, 'success');
+                    // Update the executable path if provided
+                    if (result.executablePath) {
+                        document.getElementById('piper_executable').value = result.executablePath;
+                    }
+                } else {
+                    showTestResult('❌ Erro na instalação: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showTestResult('❌ Erro na instalação: ' + error.message, 'error');
+            }
+        }
+
+        async function loadVoices() {
+            const apiKey = document.getElementById('elevenlabs_apiKey').value;
+            
+            if (!apiKey) {
+                showAlert('Insira a API Key primeiro', 'warning');
+                return;
+            }
+
+            try {
+                showTestResult('Carregando vozes disponíveis...', 'info');
+                
+                const response = await fetch('/api/tts/voices', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiKey: apiKey })
+                });
+
+                const result = await response.json();
+                
+                if (result.success && result.voices) {
+                    const voiceSelect = document.getElementById('elevenlabs_voiceId');
+                    voiceSelect.innerHTML = '<option value="">Selecione uma voz</option>';
+                    
+                    result.voices.forEach(voice => {
+                        const option = document.createElement('option');
+                        option.value = voice.voice_id;
+                        option.textContent = `${voice.name} (${voice.labels?.accent || 'Unknown'})`;
+                        voiceSelect.appendChild(option);
+                    });
+                    
+                    showTestResult(`✅ ${result.voices.length} vozes carregadas com sucesso!`, 'success');
+                } else {
+                    showTestResult('❌ Erro ao carregar vozes: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showTestResult('❌ Erro na conexão: ' + error.message, 'error');
+            }
+        }
+
+        async function saveConfiguration() {
+            updateConfigFromForm();
+            
+            try {
+                const response = await fetch('/api/configs', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentConfig)
+                });
+
+                if (response.ok) {
+                    showAlert('Configuração TTS salva com sucesso!', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/configs';
+                    }, 2000);
+                } else {
+                    const error = await response.json();
+                    showAlert('Erro ao salvar configuração: ' + error.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Erro ao salvar configuração: ' + error.message, 'danger');
+            }
+        }
+
+        function updateConfigFromForm() {
+            // Global TTS config
+            if (!currentConfig.tts) currentConfig.tts = {};
+            currentConfig.tts.enabled = document.getElementById('tts_global_enabled').checked;
+
+            // Telegram TTS config
+            if (!currentConfig.telegram) currentConfig.telegram = {};
+            if (!currentConfig.telegram.features) currentConfig.telegram.features = {};
+            currentConfig.telegram.enableTTS = document.getElementById('telegram_tts_enabled').checked;
+            currentConfig.telegram.features.tts = document.getElementById('telegram_tts_feature').checked;
+            
+            // Telegram Features
+            currentConfig.telegram.features.voiceResponseToggle = document.getElementById('telegram_voice_response_toggle').checked;
+            currentConfig.telegram.features.aiChat = document.getElementById('telegram_ai_chat').checked;
+            currentConfig.telegram.features.audioTranscription = document.getElementById('telegram_audio_transcription').checked;
+            currentConfig.telegram.features.mediaProcessing = document.getElementById('telegram_media_processing').checked;
+            
+            // File Size Configuration
+            const maxFileSizeMB = parseInt(document.getElementById('telegram_max_file_size').value) || 20;
+            currentConfig.telegram.maxFileSize = maxFileSizeMB * 1024 * 1024; // Convert to bytes
+
+            // ElevenLabs config
+            if (!currentConfig.elevenlabs) currentConfig.elevenlabs = {};
+            currentConfig.elevenlabs.apiKey = document.getElementById('elevenlabs_apiKey').value;
+            currentConfig.elevenlabs.voiceId = document.getElementById('elevenlabs_voiceId').value;
+            currentConfig.elevenlabs.modelId = document.getElementById('elevenlabs_modelId').value;
+            currentConfig.elevenlabs.stability = parseFloat(document.getElementById('elevenlabs_stability').value);
+            currentConfig.elevenlabs.similarityBoost = parseFloat(document.getElementById('elevenlabs_similarityBoost').value);
+
+            // Piper config
+            if (!currentConfig.piper) currentConfig.piper = {};
+            currentConfig.piper.enabled = document.getElementById('piper_enabled').checked;
+            currentConfig.piper.executable = document.getElementById('piper_executable').value;
+            currentConfig.piper.model = document.getElementById('piper_model').value || document.getElementById('piper_customModel').value;
+        }
+
+        function showTestResult(message, type) {
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.innerHTML = `<div class="test-result ${type}">${message}</div>`;
+        }
+
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.insertBefore(alertDiv, document.body.firstChild);
+            
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

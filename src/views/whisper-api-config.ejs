@@ -104,7 +104,7 @@
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div>
                         <h2><i class="fas fa-microphone text-primary"></i> Configuração Whisper API</h2>
-                        <p class="text-muted">Configure até 5 endpoints de API Whisper com balanceamento de carga</p>
+                        <p class="text-muted">Configure endpoints de API Whisper com balanceamento de carga</p>
                     </div>
                     <div class="btn-group">
                         <button class="btn btn-outline-info" onclick="loadCurrentStatus()">
@@ -135,7 +135,16 @@
                     <h4><i class="fas fa-cogs"></i> Configuração Principal</h4>
                     
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Número de Endpoints</label>
+                                <select class="form-select" id="endpointCount">
+                                    <!-- Options will be generated dynamically from 1 to 99 -->
+                                </select>
+                                <div class="form-text">Quantidade de endpoints para configurar (1-99)</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
                             <div class="mb-3">
                                 <label class="form-label">Status Geral do WhisperAPI</label>
                                 <div class="form-check form-switch">
@@ -160,7 +169,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="mb-3">
                                 <label class="form-label">Timeout (ms)</label>
                                 <input type="number" class="form-control" id="apiTimeout" min="30000" max="600000" step="1000">
@@ -349,6 +358,12 @@
             ['whisperApiEnabled', 'operationMode', 'apiTimeout', 'retryDelay', 'healthCheckInterval', 'timestampsLength'].forEach(id => {
                 document.getElementById(id).addEventListener('change', updateConfigFromForm);
             });
+            
+            // Endpoint count change
+            document.getElementById('endpointCount').addEventListener('change', function() {
+                updateConfigFromForm();
+                updateEndpointsForm();
+            });
 
             // Special handling for WhisperAPI enabled toggle
             document.getElementById('whisperApiEnabled').addEventListener('change', function() {
@@ -402,6 +417,13 @@
 
         function updateFormFromConfig() {
             const whisperApi = currentConfig.whisperApi || {};
+            
+            // Initialize endpoint count selector
+            initializeEndpointCountSelector();
+            
+            // Set current endpoint count
+            const currentEndpointCount = whisperApi.endpoints ? whisperApi.endpoints.length : 5;
+            document.getElementById('endpointCount').value = Math.min(currentEndpointCount, 99);
             
             document.getElementById('whisperApiEnabled').checked = whisperApi.enabled || false;
             document.getElementById('operationMode').value = whisperApi.mode || 'local';
@@ -486,6 +508,26 @@
             whisperOptions.splitOnWord = document.getElementById('splitOnWord').checked;
             whisperOptions.removeTimestamps = document.getElementById('removeTimestamps').checked;
             whisperOptions.timestamps_length = parseInt(document.getElementById('timestampsLength').value);
+            
+            // Update endpoint count
+            const endpointCount = parseInt(document.getElementById('endpointCount').value) || 5;
+            if (!currentConfig.whisperApi.endpoints) currentConfig.whisperApi.endpoints = [];
+            
+            // Ensure endpoints array matches the selected count
+            while (currentConfig.whisperApi.endpoints.length < endpointCount) {
+                currentConfig.whisperApi.endpoints.push({
+                    url: '',
+                    name: '',
+                    enabled: false,
+                    priority: currentConfig.whisperApi.endpoints.length + 1,
+                    maxRetries: 2
+                });
+            }
+            
+            // Trim if necessary
+            if (currentConfig.whisperApi.endpoints.length > endpointCount) {
+                currentConfig.whisperApi.endpoints.splice(endpointCount);
+            }
         }
 
         function updateGeneralStatus() {
@@ -541,52 +583,113 @@
             `;
         }
 
+        function initializeEndpointCountSelector() {
+            const endpointCountSelect = document.getElementById('endpointCount');
+            if (endpointCountSelect.children.length === 0) {
+                // Generate options from 1 to 99
+                for (let i = 1; i <= 99; i++) {
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.textContent = i;
+                    endpointCountSelect.appendChild(option);
+                }
+            }
+        }
+
         function updateEndpointsForm() {
             const container = document.getElementById('endpointsContainer');
             const endpoints = currentConfig.whisperApi?.endpoints || [];
+            const endpointCount = parseInt(document.getElementById('endpointCount').value) || 5;
             
-            // Ensure we have 5 endpoint slots
-            while (endpoints.length < 5) {
+            // Adjust endpoints array to match selected count
+            while (endpoints.length < endpointCount) {
                 endpoints.push({
                     url: '',
+                    name: '',
                     enabled: false,
                     priority: endpoints.length + 1,
                     maxRetries: 2
                 });
             }
+            
+            // Trim endpoints if count is reduced
+            if (endpoints.length > endpointCount) {
+                endpoints.splice(endpointCount);
+            }
 
-            container.innerHTML = endpoints.map((endpoint, index) => 
+            // Sort endpoints by priority (1 first, then 2, 3, etc.)
+            const sortedEndpoints = endpoints.slice(0, endpointCount).sort((a, b) => {
+                const priorityA = parseInt(a.priority) || 999;
+                const priorityB = parseInt(b.priority) || 999;
+                return priorityA - priorityB;
+            });
+
+            // Create a mapping from sorted index to original index
+            const sortedToOriginalIndex = new Map();
+            sortedEndpoints.forEach((endpoint, sortedIndex) => {
+                const originalIndex = endpoints.findIndex(ep => ep === endpoint);
+                sortedToOriginalIndex.set(sortedIndex, originalIndex);
+            });
+
+            container.innerHTML = sortedEndpoints.map((endpoint, index) => 
                 createEndpointCard(endpoint, index)
             ).join('');
 
-            // Attach event listeners
-            endpoints.forEach((_, index) => {
-                ['url', 'enabled', 'priority', 'maxRetries'].forEach(field => {
-                    const element = document.getElementById(`endpoint_${index}_${field}`);
+            // Attach event listeners for visible endpoints only
+            sortedEndpoints.forEach((_, sortedIndex) => {
+                const originalIndex = sortedToOriginalIndex.get(sortedIndex);
+                ['url', 'name', 'enabled', 'priority', 'maxRetries'].forEach(field => {
+                    const element = document.getElementById(`endpoint_${sortedIndex}_${field}`);
                     if (element) {
-                        element.addEventListener('change', () => updateEndpointConfig(index));
+                        element.addEventListener('change', () => updateEndpointConfig(originalIndex));
                     }
                 });
 
-                document.getElementById(`testEndpoint_${index}`).addEventListener('click', 
-                    () => testEndpoint(index));
+                document.getElementById(`testEndpoint_${sortedIndex}`).addEventListener('click', 
+                    () => testEndpoint(originalIndex));
             });
         }
 
         function updateEndpointsStatus() {
             if (!generalStatus.endpoints) return;
 
-            generalStatus.endpoints.forEach((status, index) => {
-                const card = document.querySelector(`[data-endpoint-index="${index}"]`);
-                if (!card) return;
-
+            // Clear all cards first
+            document.querySelectorAll('.endpoint-card').forEach(card => {
                 const indicator = card.querySelector('.status-indicator');
                 const statusText = card.querySelector('.endpoint-status');
                 const queueInfo = card.querySelector('.queue-info');
+                
+                // Reset to unknown status
+                indicator.className = 'status-indicator unknown';
+                card.className = 'endpoint-card';
+                statusText.innerHTML = '<i class="fas fa-question-circle text-muted"></i> Desconhecido';
+                queueInfo.innerHTML = 'Aguardando informações...';
+            });
+
+            // Update cards that have matching status by URL
+            generalStatus.endpoints.forEach((status) => {
+                // Find the card that matches this status by URL
+                const cards = document.querySelectorAll('.endpoint-card');
+                let matchingCard = null;
+                
+                for (const card of cards) {
+                    const index = card.getAttribute('data-endpoint-index');
+                    const urlInput = document.getElementById(`endpoint_${index}_url`);
+                    if (urlInput && urlInput.value === status.url) {
+                        matchingCard = card;
+                        break;
+                    }
+                }
+                
+                if (!matchingCard) return;
+
+                const indicator = matchingCard.querySelector('.status-indicator');
+                const statusText = matchingCard.querySelector('.endpoint-status');
+                const queueInfo = matchingCard.querySelector('.queue-info');
 
                 if (status.healthy) {
                     indicator.className = 'status-indicator healthy';
-                    card.className = 'endpoint-card active';
+                    matchingCard.className = 'endpoint-card active';
                     statusText.innerHTML = `<i class="fas fa-check-circle text-success"></i> Online`;
                     
                     if (status.queueLength !== undefined) {
@@ -598,9 +701,9 @@
                     }
                 } else {
                     indicator.className = 'status-indicator unhealthy';
-                    card.className = 'endpoint-card error';
+                    matchingCard.className = 'endpoint-card error';
                     statusText.innerHTML = `<i class="fas fa-times-circle text-danger"></i> Offline`;
-                    queueInfo.innerHTML = status.error || 'Endpoint não disponível';
+                    queueInfo.innerHTML = `Health check failed: ${status.error || 'Endpoint não disponível'}`;
                 }
             });
         }
@@ -612,7 +715,7 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <h6 class="mb-0">
                                 <span class="status-indicator unknown"></span>
-                                Endpoint ${index + 1}
+                                <span class="endpoint-name">${endpoint.name || `Endpoint ${index + 1}`}</span>
                             </h6>
                             <div class="endpoint-status">
                                 <i class="fas fa-question-circle text-muted"></i> Desconhecido
@@ -621,19 +724,31 @@
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">Nome do Endpoint</label>
+                                    <input type="text" class="form-control" id="endpoint_${index}_name" 
+                                           value="${endpoint.name || ''}" 
+                                           placeholder="Ex: Whisper GPU 1, Servidor Principal, etc.">
+                                    <div class="form-text">
+                                        Apelido para identificar facilmente este endpoint
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-1">
+                                <div class="mb-3">
+                                    <label class="form-label">Prioridade</label>
+                                    <input type="number" class="form-control" id="endpoint_${index}_priority" 
+                                           value="${endpoint.priority || index + 1}" min="1" max="5">
+                                    <div class="form-text">Ordem</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label">URL do Endpoint</label>
                                     <input type="url" class="form-control" id="endpoint_${index}_url" 
                                            value="${endpoint.url || ''}" 
                                            placeholder="http://localhost:3001">
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <div class="mb-3">
-                                    <label class="form-label">Prioridade</label>
-                                    <input type="number" class="form-control" id="endpoint_${index}_priority" 
-                                           value="${endpoint.priority || index + 1}" min="1" max="5">
                                 </div>
                             </div>
                             <div class="col-md-2">
@@ -680,6 +795,7 @@
 
             const endpoint = currentConfig.whisperApi.endpoints[index];
             endpoint.url = document.getElementById(`endpoint_${index}_url`).value;
+            endpoint.name = document.getElementById(`endpoint_${index}_name`).value;
             endpoint.enabled = document.getElementById(`endpoint_${index}_enabled`).checked;
             endpoint.priority = parseInt(document.getElementById(`endpoint_${index}_priority`).value);
             endpoint.maxRetries = parseInt(document.getElementById(`endpoint_${index}_maxRetries`).value);
@@ -740,8 +856,9 @@
         async function saveConfiguration() {
             updateConfigFromForm();
             
-            // Update endpoints
-            for (let i = 0; i < 5; i++) {
+            // Update endpoints based on current count
+            const endpointCount = parseInt(document.getElementById('endpointCount').value) || 5;
+            for (let i = 0; i < endpointCount; i++) {
                 updateEndpointConfig(i);
             }
 

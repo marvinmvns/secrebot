@@ -147,7 +147,7 @@ install_espeak_ng() {
     print_step "Verificando e instalando espeak-ng..."
     
     # Verificar se espeak-ng já está instalado
-    if command -v espeak-ng &> /dev/null && [ -d "/usr/share/espeak-ng-data" ]; then
+    if command -v espeak-ng &> /dev/null && ([ -d "/usr/share/espeak-ng-data" ] || [ -d "/usr/lib/x86_64-linux-gnu/espeak-ng-data" ]); then
         print_success "espeak-ng já está instalado"
         return 0
     fi
@@ -205,7 +205,7 @@ install_espeak_ng() {
     fi
     
     # Verificar se a instalação foi bem-sucedida
-    if [ ! -d "/usr/share/espeak-ng-data" ]; then
+    if [ ! -d "/usr/share/espeak-ng-data" ] && [ ! -d "/usr/lib/x86_64-linux-gnu/espeak-ng-data" ]; then
         print_error "Diretório espeak-ng-data não encontrado após instalação"
         print_error "Tente instalar manualmente: sudo apt-get install espeak-ng-data"
         return 1
@@ -281,7 +281,7 @@ install_piper() {
         fi
         
         # Copiar outros arquivos necessários
-        find "$piper_extracted_dir" -name "*.so*" -exec cp {} "$BIN_DIR/" \;
+        find "$piper_extracted_dir" -name "*.so*" -exec cp {} "$BIN_DIR/" \; 
         
     else
         # Tentar encontrar executável diretamente
@@ -292,7 +292,7 @@ install_piper() {
             
             # Copiar bibliotecas do mesmo diretório
             local piper_dir=$(dirname "$piper_executable")
-            find "$piper_dir" -name "*.so*" -exec cp {} "$BIN_DIR/" \;
+            find "$piper_dir" -name "*.so*" -exec cp {} "$BIN_DIR/" \; 
         else
             print_error "Executável Piper não encontrado após extração"
             exit 1
@@ -375,16 +375,9 @@ test_installation() {
     export LD_LIBRARY_PATH="$BIN_DIR:$PIPER_DIR/lib:$LD_LIBRARY_PATH"
     echo "Testando o Piper com modelo brasileiro" | "$piper_executable" \
         --model "$model_file" \
-        --output_file "$PIPER_DIR/test.wav" \
-        --output_raw 2>/dev/null || {
-        
-        # Se falhar, tentar sem --output_raw
-        echo "Testando o Piper com modelo brasileiro" | "$piper_executable" \
-            --model "$model_file" \
-            --output_file "$PIPER_DIR/test.wav" 2>/dev/null || {
-            print_error "Falha no teste do Piper"
-            return 1
-        }
+        --output_file "$PIPER_DIR/test.wav" || {
+        print_error "Falha no teste do Piper"
+        return 1
     }
     
     if [ -f "$PIPER_DIR/test.wav" ]; then
@@ -421,8 +414,8 @@ if ! command -v espeak-ng &> /dev/null; then
 fi
 
 # Verificar se os dados do espeak-ng existem
-if [ ! -d "/usr/share/espeak-ng-data" ]; then
-    echo "Erro: Dados do espeak-ng não encontrados em /usr/share/espeak-ng-data" >&2
+if [ ! -d "/usr/share/espeak-ng-data" ] && [ ! -d "/usr/lib/x86_64-linux-gnu/espeak-ng-data" ]; then
+    echo "Erro: Dados do espeak-ng não encontrados" >&2
     echo "Execute: sudo apt-get install espeak-ng-data" >&2
     exit 1
 fi

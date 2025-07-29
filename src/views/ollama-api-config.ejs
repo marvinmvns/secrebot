@@ -123,7 +123,7 @@
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div>
                         <h2><i class="fas fa-robot text-primary"></i> Configuração Ollama API</h2>
-                        <p class="text-muted">Configure até 5 endpoints de API Ollama com balanceamento de carga</p>
+                        <p class="text-muted">Configure endpoints de API Ollama com balanceamento de carga</p>
                     </div>
                     <div class="btn-group">
                         <button class="btn btn-outline-info" onclick="loadCurrentStatus()">
@@ -154,7 +154,16 @@
                     <h4><i class="fas fa-cogs"></i> Configuração Principal</h4>
                     
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Número de Endpoints</label>
+                                <select class="form-select" id="endpointCount">
+                                    <!-- Options will be generated dynamically from 1 to 99 -->
+                                </select>
+                                <div class="form-text">Quantidade de endpoints para configurar (1-99)</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
                             <div class="mb-3">
                                 <label class="form-label">Status Geral do OllamaAPI</label>
                                 <div class="form-check form-switch">
@@ -179,7 +188,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <!-- Configuração Local -->
                             <div id="localConfigSection" style="display: none;">
                                 <div class="card">
@@ -277,6 +286,10 @@
                                     <div class="strategy-option" data-strategy="queue_length">
                                         <strong>Queue Length</strong><br>
                                         <small>Seleciona o endpoint com menor carga de modelos</small>
+                                    </div>
+                                    <div class="strategy-option" data-strategy="response_efficiency">
+                                        <strong>Response Efficiency 🚀</strong><br>
+                                        <small>Inteligente: considera tempo de resposta vs fila para máxima eficiência</small>
                                     </div>
                                     <div class="strategy-option" data-strategy="round_robin">
                                         <strong>Round Robin</strong><br>
@@ -379,6 +392,12 @@
             ['ollamaApiEnabled', 'apiTimeout', 'retryDelay', 'healthCheckInterval'].forEach(id => {
                 document.getElementById(id).addEventListener('change', updateConfigFromForm);
             });
+            
+            // Endpoint count change
+            document.getElementById('endpointCount').addEventListener('change', function() {
+                updateConfigFromForm();
+                updateEndpointsForm();
+            });
         }
 
         async function loadConfiguration() {
@@ -408,6 +427,13 @@
 
         function updateFormFromConfig() {
             const ollamaApi = currentConfig.ollamaApi || {};
+            
+            // Initialize endpoint count selector
+            initializeEndpointCountSelector();
+            
+            // Set current endpoint count
+            const currentEndpointCount = ollamaApi.endpoints ? ollamaApi.endpoints.length : 5;
+            document.getElementById('endpointCount').value = Math.min(currentEndpointCount, 99);
             
             document.getElementById('ollamaApiEnabled').checked = ollamaApi.enabled || false;
             document.getElementById('operationMode').value = ollamaApi.mode || 'local';
@@ -482,6 +508,27 @@
                 // Update host based on local config
                 const localPort = currentConfig.ollamaApi.localPort || 11434;
                 currentConfig.llm.host = `http://localhost:${localPort}`;
+            }
+            
+            // Update endpoint count
+            const endpointCount = parseInt(document.getElementById('endpointCount').value) || 5;
+            if (!currentConfig.ollamaApi.endpoints) currentConfig.ollamaApi.endpoints = [];
+            
+            // Ensure endpoints array matches the selected count
+            while (currentConfig.ollamaApi.endpoints.length < endpointCount) {
+                currentConfig.ollamaApi.endpoints.push({
+                    url: '',
+                    name: '',
+                    type: 'ollama',
+                    enabled: false,
+                    priority: currentConfig.ollamaApi.endpoints.length + 1,
+                    maxRetries: 2
+                });
+            }
+            
+            // Trim if necessary
+            if (currentConfig.ollamaApi.endpoints.length > endpointCount) {
+                currentConfig.ollamaApi.endpoints.splice(endpointCount);
             }
         }
 
@@ -867,19 +914,39 @@
             `;
         }
 
+        function initializeEndpointCountSelector() {
+            const endpointCountSelect = document.getElementById('endpointCount');
+            if (endpointCountSelect.children.length === 0) {
+                // Generate options from 1 to 99
+                for (let i = 1; i <= 99; i++) {
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.textContent = i;
+                    endpointCountSelect.appendChild(option);
+                }
+            }
+        }
+
         function updateEndpointsForm() {
             const container = document.getElementById('endpointsContainer');
             const endpoints = currentConfig.ollamaApi?.endpoints || [];
+            const endpointCount = parseInt(document.getElementById('endpointCount').value) || 5;
             
-            // Ensure we have 5 endpoint slots
-            while (endpoints.length < 5) {
+            // Adjust endpoints array to match selected count
+            while (endpoints.length < endpointCount) {
                 endpoints.push({
                     url: '',
+                    name: '',
                     type: 'ollama',
                     enabled: false,
                     priority: endpoints.length + 1,
                     maxRetries: 2
                 });
+            }
+            
+            // Trim endpoints if count is reduced
+            if (endpoints.length > endpointCount) {
+                endpoints.splice(endpointCount);
             }
 
             // Ensure existing endpoints have a type
@@ -889,70 +956,128 @@
                 }
             });
 
-            container.innerHTML = endpoints.map((endpoint, index) => 
+            // Sort endpoints by priority (1 first, then 2, 3, etc.)
+            const sortedEndpoints = endpoints.slice(0, endpointCount).sort((a, b) => {
+                const priorityA = parseInt(a.priority) || 999;
+                const priorityB = parseInt(b.priority) || 999;
+                return priorityA - priorityB;
+            });
+
+            // Create a mapping from sorted index to original index
+            const sortedToOriginalIndex = new Map();
+            sortedEndpoints.forEach((endpoint, sortedIndex) => {
+                const originalIndex = endpoints.findIndex(ep => ep === endpoint);
+                sortedToOriginalIndex.set(sortedIndex, originalIndex);
+            });
+
+            container.innerHTML = sortedEndpoints.map((endpoint, index) => 
                 createEndpointCard(endpoint, index)
             ).join('');
 
-            // Attach event listeners
-            endpoints.forEach((_, index) => {
-                ['url', 'type', 'enabled', 'priority', 'maxRetries', 'model'].forEach(field => {
-                    const element = document.getElementById(`endpoint_${index}_${field}`);
+            // Attach event listeners for visible endpoints only
+            sortedEndpoints.forEach((_, sortedIndex) => {
+                const originalIndex = sortedToOriginalIndex.get(sortedIndex);
+                ['url', 'type', 'enabled', 'priority', 'maxRetries', 'model', 'apikey'].forEach(field => {
+                    const element = document.getElementById(`endpoint_${sortedIndex}_${field}`);
                     if (element) {
                         element.addEventListener('change', () => {
-                            updateEndpointConfig(index);
+                            updateEndpointConfig(originalIndex);
                             if (field === 'type') {
-                                toggleRKLlamaSection(index);
+                                toggleRKLlamaSection(sortedIndex);
                             }
                             if (field === 'model') {
-                                const currentType = document.getElementById(`endpoint_${index}_type`).value;
+                                const currentType = document.getElementById(`endpoint_${sortedIndex}_type`).value;
                                 if (currentType === 'rkllama') {
-                                    updateLoadModelButton(index);
+                                    updateLoadModelButton(sortedIndex);
                                 }
                                 // Auto-save model selection
-                                saveSelectedModel(index);
+                                saveSelectedModel(originalIndex);
                             }
                         });
                     }
                 });
 
                 // Load models button
-                document.getElementById(`loadModels_${index}`).addEventListener('click', 
-                    () => loadEndpointModels(index));
+                document.getElementById(`loadModels_${sortedIndex}`).addEventListener('click', 
+                    () => loadEndpointModels(originalIndex));
                 
                 // Load model button (RKLLama)
-                document.getElementById(`loadModelBtn_${index}`).addEventListener('click', 
-                    () => loadModelInRKLlama(index));
+                document.getElementById(`loadModelBtn_${sortedIndex}`).addEventListener('click', 
+                    () => loadModelInRKLlama(originalIndex));
 
-                document.getElementById(`testEndpoint_${index}`).addEventListener('click', 
-                    () => testEndpoint(index));
+                document.getElementById(`testEndpoint_${sortedIndex}`).addEventListener('click', 
+                    () => testEndpoint(originalIndex));
                 
-                document.getElementById(`diagnoseEndpoint_${index}`).addEventListener('click', 
-                    () => diagnoseEndpoint(index));
+                document.getElementById(`diagnoseEndpoint_${sortedIndex}`).addEventListener('click', 
+                    () => diagnoseEndpoint(originalIndex));
                 
                 // Initialize RKLLama section visibility
-                toggleRKLlamaSection(index);
+                toggleRKLlamaSection(sortedIndex);
             });
         }
 
         function updateEndpointsStatus() {
             if (!generalStatus.endpoints) return;
 
-            generalStatus.endpoints.forEach((status, index) => {
-                const card = document.querySelector(`[data-endpoint-index="${index}"]`);
-                if (!card) return;
-
+            // Clear all cards first
+            document.querySelectorAll('.endpoint-card').forEach(card => {
                 const indicator = card.querySelector('.status-indicator');
                 const statusText = card.querySelector('.endpoint-status');
                 const modelInfo = card.querySelector('.model-info');
                 const typeIndicator = card.querySelector('.endpoint-type');
+                
+                // Reset to unknown status
+                indicator.className = 'status-indicator unknown';
+                card.className = 'endpoint-card';
+                statusText.innerHTML = '<i class="fas fa-question-circle text-muted"></i> Desconhecido';
+                if (typeIndicator) {
+                    typeIndicator.innerHTML = '<i class="fas fa-question-circle"></i> Detectando...';
+                    typeIndicator.className = 'endpoint-type badge bg-secondary ms-2';
+                }
+                if (modelInfo) {
+                    modelInfo.innerHTML = 'Aguardando informações...';
+                }
+            });
+
+            // Update cards that have matching status by URL
+            generalStatus.endpoints.forEach((status) => {
+                // Find the card that matches this status by URL
+                const cards = document.querySelectorAll('.endpoint-card');
+                let matchingCard = null;
+                
+                for (const card of cards) {
+                    const index = card.getAttribute('data-endpoint-index');
+                    const urlInput = document.getElementById(`endpoint_${index}_url`);
+                    if (urlInput && urlInput.value === status.url) {
+                        matchingCard = card;
+                        break;
+                    }
+                }
+                
+                if (!matchingCard) return;
+
+                const indicator = matchingCard.querySelector('.status-indicator');
+                const statusText = matchingCard.querySelector('.endpoint-status');
+                const modelInfo = matchingCard.querySelector('.model-info');
+                const typeIndicator = matchingCard.querySelector('.endpoint-type');
 
                 // Update type indicator
                 if (typeIndicator) {
-                    const isRKLlama = status.type === 'RKLLama';
-                    typeIndicator.innerHTML = isRKLlama ? 
-                        '<i class="fas fa-robot text-white"></i> RKLLama' : 
-                        '<i class="fas fa-brain text-white"></i> Ollama';
-                    typeIndicator.className = `endpoint-type badge ${isRKLlama ? 'bg-info' : 'bg-primary'}`;
+                    let iconHtml, badgeClass;
+                    
+                    if (status.type === 'rkllama') {
+                        iconHtml = '<i class="fas fa-robot text-white"></i> RKLLama';
+                        badgeClass = 'bg-info';
+                    } else if (status.type === 'chatgpt') {
+                        iconHtml = '<i class="fas fa-rocket text-white"></i> ChatGPT';
+                        badgeClass = 'bg-success';
+                    } else {
+                        iconHtml = '<i class="fas fa-brain text-white"></i> Ollama';
+                        badgeClass = 'bg-primary';
+                    }
+                    
+                    typeIndicator.innerHTML = iconHtml;
+                    typeIndicator.className = `endpoint-type badge ${badgeClass}`;
                 }
 
                 if (status.healthy) {
@@ -960,7 +1085,7 @@
                     
                     // Update card class based on processing status
                     const isProcessing = status.processing && status.processing.activeRequests > 0;
-                    card.className = isProcessing ? 'endpoint-card processing' : 'endpoint-card active';
+                    matchingCard.className = isProcessing ? 'endpoint-card processing' : 'endpoint-card active';
                     
                     // Check for processing status
                     let statusHtml = `<i class="fas fa-check-circle text-success"></i> Online`;
@@ -971,7 +1096,7 @@
                     }
                     statusText.innerHTML = statusHtml;
                     
-                    if (status.runningModels !== undefined) {
+                    if (status.runningModels !== undefined && modelInfo) {
                         let modelInfoHtml = `
                             Modelos em execução: ${status.runningModels} | 
                             Score: <span class="load-score">${status.loadScore}</span> |
@@ -979,7 +1104,7 @@
                         `;
                         
                         // Add current model info for RKLLama
-                        if (status.type === 'RKLLama' && status.currentModel) {
+                        if (status.type === 'rkllama' && status.currentModel) {
                             modelInfoHtml += `<br>Modelo atual: ${status.currentModel}`;
                         }
                         
@@ -1002,9 +1127,11 @@
                     }
                 } else {
                     indicator.className = 'status-indicator unhealthy';
-                    card.className = 'endpoint-card error';
+                    matchingCard.className = 'endpoint-card error';
                     statusText.innerHTML = `<i class="fas fa-times-circle text-danger"></i> Offline`;
-                    modelInfo.innerHTML = status.error || 'Endpoint não disponível';
+                    if (modelInfo) {
+                        modelInfo.innerHTML = status.error || 'Endpoint não disponível';
+                    }
                 }
             });
         }
@@ -1020,7 +1147,7 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <h6 class="mb-0">
                                 <span class="status-indicator unknown"></span>
-                                Endpoint ${index + 1}
+                                <span class="endpoint-name">${endpoint.name || `Endpoint ${index + 1}`}</span>
                                 <span class="endpoint-type badge bg-secondary ms-2">
                                     <i class="fas fa-question-circle"></i> Detectando...
                                 </span>
@@ -1032,15 +1159,34 @@
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">Nome do Endpoint</label>
+                                    <input type="text" class="form-control" id="endpoint_${index}_name" 
+                                           value="${endpoint.name || ''}" 
+                                           placeholder="Ex: Servidor Principal, GPU 1, etc.">
+                                    <div class="form-text">
+                                        Apelido para identificar facilmente este endpoint
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-1">
+                                <div class="mb-3">
+                                    <label class="form-label">Prioridade</label>
+                                    <input type="number" class="form-control" id="endpoint_${index}_priority" 
+                                           value="${endpoint.priority || index + 1}" min="1" max="5">
+                                    <div class="form-text">Ordem</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
                                 <div class="mb-3">
                                     <label class="form-label">URL do Endpoint</label>
                                     <input type="url" class="form-control" id="endpoint_${index}_url" 
                                            value="${endpoint.url || ''}" 
                                            placeholder="${placeholderUrl}">
                                     <div class="form-text">
-                                        <strong>Ollama:</strong> http://localhost:11434 ou http://192.168.x.x:11434<br>
-                                        <strong>RKLLama:</strong> http://localhost:8080 ou http://192.168.x.x:8080
+                                        <strong>Ollama:</strong> :11434<br>
+                                        <strong>RKLLama:</strong> :8080
                                     </div>
                                 </div>
                             </div>
@@ -1053,6 +1199,9 @@
                                         </option>
                                         <option value="rkllama" ${endpoint.type === 'rkllama' ? 'selected' : ''}>
                                             🤖 RKLLama
+                                        </option>
+                                        <option value="chatgpt" ${endpoint.type === 'chatgpt' ? 'selected' : ''}>
+                                            🚀 ChatGPT
                                         </option>
                                     </select>
                                     <div class="form-text">
@@ -1076,13 +1225,6 @@
                                     <div class="form-text">
                                         <span id="modelStatus_${index}">Conecte-se ao endpoint para ver modelos</span>
                                     </div>
-                                </div>
-                            </div>
-                            <div class="col-md-1">
-                                <div class="mb-3">
-                                    <label class="form-label">Prioridade</label>
-                                    <input type="number" class="form-control" id="endpoint_${index}_priority" 
-                                           value="${endpoint.priority || index + 1}" min="1" max="5">
                                 </div>
                             </div>
                             <div class="col-md-1">
@@ -1117,6 +1259,40 @@
                             </div>
                         </div>
                         
+                        <div class="row chatgpt-section" id="chatgpt_${index}" style="display: none;">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">API Key da OpenAI</label>
+                                    <input type="password" class="form-control" id="endpoint_${index}_apikey" 
+                                           value="${endpoint.apikey || ''}" 
+                                           placeholder="sk-...">
+                                    <div class="form-text">
+                                        Sua chave de API da OpenAI para acessar o ChatGPT
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="endpoint_${index}_useStreaming" 
+                                               ${endpoint.useStreaming !== false ? 'checked' : ''}>
+                                        <label class="form-check-label" for="endpoint_${index}_useStreaming">
+                                            Usar Streaming
+                                        </label>
+                                        <div class="form-text">
+                                            Ativa respostas em tempo real (recomendado)
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="alert alert-info mb-0">
+                                    <i class="fas fa-info-circle"></i>
+                                    <strong>ChatGPT:</strong> Configure sua API Key da OpenAI para usar os modelos GPT.
+                                    <br><small>A URL será automaticamente definida como: https://api.openai.com</small>
+                                    <br><small>Modelos disponíveis: o3 (reasoning), o4-mini (fast), GPT-4.1 (agentic), GPT-4.1-mini, GPT-4.1-nano</small>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div class="d-flex justify-content-between align-items-center">
                             <div class="model-info">
                                 Aguardando informações...
@@ -1147,22 +1323,51 @@
 
             const endpoint = currentConfig.ollamaApi.endpoints[index];
             endpoint.url = document.getElementById(`endpoint_${index}_url`).value;
+            endpoint.name = document.getElementById(`endpoint_${index}_name`).value;
             endpoint.type = document.getElementById(`endpoint_${index}_type`).value;
             endpoint.enabled = document.getElementById(`endpoint_${index}_enabled`).checked;
             endpoint.priority = parseInt(document.getElementById(`endpoint_${index}_priority`).value);
             endpoint.maxRetries = parseInt(document.getElementById(`endpoint_${index}_maxRetries`).value);
             endpoint.model = document.getElementById(`endpoint_${index}_model`).value;
+            
+            // Save API key for ChatGPT endpoints
+            const apikeyField = document.getElementById(`endpoint_${index}_apikey`);
+            if (apikeyField) {
+                endpoint.apikey = apikeyField.value;
+            }
+            
+            // Save ChatGPT-specific settings
+            const useStreamingField = document.getElementById(`endpoint_${index}_useStreaming`);
+            if (useStreamingField) {
+                endpoint.useStreaming = useStreamingField.checked;
+            }
         }
 
-        function toggleRKLlamaSection(index) {
+        function toggleTypeSpecificSections(index) {
             const type = document.getElementById(`endpoint_${index}_type`).value;
             const rkLlamaSection = document.getElementById(`rkllama_${index}`);
+            const chatgptSection = document.getElementById(`chatgpt_${index}`);
             
+            // Hide all type-specific sections first
+            rkLlamaSection.style.display = 'none';
+            chatgptSection.style.display = 'none';
+            
+            // Show the appropriate section based on type
             if (type === 'rkllama') {
                 rkLlamaSection.style.display = 'block';
-            } else {
-                rkLlamaSection.style.display = 'none';
+            } else if (type === 'chatgpt') {
+                chatgptSection.style.display = 'block';
+                // Auto-set URL for ChatGPT
+                const urlInput = document.getElementById(`endpoint_${index}_url`);
+                if (urlInput && !urlInput.value) {
+                    urlInput.value = 'https://api.openai.com';
+                }
             }
+        }
+        
+        // Backward compatibility alias
+        function toggleRKLlamaSection(index) {
+            toggleTypeSpecificSections(index);
         }
 
         async function loadEndpointModels(index) {
@@ -1186,11 +1391,26 @@
             modelSelect.disabled = true;
 
             try {
-                const response = await fetch('/api/ollama-api/endpoint-models', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url, type })
-                });
+                let response;
+                if (type === 'chatgpt') {
+                    // For ChatGPT, get API key and use models API
+                    const apikey = document.getElementById(`endpoint_${index}_apikey`).value;
+                    if (!apikey) {
+                        throw new Error('API Key da OpenAI é obrigatória para carregar modelos');
+                    }
+                    
+                    response = await fetch('/api/chatgpt/models', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url, apikey })
+                    });
+                } else {
+                    response = await fetch('/api/ollama-api/endpoint-models', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url, type })
+                    });
+                }
 
                 const result = await response.json();
                 
@@ -1438,8 +1658,9 @@
         async function saveConfiguration() {
             updateConfigFromForm();
             
-            // Update endpoints
-            for (let i = 0; i < 5; i++) {
+            // Update endpoints based on current count
+            const endpointCount = parseInt(document.getElementById('endpointCount').value) || 5;
+            for (let i = 0; i < endpointCount; i++) {
                 updateEndpointConfig(i);
             }
 

@@ -32,3 +32,84 @@ groups:
         annotations:
           summary: "High memory usage detected"
           description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      # SecreBot specific alerts
+      - alert: SecrebotDown
+        expr: up{job="secrebot-app"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: secrebot
+        annotations:
+          summary: "SecreBot application is down"
+          description: "SecreBot application on {{ $labels.instance }} has been down for more than 30 seconds"
+
+      - alert: OllamaDown
+        expr: up{job="ollama"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: ollama
+        annotations:
+          summary: "Ollama service is down"
+          description: "Ollama service on {{ $labels.instance }} has been down for more than 1 minute"
+
+      - alert: LLMHighErrorRate
+        expr: (rate(secrebot_llm_requests_total{status!="success"}[5m]) / rate(secrebot_llm_requests_total[5m])) * 100 > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: llm
+        annotations:
+          summary: "High LLM error rate detected"
+          description: "LLM error rate is {{ $value }}% for model {{ $labels.model }}"
+
+      - alert: WhisperHighErrorRate
+        expr: (rate(secrebot_whisper_requests_total{status!="success"}[5m]) / rate(secrebot_whisper_requests_total[5m])) * 100 > 15
+        for: 2m
+        labels:
+          severity: warning
+          service: whisper
+        annotations:
+          summary: "High Whisper error rate detected"
+          description: "Whisper error rate is {{ $value }}% for endpoint {{ $labels.endpoint }}"
+
+      - alert: LLMHighLatency
+        expr: rate(secrebot_llm_request_duration_seconds_sum[5m]) / rate(secrebot_llm_request_duration_seconds_count[5m]) > 30
+        for: 3m
+        labels:
+          severity: warning
+          service: llm
+        annotations:
+          summary: "High LLM latency detected"
+          description: "LLM average latency is {{ $value }}s for model {{ $labels.model }}"
+
+      - alert: WhisperHighLatency
+        expr: rate(secrebot_whisper_request_duration_seconds_sum[5m]) / rate(secrebot_whisper_request_duration_seconds_count[5m]) > 60
+        for: 3m
+        labels:
+          severity: warning
+          service: whisper
+        annotations:
+          summary: "High Whisper latency detected"
+          description: "Whisper average latency is {{ $value }}s for endpoint {{ $labels.endpoint }}"
+
+      - alert: NodeJSHighEventLoopLag
+        expr: nodejs_eventloop_lag_p99_seconds * 1000 > 100
+        for: 2m
+        labels:
+          severity: warning
+          service: nodejs
+        annotations:
+          summary: "High Node.js event loop lag"
+          description: "Node.js P99 event loop lag is {{ $value }}ms on {{ $labels.instance }}"
+
+      - alert: ProcessHighMemoryUsage
+        expr: process_resident_memory_bytes > 2000000000  # 2GB
+        for: 5m
+        labels:
+          severity: warning
+          service: secrebot
+        annotations:
+          summary: "SecreBot high memory usage"
+          description: "SecreBot process memory usage is {{ $value | humanize }}B on {{ $labels.instance }}"

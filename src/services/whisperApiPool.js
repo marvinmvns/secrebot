@@ -314,7 +314,7 @@ class WhisperAPIPool {
   async getPoolStatus() {
     const status = {
       totalEndpoints: this.clients.length,
-      healthyEndpoints: this.getHealthyClients().length,
+      healthyEndpoints: 0, // Will be calculated after health checks
       strategy: CONFIG.whisperApi.loadBalancing.strategy,
       endpoints: []
     };
@@ -356,6 +356,9 @@ class WhisperAPIPool {
         });
       }
     }
+
+    // Calculate healthy endpoints after all health checks are done
+    status.healthyEndpoints = this.getHealthyClients().length;
 
     return status;
   }

@@ -20,6 +20,12 @@ help: ## Mostra esta ajuda
 
 install-piper: ## Instala Piper TTS com modelo pt-BR (Bash)
 	@echo "$(BLUE)🎤 Instalando Piper TTS com modelo pt-BR...$(NC)"
+	@if [ ! -d "/usr/share/espeak-ng-data" ]; then \
+		if [ -d "/usr/lib/x86_64-linux-gnu/espeak-ng-data" ]; then \
+			echo "$(YELLOW)Criando link simbólico para espeak-ng-data...$(NC)"; \
+			sudo ln -s /usr/lib/x86_64-linux-gnu/espeak-ng-data /usr/share/espeak-ng-data; \
+		fi; \
+	fi
 	@if [ -f "$(SCRIPTS_DIR)/install-piper.sh" ]; then \
 		chmod +x "$(SCRIPTS_DIR)/install-piper.sh"; \
 		"$(SCRIPTS_DIR)/install-piper.sh"; \

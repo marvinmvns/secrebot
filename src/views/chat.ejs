@@ -306,11 +306,24 @@
           Chat com Assistente IA
         </h2>
         <p style="margin: 5px 0 0 0; opacity: 0.8; font-size: 14px;">Escolha o endpoint e modelo para conversar</p>
+        <div id="session-indicator" style="display: none; margin-top: 5px; font-size: 12px; opacity: 0.7;">
+          <i class="fas fa-user-circle" style="margin-right: 5px;"></i>
+          Sessão: <span id="session-id-display"></span>
+        </div>
       </div>
-      <button type="button" id="clear-chat-btn" class="btn btn-sm" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; border-radius: 20px; padding: 8px 16px;" title="Limpar conversa">
-        <i class="fas fa-trash" style="margin-right: 5px;"></i>
-        Limpar
-      </button>
+      <div class="btn-group">
+        <button type="button" id="clear-chat-btn" class="btn btn-sm" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; border-radius: 20px 0 0 20px; padding: 8px 16px;" title="Limpar conversa">
+          <i class="fas fa-trash" style="margin-right: 5px;"></i>
+          Limpar
+        </button>
+        <button type="button" id="clear-all-btn" class="btn btn-sm dropdown-toggle dropdown-toggle-split" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; border-radius: 0 20px 20px 0; padding: 8px 12px;" title="Opções de limpeza" data-bs-toggle="dropdown">
+          <span class="visually-hidden">Opções</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><a class="dropdown-item" href="#" id="clear-chat-only"><i class="fas fa-comments"></i> Apenas conversa</a></li>
+          <li><a class="dropdown-item" href="#" id="clear-all-data"><i class="fas fa-broom"></i> Conversa + Preferências</a></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -428,6 +441,11 @@ document.addEventListener('DOMContentLoaded', function() {
   let realtimeSessionId = null;
   let chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
   let realtimeInterval = null;
+  let webSessionId = localStorage.getItem('webChatSessionId'); // Armazenar sessionId para manter contexto
+  
+  // Persistir seleções de endpoint e modelo
+  let savedEndpoint = localStorage.getItem('selectedEndpoint');
+  let savedModel = localStorage.getItem('selectedModel');
 
   // Funções de Chat
   function addMessageToChat(message, isUser = false, endpoint = null, model = null) {
@@ -488,6 +506,18 @@ document.addEventListener('DOMContentLoaded', function() {
     typingIndicator.style.display = 'none';
   }
 
+  function updateSessionIndicator() {
+    const sessionIndicator = document.getElementById('session-indicator');
+    const sessionIdDisplay = document.getElementById('session-id-display');
+    
+    if (webSessionId) {
+      sessionIdDisplay.textContent = webSessionId.substring(0, 12) + '...';
+      sessionIndicator.style.display = 'block';
+    } else {
+      sessionIndicator.style.display = 'none';
+    }
+  }
+
   function loadChatHistory() {
     chatHistory.forEach(messageData => {
       displayMessage(messageData);
@@ -500,6 +530,13 @@ document.addEventListener('DOMContentLoaded', function() {
   function clearChat() {
     chatHistory = [];
     localStorage.removeItem('chatHistory');
+    
+    // Resetar sessionId para nova sessão
+    webSessionId = null;
+    localStorage.removeItem('webChatSessionId');
+    updateSessionIndicator();
+    console.log('Sessão reiniciada - novo contexto será criado');
+    console.log('Endpoint e modelo mantidos para facilitar uso contínuo');
     chatMessages.innerHTML = `
       <div class="chat-empty" id="chat-empty">
         <i class="fas fa-comments" style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
@@ -522,6 +559,28 @@ document.addEventListener('DOMContentLoaded', function() {
     typingIndicator = document.getElementById('typing-indicator');
     realtimeTranscriptionDisplay = document.getElementById('realtime-transcription-display');
     realtimeTranscriptionText = document.getElementById('realtime-transcription-text');
+  }
+
+  function clearAllData() {
+    // Limpar conversa
+    clearChat();
+    
+    // Limpar preferências de endpoint e modelo
+    localStorage.removeItem('selectedEndpoint');
+    localStorage.removeItem('selectedModel');
+    savedEndpoint = null;
+    savedModel = null;
+    
+    // Resetar seletores para primeira opção
+    endpointSelector.selectedIndex = 0;
+    modelSelector.selectedIndex = 0;
+    selectedEndpointInput.value = '';
+    selectedModelInput.value = '';
+    
+    console.log('Todas as preferências foram resetadas');
+    
+    // Recarregar endpoints para aplicar seleção padrão
+    loadEndpoints();
   }
 
   // Handle form submission with AJAX
@@ -566,6 +625,17 @@ document.addEventListener('DOMContentLoaded', function() {
       formData.append('model', model);
       formData.append('audioData', audioData);
       
+      // Adicionar sessionId se disponível para manter contexto
+      if (webSessionId) {
+        formData.append('sessionId', webSessionId);
+      }
+      
+      // Adicionar tipo de endpoint se disponível
+      const selectedOption = endpointSelector.options[endpointSelector.selectedIndex];
+      if (selectedOption && selectedOption.dataset.type) {
+        formData.append('endpointType', selectedOption.dataset.type);
+      }
+      
       const response = await fetch('/api/chat', {
         method: 'POST',
         body: formData
@@ -576,6 +646,14 @@ document.addEventListener('DOMContentLoaded', function() {
       hideTypingIndicator();
       
       if (data.success) {
+        // Armazenar sessionId se retornado pelo servidor
+        if (data.sessionId && data.sessionId !== webSessionId) {
+          webSessionId = data.sessionId;
+          localStorage.setItem('webChatSessionId', webSessionId);
+          updateSessionIndicator();
+          console.log('SessionId armazenado:', webSessionId);
+        }
+        
         addMessageToChat(data.result, false, data.usedEndpoint, data.usedModel);
       } else {
         addMessageToChat(data.error || 'Erro ao processar resposta', false);
@@ -590,32 +668,72 @@ document.addEventListener('DOMContentLoaded', function() {
   // Carregar endpoints disponíveis
   async function loadEndpoints() {
     try {
-      const response = await fetch('/api/ollama-api/status');
-      const data = await response.json();
+      endpointSelector.innerHTML = '<option value="">Carregando endpoints...</option>';
+      
+      // Carregar endpoints Ollama e ChatGPT em paralelo
+      const [ollamaResponse, chatgptResponse] = await Promise.allSettled([
+        fetch('/api/ollama-api/status'),
+        fetch('/api/chatgpt/status')
+      ]);
       
       endpointSelector.innerHTML = '<option value="">Selecione um endpoint</option>';
       
-      if (data.enabled && data.endpoints && data.endpoints.length > 0) {
-        // Mostrar apenas endpoints saudáveis
-        const healthyEndpoints = data.endpoints.filter(ep => ep.healthy);
-        
-        healthyEndpoints.forEach(endpoint => {
+      let allEndpoints = [];
+      
+      // Processar endpoints Ollama
+      if (ollamaResponse.status === 'fulfilled') {
+        const ollamaData = await ollamaResponse.value.json();
+        if (ollamaData.enabled && ollamaData.endpoints && ollamaData.endpoints.length > 0) {
+          const healthyOllamaEndpoints = ollamaData.endpoints.filter(ep => ep.healthy);
+          allEndpoints.push(...healthyOllamaEndpoints);
+        }
+      }
+      
+      // Processar endpoints ChatGPT
+      if (chatgptResponse.status === 'fulfilled') {
+        const chatgptData = await chatgptResponse.value.json();
+        if (chatgptData.enabled && chatgptData.endpoints && chatgptData.endpoints.length > 0) {
+          const healthyChatGPTEndpoints = chatgptData.endpoints.filter(ep => ep.healthy);
+          allEndpoints.push(...healthyChatGPTEndpoints);
+        }
+      }
+      
+      if (allEndpoints.length > 0) {
+        allEndpoints.forEach(endpoint => {
           const option = document.createElement('option');
           option.value = endpoint.url;
-          option.textContent = `${endpoint.url} (${endpoint.type}) - ${endpoint.currentModel || 'Sem modelo'}`;
-          if (endpoint.processing && endpoint.processing.activeRequests > 0) {
-            option.textContent += ` [${endpoint.processing.activeRequests} req ativas]`;
+          option.dataset.type = endpoint.type; // Armazenar tipo para uso posterior
+          
+          let displayText = `${endpoint.url} (${endpoint.type.toUpperCase()})`;
+          if (endpoint.currentModel) {
+            displayText += ` - ${endpoint.currentModel}`;
           }
+          if (endpoint.processing && endpoint.processing.activeRequests > 0) {
+            displayText += ` [${endpoint.processing.activeRequests} req ativas]`;
+          }
+          
+          option.textContent = displayText;
           endpointSelector.appendChild(option);
         });
         
         endpointSelector.disabled = false;
         
-        // Selecionar o primeiro endpoint por padrão
-        if (healthyEndpoints.length > 0) {
-          endpointSelector.value = healthyEndpoints[0].url;
-          selectedEndpointInput.value = healthyEndpoints[0].url;
-          loadModelsForEndpoint(healthyEndpoints[0].url, healthyEndpoints[0].type);
+        // Selecionar endpoint salvo ou primeiro por padrão
+        if (allEndpoints.length > 0) {
+          let endpointToSelect = allEndpoints[0];
+          
+          // Verificar se há endpoint salvo e se ainda está disponível
+          if (savedEndpoint) {
+            const savedEndpointObj = allEndpoints.find(ep => ep.url === savedEndpoint);
+            if (savedEndpointObj) {
+              endpointToSelect = savedEndpointObj;
+              console.log('Restaurando endpoint salvo:', savedEndpoint);
+            }
+          }
+          
+          endpointSelector.value = endpointToSelect.url;
+          selectedEndpointInput.value = endpointToSelect.url;
+          loadModelsForEndpoint(endpointToSelect.url, endpointToSelect.type);
         }
       } else {
         endpointSelector.innerHTML = '<option value="">Nenhum endpoint disponível</option>';
@@ -638,50 +756,98 @@ document.addEventListener('DOMContentLoaded', function() {
       modelSelector.innerHTML = '<option value="">Carregando modelos...</option>';
       modelSelector.disabled = true;
 
-      const response = await fetch('/api/ollama-api/endpoint-models', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          url: endpointUrl, 
-          type: endpointType || 'ollama' 
-        })
-      });
-
-      const data = await response.json();
+      let response, data;
+      
+      if (endpointType === 'chatgpt') {
+        // Carregar modelos ChatGPT
+        response = await fetch('/api/chatgpt/models', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            url: endpointUrl
+          })
+        });
+        data = await response.json();
+      } else {
+        // Carregar modelos Ollama (comportamento original)
+        response = await fetch('/api/ollama-api/endpoint-models', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            url: endpointUrl, 
+            type: endpointType || 'ollama' 
+          })
+        });
+        data = await response.json();
+      }
       
       modelSelector.innerHTML = '<option value="">Selecione um modelo</option>';
+      
+      // Verificar se há erro primeiro
+      if (data.error) {
+        modelSelector.innerHTML = `<option value="">Erro: ${data.error}</option>`;
+        return;
+      }
       
       if (data.success && data.models && data.models.length > 0) {
         data.models.forEach(model => {
           const option = document.createElement('option');
           const modelName = typeof model === 'string' ? model : model.name || model.model;
           option.value = modelName;
-          option.textContent = modelName;
           
-          // Add size info if available
+          let displayText = modelName;
+          
+          // Add size info if available (Ollama)
           if (model.size) {
-            option.textContent += ` (${(model.size / 1024 / 1024 / 1024).toFixed(1)}GB)`;
+            displayText += ` (${(model.size / 1024 / 1024 / 1024).toFixed(1)}GB)`;
           }
           
+          // Add capabilities info if available (ChatGPT)
+          if (model.capabilities && endpointType === 'chatgpt') {
+            const capabilities = model.capabilities.substring(0, 40);
+            displayText += ` - ${capabilities}${model.capabilities.length > 40 ? '...' : ''}`;
+          }
+          
+          option.textContent = displayText;
           modelSelector.appendChild(option);
         });
         
         modelSelector.disabled = false;
         
-        // Selecionar primeiro modelo por padrão
+        // Selecionar modelo salvo ou primeiro por padrão
         if (data.models.length > 0) {
-          const firstModel = typeof data.models[0] === 'string' ? data.models[0] : data.models[0].name || data.models[0].model;
-          modelSelector.value = firstModel;
-          selectedModelInput.value = firstModel;
+          let modelToSelect = typeof data.models[0] === 'string' ? data.models[0] : data.models[0].name || data.models[0].model;
+          
+          // Verificar se há modelo salvo e se ainda está disponível
+          if (savedModel && endpointSelector.value === savedEndpoint) {
+            const availableModels = data.models.map(model => 
+              typeof model === 'string' ? model : model.name || model.model
+            );
+            if (availableModels.includes(savedModel)) {
+              modelToSelect = savedModel;
+              console.log('Restaurando modelo salvo:', savedModel);
+            }
+          }
+          
+          modelSelector.value = modelToSelect;
+          selectedModelInput.value = modelToSelect;
         }
       } else {
         modelSelector.innerHTML = '<option value="">Nenhum modelo disponível</option>';
       }
     } catch (error) {
       console.error('Erro ao carregar modelos:', error);
-      modelSelector.innerHTML = '<option value="">Erro ao carregar modelos</option>';
+      let errorMessage = 'Erro ao carregar modelos';
+      
+      if (endpointType === 'chatgpt') {
+        errorMessage = 'ChatGPT: Configurar API Key';
+      }
+      
+      modelSelector.innerHTML = `<option value="">${errorMessage}</option>`;
     }
   }
 
@@ -877,13 +1043,20 @@ document.addEventListener('DOMContentLoaded', function() {
   // Atualizar endpoint selecionado
   endpointSelector.addEventListener('change', function() {
     selectedEndpointInput.value = this.value;
+    
+    // Salvar endpoint selecionado
     if (this.value) {
-      // Encontrar o tipo do endpoint selecionado
+      localStorage.setItem('selectedEndpoint', this.value);
+      savedEndpoint = this.value;
+      console.log('Endpoint salvo:', this.value);
+      
+      // Usar o tipo armazenado no dataset
       const selectedOption = this.options[this.selectedIndex];
-      const endpointText = selectedOption.textContent;
-      const type = endpointText.includes('(rkllama)') ? 'rkllama' : 'ollama';
+      const type = selectedOption.dataset.type || 'ollama';
       loadModelsForEndpoint(this.value, type);
     } else {
+      localStorage.removeItem('selectedEndpoint');
+      savedEndpoint = null;
       modelSelector.innerHTML = '<option value="">Selecione um endpoint primeiro</option>';
       modelSelector.disabled = true;
       selectedModelInput.value = '';
@@ -893,6 +1066,16 @@ document.addEventListener('DOMContentLoaded', function() {
   // Atualizar modelo selecionado
   modelSelector.addEventListener('change', function() {
     selectedModelInput.value = this.value;
+    
+    // Salvar modelo selecionado
+    if (this.value) {
+      localStorage.setItem('selectedModel', this.value);
+      savedModel = this.value;
+      console.log('Modelo salvo:', this.value);
+    } else {
+      localStorage.removeItem('selectedModel');
+      savedModel = null;
+    }
   });
 
   // Anexar arquivo de áudio
@@ -924,10 +1107,27 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  // Clear chat only option
+  document.getElementById('clear-chat-only').addEventListener('click', function(e) {
+    e.preventDefault();
+    if (confirm('Limpar apenas a conversa (manter endpoint e modelo selecionados)?')) {
+      clearChat();
+    }
+  });
+
+  // Clear all data option
+  document.getElementById('clear-all-data').addEventListener('click', function(e) {
+    e.preventDefault();
+    if (confirm('Limpar conversa E preferências (endpoint/modelo serão resetados)?')) {
+      clearAllData();
+    }
+  });
+
   // Carregar dados iniciais
   loadEndpoints();
   checkAudioSupport();
   loadChatHistory();
+  updateSessionIndicator(); // Mostrar sessionId se já existir
   
   // Recarregar endpoints a cada 30 segundos
   setInterval(loadEndpoints, 30000);

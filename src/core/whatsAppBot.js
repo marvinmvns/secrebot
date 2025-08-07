@@ -116,6 +116,11 @@ class WhatsAppBot {
     logger.info('🔄 FlowService configurado no WhatsAppBot');
   }
 
+  setCryptoMLService(cryptoMLService) {
+    this.cryptoMLService = cryptoMLService;
+    logger.info('🤖 CryptoMLService configurado no WhatsAppBot');
+  }
+
   async hasActiveFlow(contactId) {
     return this.flowExecutionService && this.flowExecutionService.hasActiveFlow(contactId);
   }
@@ -675,6 +680,39 @@ class WhatsAppBot {
       case '9.8':
         await this.handleCryptoSelectCoins(contactId);
         return true;
+      case '9.9':
+        await this.handleCryptoMLSubmenu(contactId);
+        return true;
+      case '9.10':
+        await this.handleCryptoTechnicalAnalysis(contactId);
+        return true;
+      case '9.11':
+        await this.handleCryptoComparePerformance(contactId);
+        return true;
+      case '9.12':
+        await this.handleCryptoSystemHealth(contactId);
+        return true;
+      case '9.13':
+        await this.handleCryptoDebugStatus(contactId);
+        return true;
+      case '9.14':
+        await this.handleCryptoSimulateAlert(contactId);
+        return true;
+      case '9.15':
+        await this.handleCryptoForceCheck(contactId);
+        return true;
+      case '9.16':
+        await this.handleCryptoLLMAnalysis(contactId);
+        return true;
+      case '9.9.1':
+        await this.handleCryptoMLTrain(contactId);
+        return true;
+      case '9.9.2':
+        await this.handleCryptoMLPredict(contactId);
+        return true;
+      case '9.9.3':
+        await this.handleCryptoMLStatus(contactId);
+        return true;
       case '0':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
         await this.sendResponse(contactId, MENU_MESSAGE);
@@ -724,6 +762,10 @@ class WhatsAppBot {
       case 'submenu_crypto':
         this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_CRYPTO);
         await this.sendResponse(contactId, SUBMENU_MESSAGES.crypto);
+        break;
+      case 'submenu_crypto_ml':
+        this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_CRYPTO_ML);
+        await this.sendResponse(contactId, SUBMENU_MESSAGES.crypto_ml);
         break;
       default:
         await this.sendResponse(contactId, MENU_MESSAGE);
@@ -2913,6 +2955,18 @@ usuario@email.com:senha
       case CHAT_MODES.CRYPTO_COIN_SELECTION:
         await this.processCryptoCoinSelectionMessage(contactId, text);
         break;
+      case CHAT_MODES.CRYPTO_LLM_ANALYSIS:
+        await this.handleCryptoLLMAnalysisMode(contactId, text);
+        break;
+      case CHAT_MODES.CRYPTO_ML_TRAINING:
+        await this.handleCryptoMLTraining(contactId, text);
+        break;
+      case CHAT_MODES.CRYPTO_ML_MODEL_SELECTION:
+        await this.handleCryptoMLModelSelection(contactId, text);
+        break;
+      case 'CRYPTO_TECHNICAL_ANALYSIS':
+        await this.handleCryptoTechnicalAnalysisInput(contactId, text);
+        break;
       default:
           logger.warn(`⚠️ Modo desconhecido encontrado: ${currentMode}`);
           this.setMode(contactId, null);
@@ -4812,7 +4866,7 @@ Mensagem do usuário: ${text}`;
   async handleCryptoSelectCoins(contactId) {
     try {
       // Set user to coin selection mode
-      this.setChatMode(contactId, CHAT_MODES.CRYPTO_COIN_SELECTION);
+      this.setMode(contactId, CHAT_MODES.CRYPTO_COIN_SELECTION);
       
       let message = `✅ *Seleção de Criptomoedas*\n\n`;
       message += `📝 *Como selecionar:*\n`;
@@ -4843,7 +4897,7 @@ Mensagem do usuário: ${text}`;
       
       // Allow cancellation
       if (lowerText === 'cancelar' || lowerText === 'sair' || lowerText === 'voltar') {
-        this.setChatMode(contactId, null);
+        this.setMode(contactId, null);
         await this.sendResponse(contactId, '❌ Seleção de moedas cancelada.\n\n📋 Para voltar ao menu crypto: digite 9');
         return;
       }
@@ -4892,7 +4946,7 @@ Mensagem do usuário: ${text}`;
         await this.cryptoService.saveUserPreferences(contactId, selectedCoins);
         
         // Exit selection mode
-        this.setChatMode(contactId, null);
+        this.setMode(contactId, null);
         
         let message = `✅ *Preferências salvas com sucesso!*\n\n`;
         message += `🎯 *Moedas selecionadas (${validSymbols.length}):*\n`;
@@ -4920,12 +4974,712 @@ Mensagem do usuário: ${text}`;
       
     } catch (error) {
       logger.error(`Erro ao processar seleção crypto para ${contactId}:`, error);
-      this.setChatMode(contactId, null);
+      this.setMode(contactId, null);
       await this.sendResponse(contactId, `❌ Erro interno. Seleção cancelada.\n\n📋 Para voltar ao menu crypto: digite 9`);
     }
   }
 
+  // Novos métodos de criptomoedas com funcionalidades avançadas
+  async handleCryptoPauseResume(contactId) {
+    try {
+      const status = this.cryptoService.getMonitoringStatus(contactId);
+      
+      if (!status.active) {
+        await this.sendResponse(contactId, `🔕 *Monitoramento não está ativo*\n\n💡 Use 9.2 para ativar primeiro.`);
+        return;
+      }
+
+      const pauseStatus = this.cryptoService.isUserNotificationsPaused(contactId);
+      
+      if (pauseStatus.paused) {
+        // Resume notifications
+        this.cryptoService.resumeUserNotifications(contactId);
+        await this.sendResponse(contactId, `▶️ *Notificações resumidas!*\n\n✅ Você voltará a receber alertas de variação normalmente.\n\n💡 Use 9.9 novamente para pausar.`);
+      } else {
+        // Pause notifications for 1 hour by default
+        this.cryptoService.pauseUserNotifications(contactId, 60);
+        await this.sendResponse(contactId, `⏸️ *Notificações pausadas por 1 hora!*\n\n🔕 Você não receberá alertas até às ${new Date(Date.now() + 60 * 60 * 1000).toLocaleTimeString('pt-BR')}.\n\n💡 Use 9.9 novamente para reativar antes do prazo.`);
+      }
+      
+    } catch (error) {
+      logger.error(`Erro ao pausar/resumir crypto para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro: ${error.message}`);
+    }
+  }
+
+  async handleCryptoTechnicalAnalysis(contactId) {
+    try {
+      await this.sendResponse(contactId, `📊 *Análise Técnica*\n\nEnvie o símbolo da moeda para análise:\n\n💡 *Exemplo:* BTC ou Bitcoin\n\n❌ Digite "cancelar" para sair.`);
+      
+      // Set mode to wait for coin symbol
+      this.setMode(contactId, 'CRYPTO_TECHNICAL_ANALYSIS');
+      
+    } catch (error) {
+      logger.error(`Erro ao iniciar análise técnica para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro: ${error.message}`);
+    }
+  }
+
+  async handleCryptoComparePerformance(contactId) {
+    try {
+      const prefs = await this.cryptoService.getUserPreferences(contactId);
+      
+      if (!prefs || !prefs.coins || prefs.coins.length < 2) {
+        await this.sendResponse(contactId, `📈 *Comparação de Performance*\n\n❌ Você precisa ter pelo menos 2 moedas selecionadas.\n\n💡 Use 9.8 para selecionar suas moedas favoritas primeiro.`);
+        return;
+      }
+
+      await this.sendResponse(contactId, '📊 Analisando performance das suas moedas...', true);
+      
+      const comparison = await this.cryptoService.compareCoinsPerformance(prefs.coins, 7);
+      
+      let message = `📈 *Comparação de Performance (7 dias)*\n\n`;
+      
+      if (comparison.comparison && comparison.comparison.length > 0) {
+        comparison.comparison.forEach((coin, index) => {
+          const emoji = index === 0 ? '🏆' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`;
+          const arrow = coin.performance >= 0 ? '📈' : '📉';
+          const sign = coin.performance >= 0 ? '+' : '';
+          
+          message += `${emoji} *${coin.symbol}*\n`;
+          message += `${arrow} ${sign}${coin.performance.toFixed(2)}% - Tendência: ${coin.trend}\n`;
+          message += `💵 $${coin.currentPrice.toLocaleString()}\n\n`;
+        });
+        
+        message += `🎯 *Resumo:*\n`;
+        message += `🏆 Melhor: ${comparison.summary.bestPerformer?.toUpperCase()}\n`;
+        message += `📉 Pior: ${comparison.summary.worstPerformer?.toUpperCase()}\n`;
+        message += `📊 Média: ${comparison.summary.averagePerformance.toFixed(2)}%`;
+      } else {
+        message += `❌ Dados insuficientes para comparação.\n\nTente novamente mais tarde.`;
+      }
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (error) {
+      logger.error(`Erro na comparação de performance para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro: ${error.message}`);
+    }
+  }
+
+  async handleCryptoSystemHealth(contactId) {
+    try {
+      await this.sendResponse(contactId, '🏥 Verificando saúde do sistema...', true);
+      
+      const metrics = this.cryptoService.getSystemHealthMetrics();
+      const report = await this.cryptoService.generateUsageReport();
+      
+      let message = `🏥 *Saúde do Sistema Crypto*\n\n`;
+      
+      // Database status
+      const dbStatus = metrics.database.connected ? '✅' : '❌';
+      message += `💾 *Database:* ${dbStatus} ${metrics.database.connected ? 'Conectado' : 'Desconectado'}\n`;
+      
+      // Monitoring status  
+      const monStatus = metrics.monitoring.globalActive ? '✅' : '❌';
+      message += `📡 *Monitoramento:* ${monStatus} ${metrics.monitoring.globalActive ? 'Ativo' : 'Inativo'}\n`;
+      message += `👥 *Usuários ativos:* ${metrics.monitoring.activeUsers}/${metrics.monitoring.totalUsers}\n\n`;
+      
+      // Cache status
+      message += `🗄️ *Cache:*\n`;
+      message += `📈 Dados de preço: ${metrics.cache.priceHistory.totalDataPoints} pontos\n`;
+      message += `⏰ Cooldown: ${metrics.cache.alertCooldown} alertas em espera\n\n`;
+      
+      // Memory usage
+      message += `💾 *Memória:*\n`;
+      message += `📊 Heap usado: ${metrics.memory.heapUsed}\n`;
+      message += `📈 Heap total: ${metrics.memory.heapTotal}\n\n`;
+      
+      // Popular coins
+      if (report.coins.mostPopular.length > 0) {
+        message += `🏆 *Moedas mais populares:*\n`;
+        report.coins.mostPopular.slice(0, 3).forEach((coin, index) => {
+          message += `${index + 1}. ${coin.coinId.toUpperCase()} (${coin.users} usuários)\n`;
+        });
+      }
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (error) {
+      logger.error(`Erro ao verificar saúde do sistema para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro: ${error.message}`);
+    }
+  }
+
+  // Handler for technical analysis chat mode
+  async handleCryptoTechnicalAnalysisInput(contactId, text) {
+    try {
+      const lowerText = text.toLowerCase().trim();
+      
+      if (lowerText === 'cancelar' || lowerText === 'sair' || lowerText === 'voltar') {
+        this.setMode(contactId, null);
+        await this.sendResponse(contactId, '❌ Análise técnica cancelada.\n\n📋 Para voltar ao menu crypto: digite 9');
+        return;
+      }
+
+      await this.sendResponse(contactId, `📊 Analisando ${text.toUpperCase()}...`, true);
+      
+      // Try to match symbol to coin name
+      const symbol = text.toUpperCase();
+      const coinMapping = {
+        'BTC': 'BTC',
+        'BITCOIN': 'BTC', 
+        'ETH': 'ETH',
+        'ETHEREUM': 'ETH',
+        'ADA': 'ADA',
+        'CARDANO': 'ADA',
+        'DOT': 'DOT', 
+        'POLKADOT': 'DOT',
+        'MATIC': 'MATIC',
+        'POLYGON': 'MATIC'
+      };
+      
+      const mappedSymbol = coinMapping[symbol] || symbol;
+      const analysis = await this.cryptoService.getTechnicalAnalysis(mappedSymbol, 30);
+      
+      if (analysis.error) {
+        await this.sendResponse(contactId, `❌ ${analysis.error}\n\nPontos de dados: ${analysis.dataPoints}/${analysis.minimumRequired}`);
+        this.setMode(contactId, null);
+        return;
+      }
+      
+      let message = `📊 *Análise Técnica - ${analysis.symbol}*\n\n`;
+      message += `💵 *Preço atual:* $${analysis.currentPrice.toLocaleString()}\n`;
+      message += `📈 *Tendência:* ${analysis.analysis.trend.toUpperCase()}\n\n`;
+      
+      message += `📊 *Médias Móveis:*\n`;
+      message += `• SMA 7: $${analysis.analysis.sma7.toLocaleString()} (${analysis.analysis.priceVsSMA7})\n`;
+      message += `• SMA 14: $${analysis.analysis.sma14.toLocaleString()} (${analysis.analysis.priceVsSMA14})\n`;
+      message += `• SMA 30: $${analysis.analysis.sma30.toLocaleString()}\n\n`;
+      
+      message += `📈 *Indicadores:*\n`;
+      message += `• RSI: ${analysis.analysis.rsi.toFixed(1)} ${analysis.analysis.rsi > 70 ? '(Sobrecomprado)' : analysis.analysis.rsi < 30 ? '(Sobrevendido)' : '(Neutro)'}\n`;
+      message += `• Volatilidade: ${analysis.analysis.volatilityPercent.toFixed(2)}%\n\n`;
+      
+      message += `🎯 *Níveis:*\n`;
+      message += `• Suporte: $${analysis.analysis.support.toLocaleString()}\n`;
+      message += `• Resistência: $${analysis.analysis.resistance.toLocaleString()}\n\n`;
+      
+      message += `🚦 *Sinais:*\n`;
+      const signals = [];
+      if (analysis.signals.bullish) signals.push('🟢 Alta');
+      if (analysis.signals.bearish) signals.push('🔴 Baixa'); 
+      if (analysis.signals.overbought) signals.push('⚠️ Sobrecomprado');
+      if (analysis.signals.oversold) signals.push('🟡 Sobrevendido');
+      if (analysis.signals.nearSupport) signals.push('📉 Próximo ao suporte');
+      if (analysis.signals.nearResistance) signals.push('📈 Próximo à resistência');
+      
+      message += signals.length > 0 ? signals.join('\n') : '⚪ Neutro';
+      message += `\n\n📅 *Baseado em ${analysis.dataPoints} pontos (${analysis.analyzedDays} dias)*`;
+      
+      await this.sendResponse(contactId, message);
+      this.setMode(contactId, null);
+      
+    } catch (error) {
+      logger.error(`Erro na análise técnica para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro: ${error.message}`);
+      this.setMode(contactId, null);
+    }
+  }
+
+  // Métodos de debug para testar alertas
+  async handleCryptoDebugStatus(contactId) {
+    try {
+      await this.sendResponse(contactId, '🔧 Verificando status detalhado...', true);
+      
+      const detailedStatus = this.cryptoService.getDetailedMonitoringStatus(contactId);
+      
+      let message = `🔧 *Status Detalhado - Debug*\n\n`;
+      
+      message += `👤 *Usuário:* ${contactId}\n`;
+      message += `🔔 *Monitoramento:* ${detailedStatus.hasMonitoring ? '✅ Ativo' : '❌ Inativo'}\n`;
+      
+      if (detailedStatus.config) {
+        message += `🎯 *Threshold:* ${detailedStatus.config.thresholdPercentage}%\n`;
+        message += `⏱️ *Timeframe:* ${detailedStatus.config.timeframe}\n`;
+        message += `⏰ *Cooldown:* ${detailedStatus.config.cooldownMinutes} min\n`;
+        message += `📈 *Alertar alta:* ${detailedStatus.config.alertOnRise ? '✅' : '❌'}\n`;
+        message += `📉 *Alertar queda:* ${detailedStatus.config.alertOnFall ? '✅' : '❌'}\n`;
+        message += `🧪 *Modo teste:* ${detailedStatus.config.testMode ? '✅' : '❌'}\n`;
+      }
+      
+      message += `⏸️ *Pausado:* ${detailedStatus.pauseStatus.paused ? '✅ Sim' : '❌ Não'}\n`;
+      
+      if (detailedStatus.pauseStatus.paused) {
+        message += `🕐 *Resume em:* ${detailedStatus.pauseStatus.remainingMinutes} min\n`;
+      }
+      
+      message += `\n📊 *Histórico de preços:*\n`;
+      for (const [coin, count] of Object.entries(detailedStatus.priceHistory)) {
+        if (count > 0) {
+          message += `• ${coin.toUpperCase()}: ${count} pontos\n`;
+        }
+      }
+      
+      message += `\n💰 *Últimos preços:*\n`;
+      for (const [coin, price] of Object.entries(detailedStatus.lastPrices)) {
+        if (price) {
+          message += `• ${coin.toUpperCase()}: $${price.toLocaleString()}\n`;
+        }
+      }
+      
+      if (detailedStatus.cooldownEntries.length > 0) {
+        message += `\n⏰ *Cooldowns ativos:*\n`;
+        detailedStatus.cooldownEntries.forEach(entry => {
+          if (entry.remainingMinutes > 0) {
+            message += `• ${entry.coin.toUpperCase()}: ${entry.remainingMinutes} min\n`;
+          }
+        });
+      }
+      
+      message += `\n🌐 *Global:*\n`;
+      message += `📡 Monitor global: ${detailedStatus.isGlobalMonitoringActive ? '✅' : '❌'}\n`;
+      message += `👥 Total usuários ativos: ${detailedStatus.totalActiveUsers}`;
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (error) {
+      logger.error(`Erro no debug status para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro: ${error.message}`);
+    }
+  }
+
+  async handleCryptoSimulateAlert(contactId) {
+    try {
+      await this.sendResponse(contactId, '🧪 Simulando alerta de teste...', true);
+      
+      // Enable test mode first
+      this.cryptoService.enableTestMode(contactId, 0.1);
+      
+      // Clear any existing cooldown
+      this.cryptoService.clearUserCooldown(contactId);
+      
+      // Simulate alert
+      const result = await this.cryptoService.simulateTestAlert(contactId, 'bitcoin', 2.5);
+      
+      let message = `🧪 *Alerta de Teste Simulado*\n\n`;
+      
+      if (result.alertCreated) {
+        message += `✅ *Alerta criado com sucesso!*\n`;
+        message += `📊 *Alertas pendentes:* ${result.pendingAlertsCount}\n`;
+        message += `🎯 *Threshold atual:* ${result.userConfig.thresholdPercentage}%\n`;
+        message += `💰 *Moeda:* Bitcoin\n`;
+        message += `📈 *Variação simulada:* +2.5%\n`;
+        message += `💵 *Preço simulado:* $${result.simulatedData.currentPrices.bitcoin.usd.toLocaleString()}\n\n`;
+        message += `⏰ *O alerta deve ser enviado em até 30 segundos*\n\n`;
+        message += `💡 Use 9.13 para ver status detalhado`;
+      } else {
+        message += `❌ *Falha ao criar alerta*\n`;
+        message += `Verifique se o monitoramento está ativo com 9.2`;
+      }
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (error) {
+      logger.error(`Erro ao simular alerta para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro: ${error.message}`);
+    }
+  }
+
+  async handleCryptoForceCheck(contactId) {
+    try {
+      await this.sendResponse(contactId, '⚡ Forçando verificação de preços...', true);
+      
+      const metrics = await this.cryptoService.forceCheckPrices();
+      
+      let message = `⚡ *Verificação Forçada Concluída*\n\n`;
+      message += `👥 *Usuários ativos:* ${metrics.activeUsers}\n`;
+      message += `📊 *Histórico de preços:* ${metrics.priceHistorySize} moedas\n`;
+      message += `💰 *Últimos preços:* ${metrics.lastPricesSize} moedas\n`;
+      message += `🔔 *Alertas pendentes:* ${metrics.pendingAlerts}\n`;
+      message += `⏰ *Cooldowns ativos:* ${metrics.cooldownSize}\n\n`;
+      message += `💡 Esta verificação acontece automaticamente a cada minuto.\n`;
+      message += `Use 9.13 para ver status detalhado do seu monitoramento.`;
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (error) {
+      logger.error(`Erro ao forçar verificação para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro: ${error.message}`);
+    }
+  }
+
+  async handleCryptoLLMAnalysis(contactId) {
+    try {
+      await this.sendResponse(contactId, '🤖 *Análise IA de Criptomoedas*\n\n🔍 Qual moeda deseja analisar?\n\nEnvie o símbolo (ex: bitcoin, ethereum, binancecoin)', true);
+      
+      this.setMode(contactId, CHAT_MODES.CRYPTO_LLM_ANALYSIS);
+      
+    } catch (error) {
+      logger.error(`Erro ao iniciar análise LLM para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro: ${error.message}`);
+    }
+  }
+
+  async handleCryptoLLMAnalysisMode(contactId, messageBody) {
+    try {
+      const coinId = messageBody.toLowerCase().trim();
+      
+      if (coinId === '!voltar' || coinId === '0') {
+        this.clearMode(contactId);
+        await this.sendResponse(contactId, SUBMENU_MESSAGES.crypto);
+        return;
+      }
+      
+      await this.sendResponse(contactId, `🧠 *Iniciando análise IA para ${coinId.toUpperCase()}*\n\n⏳ Coletando dados históricos e executando análise técnica...\n\n_Isso pode levar até 2 minutos._`, true);
+      
+      const analysis = await this.cryptoService.generateLLMAnalysis(coinId);
+      
+      if (!analysis || !analysis.recommendation) {
+        await this.sendResponse(contactId, `❌ Não foi possível analisar ${coinId.toUpperCase()}.\n\nVerifique se o símbolo está correto (ex: bitcoin, ethereum) e se há dados históricos suficientes.`);
+        return;
+      }
+      
+      // Format the analysis response
+      let message = `🤖 *ANÁLISE IA - ${coinId.toUpperCase()}*\n\n`;
+      
+      // Recommendation with emoji
+      const recommendationEmoji = {
+        'COMPRAR': '💚',
+        'VENDER': '🔴', 
+        'SEGURAR': '🟡'
+      };
+      
+      message += `${recommendationEmoji[analysis.recommendation] || '🤖'} *RECOMENDAÇÃO: ${analysis.recommendation}*\n\n`;
+      
+      // Confidence level
+      message += `📊 *Confiança:* ${analysis.confidence}%\n\n`;
+      
+      // Current price and targets
+      if (analysis.currentPrice) {
+        message += `💰 *Preço Atual:* $${analysis.currentPrice.toLocaleString()}\n`;
+      }
+      
+      if (analysis.targetPrice) {
+        message += `🎯 *Preço Alvo:* $${analysis.targetPrice.toLocaleString()}\n`;
+      }
+      
+      if (analysis.stopLoss) {
+        message += `🛡️ *Stop Loss:* $${analysis.stopLoss.toLocaleString()}\n`;
+      }
+      
+      message += `\n📈 *ANÁLISE DETALHADA:*\n${analysis.reasoning}\n\n`;
+      
+      // Technical indicators summary
+      if (analysis.technicalSummary) {
+        message += `🔧 *INDICADORES TÉCNICOS:*\n${analysis.technicalSummary}\n\n`;
+      }
+      
+      // Market context
+      if (analysis.marketContext) {
+        message += `🌍 *CONTEXTO DE MERCADO:*\n${analysis.marketContext}\n\n`;
+      }
+      
+      // Risk warning
+      message += `⚠️ *AVISO:* Esta análise é baseada em dados históricos e não constitui aconselhamento financeiro. Invista com responsabilidade e faça sua própria pesquisa.\n\n`;
+      message += `🔄 Digite outro símbolo para nova análise ou ${COMMANDS.VOLTAR} para voltar.`;
+      
+      await this.sendResponse(contactId, message);
+      
+    } catch (error) {
+      logger.error(`Erro na análise LLM para ${contactId}:`, error);
+      
+      let errorMessage = '❌ Erro ao gerar análise:\n\n';
+      
+      if (error.message.includes('insufficient data')) {
+        errorMessage += 'Dados históricos insuficientes para esta moeda.\nTente uma moeda mais popular como bitcoin ou ethereum.';
+      } else if (error.message.includes('LLM service')) {
+        errorMessage += 'Serviço de IA temporariamente indisponível.\nTente novamente em alguns minutos.';
+      } else if (error.message.includes('timeout')) {
+        errorMessage += 'Análise demorou mais que o esperado.\nTente novamente ou escolha outra moeda.';
+      } else {
+        errorMessage += error.message || 'Erro interno do sistema.';
+      }
+      
+      errorMessage += `\n\n🔄 Digite outro símbolo ou ${COMMANDS.VOLTAR} para voltar.`;
+      
+      await this.sendResponse(contactId, errorMessage);
+    }
+  }
+
   // === Fim dos Métodos de Criptomoedas ===
+  // ============= CRYPTO ML HANDLERS =============
+  
+  async handleCryptoMLSubmenu(contactId) {
+    this.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_CRYPTO_ML);
+    await this.sendResponse(contactId, SUBMENU_MESSAGES.crypto_ml);
+  }
+
+  async handleCryptoMLTrain(contactId) {
+    if (!this.cryptoMLService) {
+      await this.sendResponse(contactId, '❌ Serviço de Machine Learning não está disponível.');
+      return;
+    }
+
+    await this.sendResponse(contactId, `🤖 *Treinamento de Modelos ML*
+
+Escolha o modelo para treinar:
+
+1️⃣ **XGBoost** - Dados tabulares de alta performance
+2️⃣ **LSTM** - Dependências temporais profundas  
+3️⃣ **TFT** - Multi-horizonte com atenção
+4️⃣ **Reinforcement Learning** - Estratégias de trading
+5️⃣ **Ensemble** - Combinação de modelos
+
+Digite o número do modelo desejado ou nome da criptomoeda (ex: "1 bitcoin" ou "lstm ethereum")`);
+    
+    this.setChatMode(contactId, CHAT_MODES.CRYPTO_ML_TRAINING);
+  }
+
+  async handleCryptoMLPredict(contactId) {
+    if (!this.cryptoMLService) {
+      await this.sendResponse(contactId, '❌ Serviço de Machine Learning não está disponível.');
+      return;
+    }
+
+    // Lista modelos treinados disponíveis
+    const trainedModels = this.cryptoMLService.listTrainedModels();
+    
+    if (trainedModels.length === 0) {
+      await this.sendResponse(contactId, `📊 *Não há modelos treinados disponíveis.*
+
+Para fazer previsões, primeiro você precisa treinar um modelo.
+
+Use 9.9.1 para treinar modelos de IA.`);
+      return;
+    }
+
+    let response = `📈 *Modelos Disponíveis para Previsão*\n\n`;
+    
+    trainedModels.forEach((model, index) => {
+      const accuracyInfo = model.performance.accuracy ? 
+        `${model.performance.accuracy}%` : 
+        `${model.performance.loss || 'N/A'}`;
+      
+      response += `${index + 1}️⃣ **${model.type}** - ${model.symbol.toUpperCase()}\n`;
+      response += `   Performance: ${accuracyInfo}\n`;
+      response += `   Treinado: ${model.trainedAt.toLocaleString('pt-BR')}\n\n`;
+    });
+
+    response += `Digite o número do modelo para fazer previsões ou digite "predict [numero] [horizonte]" (ex: "predict 1 7" para 7 dias)`;
+
+    await this.sendResponse(contactId, response);
+    this.setChatMode(contactId, CHAT_MODES.CRYPTO_ML_MODEL_SELECTION);
+  }
+
+  async handleCryptoMLStatus(contactId) {
+    if (!this.cryptoMLService) {
+      await this.sendResponse(contactId, '❌ Serviço de Machine Learning não está disponível.');
+      return;
+    }
+
+    const trainedModels = this.cryptoMLService.listTrainedModels();
+    
+    let response = `📊 *Status dos Modelos ML*\n\n`;
+    
+    if (trainedModels.length === 0) {
+      response += `🚫 Nenhum modelo treinado no momento.\n\n`;
+      response += `Para começar, use 9.9.1 para treinar modelos.`;
+    } else {
+      response += `📈 **${trainedModels.length} modelo(s) treinado(s):**\n\n`;
+      
+      const modelsBySymbol = {};
+      trainedModels.forEach(model => {
+        if (!modelsBySymbol[model.symbol]) {
+          modelsBySymbol[model.symbol] = [];
+        }
+        modelsBySymbol[model.symbol].push(model);
+      });
+
+      Object.entries(modelsBySymbol).forEach(([symbol, models]) => {
+        response += `💰 **${symbol.toUpperCase()}**\n`;
+        models.forEach(model => {
+          const perf = model.performance;
+          const perfText = perf.accuracy ? `${perf.accuracy}%` : 
+                          perf.loss ? `Loss: ${perf.loss}` :
+                          perf.total_return ? `Retorno: ${perf.total_return}%` : 'N/A';
+          
+          response += `   🤖 ${model.type}: ${perfText}\n`;
+        });
+        response += `\n`;
+      });
+
+      response += `_Use 9.9.2 para fazer previsões com os modelos._`;
+    }
+
+    await this.sendResponse(contactId, response);
+  }
+
+  async handleCryptoMLTraining(contactId, messageBody) {
+    if (!this.cryptoMLService) {
+      await this.sendResponse(contactId, '❌ Serviço de Machine Learning não está disponível.');
+      this.setChatMode(contactId, CHAT_MODES.ASSISTANT);
+      return;
+    }
+
+    const text = messageBody.toLowerCase().trim();
+    
+    // Parse do input: "1 bitcoin" ou "lstm ethereum" 
+    let modelType = '';
+    let symbol = 'bitcoin'; // default
+    
+    const parts = text.split(' ');
+    
+    // Mapear números para tipos de modelo
+    const modelMap = {
+      '1': 'xgboost',
+      '2': 'lstm', 
+      '3': 'tft',
+      '4': 'reinforcement',
+      '5': 'ensemble'
+    };
+    
+    if (parts.length >= 1) {
+      if (modelMap[parts[0]]) {
+        modelType = modelMap[parts[0]];
+      } else if (['xgboost', 'lstm', 'tft', 'reinforcement', 'ensemble'].includes(parts[0])) {
+        modelType = parts[0];
+      }
+    }
+    
+    if (parts.length >= 2) {
+      symbol = parts[1];
+    }
+    
+    if (!modelType) {
+      await this.sendResponse(contactId, `❌ Modelo inválido. Use:
+1 = XGBoost
+2 = LSTM
+3 = TFT  
+4 = Reinforcement Learning
+5 = Ensemble
+
+Exemplo: "1 bitcoin" ou "lstm ethereum"`);
+      return;
+    }
+
+    await this.sendResponse(contactId, `🚀 Iniciando treinamento do modelo **${modelType.toUpperCase()}** para **${symbol.toUpperCase()}**...
+
+⏱️ Isso pode levar alguns minutos. Você será notificado quando concluído.`);
+
+    try {
+      // Conecta ao serviço se necessário
+      if (!this.cryptoMLService.isConnected) {
+        await this.cryptoMLService.connect();
+      }
+
+      let result;
+      
+      // Treina modelo baseado no tipo
+      switch (modelType) {
+        case 'xgboost':
+          result = await this.cryptoMLService.trainGradientBoostingModel(symbol, { model: 'xgboost' });
+          break;
+        case 'lstm':
+          result = await this.cryptoMLService.trainLSTMModel(symbol);
+          break;
+        case 'tft':
+          result = await this.cryptoMLService.trainTFTModel(symbol);
+          break;
+        case 'reinforcement':
+          result = await this.cryptoMLService.trainRLModel(symbol);
+          break;
+        case 'ensemble':
+          result = await this.cryptoMLService.trainEnsembleModel(symbol);
+          break;
+      }
+
+      let response = `✅ **Modelo ${modelType.toUpperCase()} treinado com sucesso!**\n\n`;
+      response += `💰 Criptomoeda: ${symbol.toUpperCase()}\n`;
+      response += `📊 Performance:\n`;
+      
+      const perf = result.performance;
+      if (perf.accuracy) response += `   • Acurácia: ${perf.accuracy}%\n`;
+      if (perf.loss) response += `   • Loss: ${perf.loss}\n`;
+      if (perf.total_return) response += `   • Retorno Total: ${perf.total_return}%\n`;
+      if (perf.sharpe_ratio) response += `   • Sharpe Ratio: ${perf.sharpe_ratio}\n`;
+      if (perf.mape) response += `   • MAPE: ${perf.mape}%\n`;
+      
+      response += `\n🎯 Use 9.9.2 para fazer previsões com este modelo.`;
+
+      await this.sendResponse(contactId, response);
+      
+    } catch (error) {
+      logger.error('Erro no treinamento ML:', error);
+      await this.sendResponse(contactId, `❌ **Erro no treinamento:** ${error.message}\n\nTente novamente ou escolha outro modelo.`);
+    }
+
+    this.setChatMode(contactId, CHAT_MODES.ASSISTANT);
+  }
+
+  async handleCryptoMLModelSelection(contactId, messageBody) {
+    if (!this.cryptoMLService) {
+      await this.sendResponse(contactId, '❌ Serviço de Machine Learning não está disponível.');
+      this.setChatMode(contactId, CHAT_MODES.ASSISTANT);
+      return;
+    }
+
+    const text = messageBody.trim();
+    const trainedModels = this.cryptoMLService.listTrainedModels();
+    
+    if (trainedModels.length === 0) {
+      await this.sendResponse(contactId, '❌ Não há modelos treinados disponíveis.');
+      this.setChatMode(contactId, CHAT_MODES.ASSISTANT);
+      return;
+    }
+
+    let modelIndex = -1;
+    let horizon = 7; // default
+    
+    // Parse "predict 1 7" ou apenas "1"
+    if (text.startsWith('predict ')) {
+      const parts = text.split(' ');
+      if (parts.length >= 2) modelIndex = parseInt(parts[1]) - 1;
+      if (parts.length >= 3) horizon = parseInt(parts[2]) || 7;
+    } else {
+      modelIndex = parseInt(text) - 1;
+    }
+    
+    if (modelIndex < 0 || modelIndex >= trainedModels.length) {
+      await this.sendResponse(contactId, '❌ Número de modelo inválido. Digite um número válido da lista.');
+      return;
+    }
+
+    const selectedModel = trainedModels[modelIndex];
+    
+    await this.sendResponse(contactId, `🔮 Gerando previsões com **${selectedModel.type.toUpperCase()}** para **${selectedModel.symbol.toUpperCase()}**...
+
+📅 Horizonte: ${horizon} dias
+⏱️ Aguarde alguns instantes...`);
+
+    try {
+      const prediction = await this.cryptoMLService.predict(
+        selectedModel.symbol, 
+        selectedModel.type, 
+        horizon
+      );
+
+      let response = `📈 **Previsões - ${prediction.symbol.toUpperCase()}**\n`;
+      response += `🤖 Modelo: ${prediction.modelType.toUpperCase()}\n`;
+      response += `📅 Horizonte: ${horizon} dias\n\n`;
+      
+      response += `**📊 Previsões de Preço:**\n`;
+      prediction.predictions.forEach(pred => {
+        const direction = pred.direction === 'alta' ? '📈' : '📉';
+        response += `Dia ${pred.day}: $${pred.predicted_price} ${direction} (${pred.change_percent > 0 ? '+' : ''}${pred.change_percent}%) - ${pred.confidence}% confiança\n`;
+      });
+      
+      response += `\n💡 _Esta é uma previsão baseada em dados históricos. Não constitui aconselhamento financeiro._`;
+
+      await this.sendResponse(contactId, response);
+      
+    } catch (error) {
+      logger.error('Erro na previsão ML:', error);
+      await this.sendResponse(contactId, `❌ **Erro na previsão:** ${error.message}`);
+    }
+
+    this.setChatMode(contactId, CHAT_MODES.ASSISTANT);
+  }
 }
 
 export default WhatsAppBot;

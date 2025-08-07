@@ -37,6 +37,9 @@ export const COMMANDS = {
   CRYPTO_PREFERENCES: '!cryptoprefs',
   CRYPTO_LIST_COINS: '!cryptolist',
   CRYPTO_SELECT_COINS: '!cryptoselect',
+  CRYPTO_ML_TRAIN: '!cryptoml',
+  CRYPTO_ML_PREDICT: '!cryptopredict',
+  CRYPTO_ML_STATUS: '!cryptomlstatus',
   TTS_CONFIG: '!tts'
 };
 
@@ -123,7 +126,13 @@ export const NUMERIC_SHORTCUTS = {
   '9.5': COMMANDS.CRYPTO_CONFIG,
   '9.6': COMMANDS.CRYPTO_PREFERENCES,
   '9.7': COMMANDS.CRYPTO_LIST_COINS,
-  '9.8': COMMANDS.CRYPTO_SELECT_COINS
+  '9.8': COMMANDS.CRYPTO_SELECT_COINS,
+  '9.9': 'submenu_crypto_ml',
+  
+  // Machine Learning para Crypto
+  '9.9.1': COMMANDS.CRYPTO_ML_TRAIN,
+  '9.9.2': COMMANDS.CRYPTO_ML_PREDICT,
+  '9.9.3': COMMANDS.CRYPTO_ML_STATUS
 };
 
 export const CHAT_MODES = {
@@ -138,6 +147,9 @@ export const CHAT_MODES = {
   RESUMIR_VIDEO2: 'resumir_video2',
   TROCAR_MODELO: 'trocar_modelo',
   CRYPTO_COIN_SELECTION: 'crypto_coin_selection',
+  CRYPTO_LLM_ANALYSIS: 'crypto_llm_analysis',
+  CRYPTO_ML_MODEL_SELECTION: 'crypto_ml_model_selection',
+  CRYPTO_ML_TRAINING: 'crypto_ml_training',
   TROCAR_MODELO_WHISPER: 'trocar_modelo_whisper',
   WHISPERSILENT_CONFIG: 'whispersilent_config'
 };
@@ -153,7 +165,8 @@ export const NAVIGATION_STATES = {
   SUBMENU_VIDEO: 'submenu_video',
   SUBMENU_WHISPERSILENT: 'submenu_whispersilent',
   SUBMENU_STATUS_APIS: 'submenu_status_apis',
-  SUBMENU_CRYPTO: 'submenu_crypto'
+  SUBMENU_CRYPTO: 'submenu_crypto',
+  SUBMENU_CRYPTO_ML: 'submenu_crypto_ml'
 };
 
 export const WHISPER_MODELS_LIST = [

@@ -903,14 +903,28 @@ ${formatChange(prices.polygon.usd, maticPrevious)}
       await this.savePriceHistoryToDB(currentPrices);
       
       // Verificar variações significativas para cada usuário
+      logger.debug(`🔍 Verificando alertas para ${this.activeMonitoring.size} usuários ativos`);
+      
       for (const [userId, config] of this.activeMonitoring.entries()) {
-        if (!config.active || !config.notifications) continue;
+        if (!config.active || !config.notifications) {
+          logger.debug(`⚠️ Usuário ${userId} tem config inativa ou notificações desabilitadas`);
+          continue;
+        }
+        
+        logger.debug(`👤 Verificando usuário ${userId}, moedas: ${config.coins.join(', ')}`);
         
         for (const coin of config.coins) {
           const variation = this.calculateVariationWithTimeframe(coin, config.timeframe);
           
-          if (variation && this.shouldSendAlert(userId, coin, variation, config)) {
-            this.sendVariationAlert(userId, coin, variation, currentPrices, config);
+          if (variation) {
+            logger.debug(`📊 ${coin}: variação ${variation.variation.toFixed(2)}% (threshold: ${config.thresholdPercentage}%)`);
+            
+            if (this.shouldSendAlert(userId, coin, variation, config)) {
+              logger.info(`🚨 ENVIANDO ALERTA para ${userId}: ${coin} ${variation.variation.toFixed(2)}%`);
+              this.sendVariationAlert(userId, coin, variation, currentPrices, config);
+            }
+          } else {
+            logger.debug(`📊 ${coin}: sem dados suficientes para calcular variação`);
           }
         }
       }
@@ -931,16 +945,27 @@ ${formatChange(prices.polygon.usd, maticPrevious)}
    * Verifica se deve enviar alerta baseado nas configurações do usuário
    */
   shouldSendAlert(userId, coin, variation, config) {
+    // Verificar se notificações estão pausadas
+    const pauseStatus = this.isUserNotificationsPaused(userId);
+    if (pauseStatus.paused) {
+      logger.debug(`❌ ${userId}-${coin}: notificações pausadas`);
+      return false;
+    }
+    
     // Verificar threshold
-    if (Math.abs(variation.variation) < config.thresholdPercentage) {
+    const absVariation = Math.abs(variation.variation);
+    if (absVariation < config.thresholdPercentage) {
+      logger.debug(`❌ ${userId}-${coin}: variação ${absVariation.toFixed(2)}% < threshold ${config.thresholdPercentage}%`);
       return false;
     }
     
     // Verificar direção do alerta
     if (variation.variation > 0 && !config.alertOnRise) {
+      logger.debug(`❌ ${userId}-${coin}: alta (+${variation.variation.toFixed(2)}%) mas alertOnRise=false`);
       return false;
     }
     if (variation.variation < 0 && !config.alertOnFall) {
+      logger.debug(`❌ ${userId}-${coin}: queda (${variation.variation.toFixed(2)}%) mas alertOnFall=false`);
       return false;
     }
     
@@ -949,11 +974,14 @@ ${formatChange(prices.polygon.usd, maticPrevious)}
     const lastAlert = this.alertCooldown.get(cooldownKey);
     if (lastAlert) {
       const cooldownMs = config.cooldownMinutes * 60 * 1000;
-      if (Date.now() - lastAlert < cooldownMs) {
+      const remainingMs = cooldownMs - (Date.now() - lastAlert);
+      if (remainingMs > 0) {
+        logger.debug(`❌ ${userId}-${coin}: em cooldown por mais ${Math.ceil(remainingMs/60000)} minutos`);
         return false;
       }
     }
     
+    logger.debug(`✅ ${userId}-${coin}: TODAS as condições atendidas para enviar alerta`);
     return true;
   }
   
@@ -1288,6 +1316,1003 @@ ${formatChange(prices.polygon.usd, maticPrevious)}
       .sort(([,a], [,b]) => b - a)
       .slice(0, 10)
       .map(([coinId, count]) => ({ coinId, users: count }));
+  }
+
+  /**
+   * =====================================================================
+   *                    MELHORIAS NO SISTEMA DE NOTIFICAÇÕES
+   * =====================================================================
+   */
+
+  /**
+   * Obtém usuários ativos para notificações de uma moeda específica
+   */
+  getActiveUsersForCoin(coinId) {
+    const users = [];
+    
+    for (const [userId, config] of this.activeMonitoring.entries()) {
+      if (config.active && config.notifications && config.coins.includes(coinId)) {
+        users.push({
+          userId,
+          threshold: config.thresholdPercentage,
+          alertOnRise: config.alertOnRise,
+          alertOnFall: config.alertOnFall,
+          cooldownMinutes: config.cooldownMinutes
+        });
+      }
+    }
+    
+    return users;
+  }
+
+  /**
+   * Obtém estatísticas de notificações por usuário
+   */
+  getUserNotificationStats(userId, days = 30) {
+    const userAlerts = [];
+    const startDate = Date.now() - (days * 24 * 60 * 60 * 1000);
+    
+    // Simular busca de alertas históricos (seria melhor armazenar no MongoDB)
+    const totalAlerts = 0; // Placeholder - implementar busca real no futuro
+    
+    return {
+      userId,
+      periodDays: days,
+      totalAlerts,
+      averagePerDay: totalAlerts / days,
+      lastAlert: null,
+      isActive: this.activeMonitoring.has(userId)
+    };
+  }
+
+  /**
+   * Pausa temporariamente notificações para um usuário
+   */
+  pauseUserNotifications(userId, minutes = 60) {
+    const config = this.activeMonitoring.get(userId);
+    if (config) {
+      config.pausedUntil = Date.now() + (minutes * 60 * 1000);
+      config.lastModified = new Date().toISOString();
+      this.activeMonitoring.set(userId, config);
+      
+      logger.info(`Notificações pausadas para usuário ${userId} por ${minutes} minutos`);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Resume notificações pausadas para um usuário
+   */
+  resumeUserNotifications(userId) {
+    const config = this.activeMonitoring.get(userId);
+    if (config && config.pausedUntil) {
+      delete config.pausedUntil;
+      config.lastModified = new Date().toISOString();
+      this.activeMonitoring.set(userId, config);
+      
+      logger.info(`Notificações resumidas para usuário ${userId}`);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Verifica se usuário está com notificações pausadas
+   */
+  isUserNotificationsPaused(userId) {
+    const config = this.activeMonitoring.get(userId);
+    if (config && config.pausedUntil) {
+      if (Date.now() < config.pausedUntil) {
+        return {
+          paused: true,
+          resumesAt: new Date(config.pausedUntil),
+          remainingMinutes: Math.ceil((config.pausedUntil - Date.now()) / (60 * 1000))
+        };
+      } else {
+        // Auto-resume se passou do tempo
+        this.resumeUserNotifications(userId);
+      }
+    }
+    return { paused: false };
+  }
+
+  /**
+   * =====================================================================
+   *                    ANÁLISE COMPARATIVA APRIMORADA
+   * =====================================================================
+   */
+
+  /**
+   * Obtém análise técnica básica de uma moeda
+   */
+  async getTechnicalAnalysis(symbol, days = 30) {
+    const historicalData = await this.getHistoricalDataFromDB(symbol, days);
+    
+    if (historicalData.length < 10) {
+      return {
+        error: 'Dados insuficientes para análise técnica',
+        dataPoints: historicalData.length,
+        minimumRequired: 10
+      };
+    }
+    
+    const prices = historicalData.map(item => item.prices.usd);
+    const latest = prices[prices.length - 1];
+    
+    // Médias móveis
+    const sma7 = this.calculateSMA(prices, 7);
+    const sma14 = this.calculateSMA(prices, 14);
+    const sma30 = Math.min(prices.length, 30);
+    const sma30Value = this.calculateSMA(prices, sma30);
+    
+    // RSI (Relative Strength Index) simplificado
+    const rsi = this.calculateRSI(prices, 14);
+    
+    // Support e Resistance níveis básicos
+    const support = Math.min(...prices.slice(-14));
+    const resistance = Math.max(...prices.slice(-14));
+    
+    // Tendência baseada nas médias móveis
+    const trend = sma7 > sma14 ? 'alta' : sma7 < sma14 ? 'baixa' : 'lateral';
+    
+    // Volatilidade (desvio padrão dos últimos 14 dias)
+    const recent14 = prices.slice(-14);
+    const mean14 = recent14.reduce((a, b) => a + b) / recent14.length;
+    const volatility = Math.sqrt(recent14.reduce((sq, price) => sq + Math.pow(price - mean14, 2), 0) / recent14.length);
+    const volatilityPercent = (volatility / mean14) * 100;
+    
+    return {
+      symbol: symbol.toUpperCase(),
+      currentPrice: latest,
+      analysis: {
+        trend,
+        sma7: sma7,
+        sma14: sma14,
+        sma30: sma30Value,
+        rsi: rsi,
+        support: support,
+        resistance: resistance,
+        volatilityPercent: volatilityPercent,
+        priceVsSMA7: ((latest - sma7) / sma7 * 100).toFixed(2) + '%',
+        priceVsSMA14: ((latest - sma14) / sma14 * 100).toFixed(2) + '%'
+      },
+      signals: {
+        bullish: sma7 > sma14 && latest > sma7 && rsi < 70,
+        bearish: sma7 < sma14 && latest < sma7 && rsi > 30,
+        overbought: rsi > 70,
+        oversold: rsi < 30,
+        nearSupport: Math.abs(latest - support) / support < 0.02,
+        nearResistance: Math.abs(latest - resistance) / resistance < 0.02
+      },
+      dataPoints: historicalData.length,
+      analyzedDays: days
+    };
+  }
+
+  /**
+   * Calcula média móvel simples
+   */
+  calculateSMA(prices, period) {
+    if (prices.length < period) period = prices.length;
+    const slice = prices.slice(-period);
+    return slice.reduce((sum, price) => sum + price, 0) / slice.length;
+  }
+
+  /**
+   * Calcula RSI (Relative Strength Index) simplificado
+   */
+  calculateRSI(prices, period = 14) {
+    if (prices.length < period + 1) return 50; // Neutro se dados insuficientes
+    
+    const changes = [];
+    for (let i = 1; i < prices.length; i++) {
+      changes.push(prices[i] - prices[i - 1]);
+    }
+    
+    const recentChanges = changes.slice(-period);
+    const gains = recentChanges.filter(change => change > 0);
+    const losses = recentChanges.filter(change => change < 0).map(loss => Math.abs(loss));
+    
+    const avgGain = gains.length ? gains.reduce((a, b) => a + b, 0) / period : 0;
+    const avgLoss = losses.length ? losses.reduce((a, b) => a + b, 0) / period : 0;
+    
+    if (avgLoss === 0) return 100;
+    
+    const rs = avgGain / avgLoss;
+    return 100 - (100 / (1 + rs));
+  }
+
+  /**
+   * Compara performance de múltiplas moedas
+   */
+  async compareCoinsPerformance(coinIds, days = 7) {
+    const comparisons = [];
+    
+    for (const coinId of coinIds) {
+      const analysis = await this.getComparisonAnalysis(coinId, days);
+      if (analysis && analysis.analysis) {
+        comparisons.push({
+          coinId,
+          symbol: coinId.toUpperCase(),
+          performance: analysis.analysis.priceChangePercent,
+          trend: analysis.analysis.trend,
+          volatility: analysis.analysis.volatility,
+          currentPrice: analysis.analysis.endPrice,
+          dataPoints: analysis.analysis.dataPoints
+        });
+      }
+    }
+    
+    // Ordenar por performance (melhor primeiro)
+    comparisons.sort((a, b) => b.performance - a.performance);
+    
+    return {
+      period: `${days} dias`,
+      comparison: comparisons,
+      summary: {
+        bestPerformer: comparisons[0]?.coinId || null,
+        worstPerformer: comparisons[comparisons.length - 1]?.coinId || null,
+        averagePerformance: comparisons.reduce((sum, coin) => sum + coin.performance, 0) / comparisons.length
+      },
+      analyzedAt: new Date().toISOString()
+    };
+  }
+
+  /**
+   * =====================================================================
+   *                    SISTEMA DE RELATÓRIOS E ESTATÍSTICAS
+   * =====================================================================
+   */
+
+  /**
+   * Gera relatório completo de uso do sistema
+   */
+  async generateUsageReport() {
+    const totalUsers = this.activeMonitoring.size;
+    const activeUsers = Array.from(this.activeMonitoring.values()).filter(config => config.active).length;
+    const coinStats = await this.getCoinUsageStats();
+    
+    const thresholdDistribution = {};
+    const timeframeDistribution = {};
+    
+    for (const [userId, config] of this.activeMonitoring.entries()) {
+      const threshold = config.thresholdPercentage || 1.0;
+      const range = threshold < 1 ? '<1%' : 
+                   threshold < 2 ? '1-2%' : 
+                   threshold < 5 ? '2-5%' : '>5%';
+      thresholdDistribution[range] = (thresholdDistribution[range] || 0) + 1;
+      
+      const timeframe = config.timeframe || '1m';
+      timeframeDistribution[timeframe] = (timeframeDistribution[timeframe] || 0) + 1;
+    }
+    
+    return {
+      users: {
+        total: totalUsers,
+        active: activeUsers,
+        inactive: totalUsers - activeUsers
+      },
+      coins: {
+        mostPopular: coinStats.slice(0, 5),
+        totalTracked: coinStats.length
+      },
+      settings: {
+        thresholdDistribution,
+        timeframeDistribution
+      },
+      system: {
+        isGlobalMonitoringActive: !!this.monitoringInterval,
+        alertCacheSize: this.alertCooldown.size,
+        priceHistorySize: Array.from(this.priceHistory.values()).reduce((sum, history) => sum + history.length, 0)
+      },
+      generatedAt: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Exporta dados históricos de um usuário para análise
+   */
+  async exportUserData(userId, days = 30) {
+    const preferences = await this.getUserPreferences(userId);
+    const monitoringConfig = this.activeMonitoring.get(userId);
+    const notificationStats = this.getUserNotificationStats(userId, days);
+    
+    const historicalData = {};
+    if (preferences && preferences.coins) {
+      for (const coinId of preferences.coins) {
+        const priceKey = this.mapCoinIdToPriceKey(coinId);
+        historicalData[coinId] = await this.getHistoricalDataFromDB(priceKey.toUpperCase(), days);
+      }
+    }
+    
+    return {
+      userId,
+      exportDate: new Date().toISOString(),
+      periodDays: days,
+      preferences,
+      monitoringConfig: monitoringConfig || null,
+      notificationStats,
+      historicalData,
+      summary: {
+        totalCoinsTracked: preferences?.coins?.length || 0,
+        hasActiveMonitoring: !!monitoringConfig?.active,
+        dataPoints: Object.values(historicalData).reduce((sum, data) => sum + data.length, 0)
+      }
+    };
+  }
+
+  /**
+   * Limpa dados antigos do sistema (manutenção)
+   */
+  async cleanupOldData(daysToKeep = 90) {
+    if (!this.isConnected) await this.connect();
+    if (!this.isConnected) return { error: 'Não conectado ao MongoDB' };
+    
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+      
+      // Limpar histórico antigo de preços
+      const deleteResult = await this.collection.deleteMany({
+        timestamp: { $lt: cutoffDate }
+      });
+      
+      // Limpar cache de cooldown antigo
+      this.cleanupCooldownCache();
+      
+      // Limpar histórico em memória muito antigo
+      for (const [coin, history] of this.priceHistory.entries()) {
+        const recentHistory = history.filter(entry => {
+          const entryDate = new Date(entry.timestamp);
+          return entryDate > cutoffDate;
+        });
+        this.priceHistory.set(coin, recentHistory);
+      }
+      
+      logger.info(`Limpeza concluída: ${deleteResult.deletedCount} registros removidos do MongoDB`);
+      
+      return {
+        success: true,
+        deletedRecords: deleteResult.deletedCount,
+        cutoffDate: cutoffDate.toISOString(),
+        daysKept: daysToKeep
+      };
+    } catch (error) {
+      logger.error('Erro na limpeza de dados antigos:', error);
+      return { error: error.message };
+    }
+  }
+
+  /**
+   * Obtém métricas de saúde do sistema
+   */
+  getSystemHealthMetrics() {
+    const memoryUsage = process.memoryUsage();
+    
+    return {
+      database: {
+        connected: this.isConnected,
+        collections: {
+          cryptoHistory: !!this.collection,
+          userPreferences: !!this.userPrefsCollection
+        }
+      },
+      monitoring: {
+        globalActive: !!this.monitoringInterval,
+        activeUsers: this.activeMonitoring.size,
+        totalUsers: this.userPreferences.size
+      },
+      cache: {
+        priceHistory: {
+          coins: this.priceHistory.size,
+          totalDataPoints: Array.from(this.priceHistory.values()).reduce((sum, history) => sum + history.length, 0)
+        },
+        alertCooldown: this.alertCooldown.size,
+        lastPrices: this.lastPrices.size
+      },
+      memory: {
+        heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
+        heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`,
+        external: `${Math.round(memoryUsage.external / 1024 / 1024)}MB`
+      },
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  /**
+   * =====================================================================
+   *                    FERRAMENTAS DE DEBUG E TESTE
+   * =====================================================================
+   */
+
+  /**
+   * Força verificação de preços para debug (chama checkPriceChanges manualmente)
+   */
+  async forceCheckPrices() {
+    logger.info('🔧 DEBUG: Forçando verificação manual de preços...');
+    
+    try {
+      await this.checkPriceChanges();
+      
+      const metrics = {
+        activeUsers: this.activeMonitoring.size,
+        priceHistorySize: this.priceHistory.size,
+        lastPricesSize: this.lastPrices.size,
+        pendingAlerts: this.pendingAlerts?.length || 0,
+        cooldownSize: this.alertCooldown.size
+      };
+      
+      logger.info('🔧 DEBUG: Verificação forçada concluída', metrics);
+      return metrics;
+      
+    } catch (error) {
+      logger.error('🔧 DEBUG: Erro na verificação forçada:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Simula um alerta de teste para debug
+   */
+  async simulateTestAlert(userId, coinId = 'bitcoin', variationPercent = 2.5) {
+    logger.info(`🔧 DEBUG: Simulando alerta para ${userId}, moeda: ${coinId}, variação: ${variationPercent}%`);
+    
+    try {
+      // Get user config or create default
+      let config = this.activeMonitoring.get(userId);
+      if (!config) {
+        config = this.activateMonitoring(userId, {
+          thresholdPercentage: 0.1, // Baixo para testes
+          notifications: true
+        });
+      }
+      
+      // Simulate price data
+      const currentPrice = coinId === 'bitcoin' ? 50000 : 3000;
+      const previousPrice = currentPrice / (1 + (variationPercent / 100));
+      
+      const variation = {
+        variation: variationPercent,
+        current: currentPrice,
+        previous: previousPrice,
+        timestamp: new Date().toISOString(),
+        timeframe: '1m',
+        dataPoints: 1
+      };
+      
+      const currentPrices = {
+        [coinId]: {
+          usd: currentPrice,
+          brl: currentPrice * 5.2,
+          source: 'TEST'
+        }
+      };
+      
+      // Force send alert
+      this.sendVariationAlert(userId, coinId, variation, currentPrices, config);
+      
+      const pendingAlerts = this.getPendingAlerts();
+      logger.info(`🔧 DEBUG: Alerta simulado criado. Alertas pendentes: ${pendingAlerts.length}`);
+      
+      return {
+        alertCreated: true,
+        pendingAlertsCount: pendingAlerts.length,
+        userConfig: config,
+        simulatedData: { variation, currentPrices }
+      };
+      
+    } catch (error) {
+      logger.error('🔧 DEBUG: Erro ao simular alerta:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Debug: mostra status detalhado do monitoramento para um usuário
+   */
+  getDetailedMonitoringStatus(userId) {
+    const config = this.activeMonitoring.get(userId);
+    const pauseStatus = this.isUserNotificationsPaused(userId);
+    const cooldownEntries = [];
+    
+    // Get cooldown entries for this user
+    for (const [key, timestamp] of this.alertCooldown.entries()) {
+      if (key.startsWith(userId + '-')) {
+        const coin = key.substring(userId.length + 1);
+        const remainingMs = (timestamp + (config?.cooldownMinutes || 15) * 60 * 1000) - Date.now();
+        cooldownEntries.push({
+          coin,
+          remainingMs: Math.max(0, remainingMs),
+          remainingMinutes: Math.max(0, Math.ceil(remainingMs / 60000))
+        });
+      }
+    }
+    
+    return {
+      userId,
+      hasMonitoring: !!config,
+      config: config || null,
+      pauseStatus,
+      cooldownEntries,
+      priceHistory: {
+        bitcoin: this.priceHistory.get('bitcoin')?.length || 0,
+        ethereum: this.priceHistory.get('ethereum')?.length || 0,
+        cardano: this.priceHistory.get('cardano')?.length || 0,
+        polkadot: this.priceHistory.get('polkadot')?.length || 0,
+        polygon: this.priceHistory.get('polygon')?.length || 0
+      },
+      lastPrices: {
+        bitcoin: this.lastPrices.get('bitcoin'),
+        ethereum: this.lastPrices.get('ethereum'),
+        cardano: this.lastPrices.get('cardano'),
+        polkadot: this.lastPrices.get('polkadot'),
+        polygon: this.lastPrices.get('polygon')
+      },
+      isGlobalMonitoringActive: !!this.monitoringInterval,
+      totalActiveUsers: this.activeMonitoring.size
+    };
+  }
+
+  /**
+   * Debug: reduz threshold temporariamente para testes
+   */
+  enableTestMode(userId, lowThreshold = 0.1) {
+    const config = this.activeMonitoring.get(userId);
+    if (config) {
+      config.thresholdPercentage = lowThreshold;
+      config.cooldownMinutes = 1; // Reduz cooldown para 1 minuto
+      config.testMode = true;
+      
+      logger.info(`🔧 DEBUG: Modo de teste ativado para ${userId} (threshold: ${lowThreshold}%, cooldown: 1min)`);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Debug: força limpeza de cooldown para um usuário
+   */
+  clearUserCooldown(userId) {
+    let cleared = 0;
+    for (const key of this.alertCooldown.keys()) {
+      if (key.startsWith(userId + '-')) {
+        this.alertCooldown.delete(key);
+        cleared++;
+      }
+    }
+    logger.info(`🔧 DEBUG: Limpou ${cleared} entradas de cooldown para ${userId}`);
+    return cleared;
+  }
+
+  /**
+   * =====================================================================
+   *                    ANÁLISE INTELIGENTE COM LLM
+   * =====================================================================
+   */
+
+  /**
+   * Gera análise e projeção usando LLM baseada nos dados históricos
+   */
+  async generateLLMAnalysis(coinSymbol, days = 30, llmService = null) {
+    if (!llmService) {
+      throw new Error('LLM Service não fornecido para análise inteligente');
+    }
+
+    logger.info(`🤖 Gerando análise LLM para ${coinSymbol} (${days} dias)`);
+
+    try {
+      // 1. Coletar dados históricos completos
+      const historicalData = await this.getHistoricalDataFromDB(coinSymbol, days);
+      const technicalAnalysis = await this.getTechnicalAnalysis(coinSymbol, days);
+      const comparisonAnalysis = await this.getComparisonAnalysis(coinSymbol, days);
+
+      if (historicalData.length < 5) {
+        return {
+          error: 'Dados insuficientes para análise LLM',
+          dataPoints: historicalData.length,
+          minimumRequired: 5
+        };
+      }
+
+      // 2. Preparar dados estruturados para o LLM
+      const analysisData = this.prepareDataForLLMAnalysis(coinSymbol, historicalData, technicalAnalysis, comparisonAnalysis);
+
+      // 3. Construir prompt especializado
+      const prompt = this.buildLLMAnalysisPrompt(analysisData);
+
+      // 4. Chamar LLM para análise
+      const llmResponse = await llmService.processQuery(prompt, 'crypto_analysis');
+
+      // 5. Processar resposta do LLM
+      const parsedAnalysis = this.parseLLMAnalysisResponse(llmResponse, analysisData);
+
+      logger.info(`🤖 Análise LLM concluída para ${coinSymbol}`);
+
+      return {
+        coin: coinSymbol.toUpperCase(),
+        analysisDate: new Date().toISOString(),
+        dataPoints: historicalData.length,
+        period: `${days} dias`,
+        rawData: analysisData,
+        llmAnalysis: parsedAnalysis,
+        confidence: this.calculateAnalysisConfidence(analysisData),
+        disclaimer: 'Esta análise é baseada em dados históricos e não constitui aconselhamento financeiro. Invista com responsabilidade.'
+      };
+
+    } catch (error) {
+      logger.error(`❌ Erro na análise LLM para ${coinSymbol}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Prepara dados estruturados para análise do LLM
+   */
+  prepareDataForLLMAnalysis(coinSymbol, historicalData, technicalAnalysis, comparisonAnalysis) {
+    const prices = historicalData.map(item => item.prices.usd);
+    const latest = prices[prices.length - 1];
+    const oldest = prices[0];
+
+    // Calcular métricas estatísticas
+    const priceChanges = [];
+    for (let i = 1; i < prices.length; i++) {
+      priceChanges.push(((prices[i] - prices[i-1]) / prices[i-1]) * 100);
+    }
+
+    const volatility = Math.sqrt(priceChanges.reduce((sum, change) => sum + Math.pow(change, 2), 0) / priceChanges.length);
+    const avgDailyChange = priceChanges.reduce((sum, change) => sum + change, 0) / priceChanges.length;
+    
+    // Detectar padrões
+    const trends = this.detectPricePatterns(prices);
+    const support_resistance = this.findSupportResistanceLevels(prices);
+    
+    // Preparar dados para o LLM
+    return {
+      coin: coinSymbol.toUpperCase(),
+      currentPrice: latest,
+      priceRange: {
+        min: Math.min(...prices),
+        max: Math.max(...prices),
+        totalChange: ((latest - oldest) / oldest) * 100
+      },
+      statistics: {
+        volatility: volatility,
+        avgDailyChange: avgDailyChange,
+        dataPoints: prices.length,
+        trendDirection: latest > oldest ? 'bullish' : 'bearish'
+      },
+      technicalIndicators: technicalAnalysis.analysis || null,
+      patterns: trends,
+      supportResistance: support_resistance,
+      recentPrices: prices.slice(-10), // Últimos 10 preços
+      comparison: comparisonAnalysis.analysis || null
+    };
+  }
+
+  /**
+   * Constrói prompt especializado para análise de criptomoedas
+   */
+  buildLLMAnalysisPrompt(data) {
+    return `Você é um analista especialista em criptomoedas com vasta experiência em análise técnica e fundamental. Analise os dados fornecidos e forneça uma recomendação precisa.
+
+DADOS DA CRIPTOMOEDA: ${data.coin}
+
+PREÇO ATUAL: $${data.currentPrice.toLocaleString()}
+
+HISTÓRICO DE PREÇOS (${data.statistics.dataPoints} pontos):
+- Preço mínimo: $${data.priceRange.min.toLocaleString()}
+- Preço máximo: $${data.priceRange.max.toLocaleString()}
+- Variação total: ${data.priceRange.totalChange.toFixed(2)}%
+- Tendência geral: ${data.statistics.trendDirection}
+
+MÉTRICAS ESTATÍSTICAS:
+- Volatilidade: ${data.statistics.volatility.toFixed(2)}%
+- Variação média diária: ${data.statistics.avgDailyChange.toFixed(2)}%
+
+INDICADORES TÉCNICOS:
+${data.technicalIndicators ? `
+- Tendência: ${data.technicalIndicators.trend}
+- RSI: ${data.technicalIndicators.rsi?.toFixed(1)} ${data.technicalIndicators.rsi > 70 ? '(Sobrecomprado)' : data.technicalIndicators.rsi < 30 ? '(Sobrevendido)' : '(Neutro)'}
+- SMA 7 dias: $${data.technicalIndicators.sma7?.toLocaleString()}
+- SMA 14 dias: $${data.technicalIndicators.sma14?.toLocaleString()}
+- Volatilidade: ${data.technicalIndicators.volatilityPercent?.toFixed(2)}%
+- Suporte: $${data.technicalIndicators.support?.toLocaleString()}
+- Resistência: $${data.technicalIndicators.resistance?.toLocaleString()}
+` : 'Dados técnicos insuficientes'}
+
+ANÁLISE DE PADRÕES:
+${JSON.stringify(data.patterns, null, 2)}
+
+NÍVEIS DE SUPORTE E RESISTÊNCIA:
+${JSON.stringify(data.supportResistance, null, 2)}
+
+ÚLTIMOS 10 PREÇOS: $${data.recentPrices.map(p => p.toLocaleString()).join(', $')}
+
+ANÁLISE SOLICITADA:
+Com base nos dados históricos, análise técnica e padrões identificados, forneça:
+
+1. RECOMENDAÇÃO PRINCIPAL (escolha UMA):
+   - COMPRAR: Se os indicadores sugerem potencial de alta
+   - VENDER: Se os indicadores sugerem potencial de queda
+   - SEGURAR: Se a situação está incerta ou em consolidação
+
+2. CONFIANÇA DA RECOMENDAÇÃO (1-10): Nível de confiança na sua análise
+
+3. JUSTIFICATIVA (máximo 3 pontos): Principais fatores que levaram à recomendação
+
+4. CENÁRIOS (3 cenários possíveis):
+   - Otimista: Preço alvo e probabilidade
+   - Realista: Preço alvo e probabilidade  
+   - Pessimista: Preço alvo e probabilidade
+
+5. PONTOS DE ENTRADA/SAÍDA:
+   - Se COMPRAR: Preço ideal de entrada e stop loss
+   - Se VENDER: Preço ideal de saída
+   - Se SEGURAR: Níveis de observação
+
+6. TIMEFRAME: Horizonte temporal da recomendação (curto/médio/longo prazo)
+
+IMPORTANTE: Seja objetivo, preciso e baseie-se nos dados fornecidos. Evite recomendações genéricas.
+
+FORMATO DA RESPOSTA (use exatamente este formato):
+RECOMENDAÇÃO: [COMPRAR/VENDER/SEGURAR]
+CONFIANÇA: [1-10]
+JUSTIFICATIVA:
+- [Ponto 1]
+- [Ponto 2]  
+- [Ponto 3]
+CENÁRIO_OTIMISTA: $[preço] ([probabilidade]%)
+CENÁRIO_REALISTA: $[preço] ([probabilidade]%)
+CENÁRIO_PESSIMISTA: $[preço] ([probabilidade]%)
+ENTRADA: $[preço]
+STOP_LOSS: $[preço]
+TIMEFRAME: [curto/médio/longo] prazo`;
+  }
+
+  /**
+   * Analisa e extrai informações estruturadas da resposta do LLM
+   */
+  parseLLMAnalysisResponse(llmResponse, originalData) {
+    try {
+      const response = llmResponse.toLowerCase();
+      
+      // Extrair recomendação principal
+      const recommendation = this.extractRecommendation(response);
+      
+      // Extrair nível de confiança
+      const confidence = this.extractConfidence(response);
+      
+      // Extrair justificativas
+      const justification = this.extractJustification(llmResponse);
+      
+      // Extrair cenários
+      const scenarios = this.extractScenarios(llmResponse);
+      
+      // Extrair pontos de entrada/saída
+      const tradingLevels = this.extractTradingLevels(llmResponse);
+      
+      // Extrair timeframe
+      const timeframe = this.extractTimeframe(response);
+
+      return {
+        recommendation: recommendation,
+        confidence: confidence,
+        justification: justification,
+        scenarios: scenarios,
+        tradingLevels: tradingLevels,
+        timeframe: timeframe,
+        summary: this.generateAnalysisSummary(recommendation, confidence, scenarios),
+        rawResponse: llmResponse,
+        processedAt: new Date().toISOString()
+      };
+
+    } catch (error) {
+      logger.error('Erro ao processar resposta do LLM:', error);
+      return {
+        recommendation: 'SEGURAR',
+        confidence: 5,
+        justification: ['Erro na análise automatizada'],
+        scenarios: { optimistic: null, realistic: null, pessimistic: null },
+        tradingLevels: { entry: null, stopLoss: null },
+        timeframe: 'médio',
+        summary: 'Análise inconclusiva devido a erro no processamento',
+        rawResponse: llmResponse,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Extrai recomendação da resposta do LLM
+   */
+  extractRecommendation(response) {
+    if (response.includes('comprar') || response.includes('buy')) return 'COMPRAR';
+    if (response.includes('vender') || response.includes('sell')) return 'VENDER';
+    return 'SEGURAR';
+  }
+
+  /**
+   * Extrai nível de confiança
+   */
+  extractConfidence(response) {
+    const confidenceMatch = response.match(/confiança.*?(\d+)/);
+    if (confidenceMatch) {
+      const conf = parseInt(confidenceMatch[1]);
+      return Math.max(1, Math.min(10, conf)); // Entre 1-10
+    }
+    return 6; // Default médio
+  }
+
+  /**
+   * Extrai justificativas
+   */
+  extractJustification(response) {
+    const justifications = [];
+    const lines = response.split('\n');
+    let inJustification = false;
+    
+    for (const line of lines) {
+      if (line.toLowerCase().includes('justificativa')) {
+        inJustification = true;
+        continue;
+      }
+      
+      if (inJustification) {
+        if (line.startsWith('- ')) {
+          justifications.push(line.substring(2).trim());
+        } else if (line.toLowerCase().includes('cenário') || justifications.length >= 3) {
+          break;
+        }
+      }
+    }
+    
+    return justifications.length > 0 ? justifications : ['Análise baseada em dados técnicos e históricos'];
+  }
+
+  /**
+   * Extrai cenários de preço
+   */
+  extractScenarios(response) {
+    const scenarios = {};
+    
+    const optimisticMatch = response.match(/cenário_otimista.*?\$?(\d+(?:,\d+)*(?:\.\d+)?)/i);
+    const realisticMatch = response.match(/cenário_realista.*?\$?(\d+(?:,\d+)*(?:\.\d+)?)/i);
+    const pessimisticMatch = response.match(/cenário_pessimista.*?\$?(\d+(?:,\d+)*(?:\.\d+)?)/i);
+    
+    if (optimisticMatch) scenarios.optimistic = parseFloat(optimisticMatch[1].replace(/,/g, ''));
+    if (realisticMatch) scenarios.realistic = parseFloat(realisticMatch[1].replace(/,/g, ''));
+    if (pessimisticMatch) scenarios.pessimistic = parseFloat(pessimisticMatch[1].replace(/,/g, ''));
+    
+    return scenarios;
+  }
+
+  /**
+   * Extrai níveis de trading
+   */
+  extractTradingLevels(response) {
+    const levels = {};
+    
+    const entryMatch = response.match(/entrada.*?\$?(\d+(?:,\d+)*(?:\.\d+)?)/i);
+    const stopLossMatch = response.match(/stop_loss.*?\$?(\d+(?:,\d+)*(?:\.\d+)?)/i);
+    
+    if (entryMatch) levels.entry = parseFloat(entryMatch[1].replace(/,/g, ''));
+    if (stopLossMatch) levels.stopLoss = parseFloat(stopLossMatch[1].replace(/,/g, ''));
+    
+    return levels;
+  }
+
+  /**
+   * Extrai timeframe
+   */
+  extractTimeframe(response) {
+    if (response.includes('curto')) return 'curto';
+    if (response.includes('longo')) return 'longo';
+    return 'médio';
+  }
+
+  /**
+   * Gera resumo da análise
+   */
+  generateAnalysisSummary(recommendation, confidence, scenarios) {
+    const confidenceText = confidence >= 8 ? 'Alta confiança' : 
+                          confidence >= 6 ? 'Confiança moderada' : 'Baixa confiança';
+    
+    let summary = `${recommendation} - ${confidenceText} (${confidence}/10)`;
+    
+    if (scenarios.realistic) {
+      summary += ` - Projeção: $${scenarios.realistic.toLocaleString()}`;
+    }
+    
+    return summary;
+  }
+
+  /**
+   * Detecta padrões nos preços
+   */
+  detectPricePatterns(prices) {
+    if (prices.length < 5) return { patterns: [], trend: 'insufficient_data' };
+
+    const recent = prices.slice(-5);
+    const older = prices.slice(-10, -5);
+    
+    // Detectar tendência
+    const recentTrend = recent[recent.length-1] > recent[0] ? 'up' : 'down';
+    const olderTrend = older.length > 0 ? (older[older.length-1] > older[0] ? 'up' : 'down') : 'neutral';
+    
+    const patterns = [];
+    
+    // Padrão de reversão
+    if (recentTrend !== olderTrend) {
+      patterns.push('reversal_pattern');
+    }
+    
+    // Padrão de continuidade
+    if (recentTrend === olderTrend) {
+      patterns.push('continuation_pattern');
+    }
+    
+    // Consolidação (baixa volatilidade)
+    const maxRecent = Math.max(...recent);
+    const minRecent = Math.min(...recent);
+    const consolidationThreshold = 0.05; // 5%
+    
+    if ((maxRecent - minRecent) / minRecent < consolidationThreshold) {
+      patterns.push('consolidation');
+    }
+    
+    return {
+      patterns,
+      trend: recentTrend,
+      strength: Math.abs(recent[recent.length-1] - recent[0]) / recent[0]
+    };
+  }
+
+  /**
+   * Encontra níveis de suporte e resistência
+   */
+  findSupportResistanceLevels(prices) {
+    if (prices.length < 10) return { support: null, resistance: null };
+
+    const sorted = [...prices].sort((a, b) => a - b);
+    const length = sorted.length;
+    
+    // Suporte - área dos 25% menores preços
+    const supportZone = sorted.slice(0, Math.floor(length * 0.25));
+    const support = supportZone.reduce((sum, price) => sum + price, 0) / supportZone.length;
+    
+    // Resistência - área dos 25% maiores preços
+    const resistanceZone = sorted.slice(Math.floor(length * 0.75));
+    const resistance = resistanceZone.reduce((sum, price) => sum + price, 0) / resistanceZone.length;
+    
+    return {
+      support: Math.round(support),
+      resistance: Math.round(resistance),
+      current_position: prices[prices.length-1] > support && prices[prices.length-1] < resistance ? 'middle' :
+                       prices[prices.length-1] <= support ? 'near_support' : 'near_resistance'
+    };
+  }
+
+  /**
+   * Calcula confiança da análise baseada na qualidade dos dados
+   */
+  calculateAnalysisConfidence(data) {
+    let confidence = 5; // Base
+    
+    // Mais dados = mais confiança
+    if (data.statistics.dataPoints > 20) confidence += 1;
+    if (data.statistics.dataPoints > 50) confidence += 1;
+    
+    // Baixa volatilidade = mais previsível
+    if (data.statistics.volatility < 5) confidence += 1;
+    
+    // Tendência clara
+    if (Math.abs(data.statistics.avgDailyChange) > 1) confidence += 1;
+    
+    // Indicadores técnicos disponíveis
+    if (data.technicalIndicators) confidence += 1;
+    
+    return Math.max(1, Math.min(10, confidence));
   }
 }
 

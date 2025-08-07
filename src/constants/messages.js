@@ -189,10 +189,45 @@ Qual método você prefere?
 9.6 🎯 Suas preferências de moedas
 9.7 📋 Listar top 20 criptomoedas
 9.8 ✅ Selecionar moedas favoritas
+9.9 🤖 Machine Learning e IA
+
+*ANÁLISES AVANÇADAS*
+9.10 📊 Análise técnica de uma moeda
+9.11 📈 Comparar performance de moedas
+9.12 🏥 Saúde do sistema
+
+*ANÁLISE AVANÇADA COM IA*
+9.16 🤖 Análise IA e recomendação (COMPRAR/VENDER/SEGURAR)
+
+*FERRAMENTAS DE TESTE*
+9.13 🔧 Debug: Status detalhado
+9.14 🧪 Simular alerta de teste
+9.15 ⚡ Forçar verificação de preços
 
 0️⃣ Voltar ao Menu Principal
 
-💰 _Acompanhe suas criptomoedas favoritas em tempo real com alertas automáticos personalizáveis._`
+💰 _Acompanhe suas criptomoedas favoritas em tempo real com alertas automáticos personalizáveis._`,
+
+  crypto_ml: `🤖 *Machine Learning para Criptomoedas*
+
+*MODELOS DISPONÍVEIS*
+9.9.1 🚀 Treinar modelos de IA
+   _XGBoost, LSTM, TFT, RL, Ensemble_
+9.9.2 📈 Fazer previsões de preço
+   _Análise preditiva baseada em histórico_
+9.9.3 📊 Status dos modelos treinados
+   _Verificar performance e disponibilidade_
+
+*TIPOS DE MODELOS*
+• 🌲 **XGBoost/LightGBM**: Dados tabulares de alta performance
+• 🧠 **LSTM/GRU**: Dependências temporais profundas
+• ⚡ **TFT**: Multi-horizonte com atenção temporal
+• 🎯 **Reinforcement Learning**: Estratégias de trading (PPO/DQN)
+• 🎪 **Ensemble**: Combinação de múltiplos modelos
+
+0️⃣ Voltar ao Submenu Crypto
+
+🎯 _Use IA avançada para previsões de preço e estratégias de trading._`
 };
 
 /**

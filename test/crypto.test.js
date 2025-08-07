@@ -21,11 +21,11 @@ test('CryptoService - Ativação/Desativação de Monitoramento', () => {
   
   // Ativar monitoramento
   const activated = cryptoService.activateMonitoring(userId);
-  assert.strictEqual(activated, true, 'Deve ativar com sucesso');
+  assert(activated && typeof activated === 'object', 'Deve ativar com sucesso e retornar configuração');
   
   status = cryptoService.getMonitoringStatus(userId);
   assert.strictEqual(status.active, true, 'Deve estar ativo após ativação');
-  assert.strictEqual(status.config.threshold, 1.0, 'Deve ter threshold padrão de 1%');
+  assert.strictEqual(status.config.thresholdPercentage, 1.0, 'Deve ter threshold padrão de 1%');
   
   // Desativar monitoramento
   const deactivated = cryptoService.deactivateMonitoring(userId);
@@ -82,8 +82,13 @@ test('CryptoService - Formatação de Alertas', () => {
     ethereum: { usd: 3100, brl: 16120 }
   };
   
+  const config = {
+    thresholdPercentage: 1.0,
+    timeframe: '1m'
+  };
+  
   // Simular envio de alerta
-  cryptoService.sendVariationAlert(userId, 'bitcoin', variation, currentPrices);
+  cryptoService.sendVariationAlert(userId, 'bitcoin', variation, currentPrices, config);
   
   const pendingAlerts = cryptoService.getPendingAlerts();
   

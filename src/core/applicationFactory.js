@@ -4,6 +4,7 @@ import AudioTranscriber from '../services/audioTranscriber.js';
 import TtsService from '../services/ttsService.js';
 import WhisperSilentService from '../services/whisperSilentService.js';
 import CryptoService from '../services/cryptoService.js';
+import CryptoMLService from '../services/cryptoMLService.js';
 import WhatsAppBot from './whatsAppBot.js';
 import { TelegramBotService } from './telegramBot.js';
 import RestAPI from '../api/restApi.js';
@@ -128,6 +129,17 @@ export class ApplicationFactory {
     this.services.set('cryptoService', cryptoService);
     logger.info('Crypto service initialized');
     return cryptoService;
+  }
+
+  createCryptoMLService(cryptoService) {
+    if (this.services.has('cryptoMLService')) {
+      return this.services.get('cryptoMLService');
+    }
+
+    const cryptoMLService = new CryptoMLService(cryptoService);
+    this.services.set('cryptoMLService', cryptoMLService);
+    logger.info('Crypto ML service initialized');
+    return cryptoMLService;
   }
 
   async createWhatsAppBot(scheduler, llmService, transcriber, ttsService, whisperSilentService, cryptoService, sessionService) {
@@ -312,11 +324,13 @@ export class ApplicationFactory {
       const ttsService = this.createTtsService();
       const whisperSilentService = this.createWhisperSilentService();
       const cryptoService = this.createCryptoService();
+      const cryptoMLService = this.createCryptoMLService(cryptoService);
       
       // Configure YouTubeService to use the parametrized transcriber
       YouTubeService.setTranscriber(transcriber);
       logger.debug('🔧 YouTubeService configured with parametrized AudioTranscriber');
       const bot = await this.createWhatsAppBot(scheduler, llmService, transcriber, ttsService, whisperSilentService, cryptoService, sessionService);
+      bot.setCryptoMLService(cryptoMLService);
       const api = this.createRestAPI(bot, configService);
 
       // Initialize job queue and process pending jobs
@@ -349,6 +363,8 @@ export class ApplicationFactory {
       audioTranscriber: this.services.get('audioTranscriber'),
       ttsService: this.services.get('ttsService'),
       whisperSilentService: this.services.get('whisperSilentService'),
+      cryptoService: this.services.get('cryptoService'),
+      cryptoMLService: this.services.get('cryptoMLService'),
       whatsAppBot: this.services.get('whatsAppBot'),
       telegramBot: this.services.get('telegramBot'),
       restAPI: this.services.get('restAPI'),

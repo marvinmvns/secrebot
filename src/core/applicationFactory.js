@@ -246,6 +246,25 @@ export class ApplicationFactory {
   }
 
   // Inicialização assíncrona do Telegram (não bloqueia outros serviços)
+  async initializeJobQueue(transcriber, llmService) {
+    try {
+      logger.info('Inicializando fila de jobs...');
+      
+      const { getJobQueueWrapper } = await import('../services/jobQueueWrapper.js');
+      const jobQueueWrapper = getJobQueueWrapper();
+      
+      // Process any pending jobs from previous runs
+      await jobQueueWrapper.processPendingJobs(transcriber, llmService);
+      
+      this.services.set('jobQueueWrapper', jobQueueWrapper);
+      logger.info('🎯 Fila de jobs inicializada e jobs pendentes processados');
+    } catch (error) {
+      logger.warn('Fila de jobs não pôde ser inicializada, mas outros serviços continuam funcionando', {
+        error: error.message
+      });
+    }
+  }
+
   async initializeTelegramAsync() {
     try {
       logger.info('Inicializando bot do Telegram em segundo plano...');
@@ -298,7 +317,13 @@ export class ApplicationFactory {
       YouTubeService.setTranscriber(transcriber);
       logger.debug('🔧 YouTubeService configured with parametrized AudioTranscriber');
       const bot = await this.createWhatsAppBot(scheduler, llmService, transcriber, ttsService, whisperSilentService, cryptoService, sessionService);
-      this.createRestAPI(bot, configService);
+      const api = this.createRestAPI(bot, configService);
+
+      // Initialize job queue and process pending jobs
+      await this.initializeJobQueue(transcriber, llmService);
+
+      // Start the REST API server
+      await api.start();
 
       // Inicializar Telegram em paralelo (não bloqueia outros serviços)
       this.initializeTelegramAsync();

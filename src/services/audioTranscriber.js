@@ -244,6 +244,24 @@ class AudioTranscriber {
       const startTime = Date.now();
       const audioSize = audioBuffer.length;
       
+      // Register job in monitor (passive monitoring)
+      let jobId = null;
+      try {
+        const { getJobInterceptor } = await import('./jobInterceptor.js');
+        const interceptor = getJobInterceptor();
+        jobId = await interceptor.registerJobStart('whisper-transcription', {
+          audioBuffer: Buffer.from(audioBuffer).toString('base64').substring(0, 100) + '...', // Truncated for storage
+          inputFormat,
+          userId,
+          audioSize
+        }, {
+          priority: 'medium',
+          timeout: 900000 // 15 minutes
+        });
+      } catch (error) {
+        logger.debug('Job interceptor not available, continuing without monitoring');
+      }
+      
       logger.service('🎤 Iniciando transcrição de áudio...');
       
       // Obter configuração efetiva (MongoDB tem prioridade)
@@ -266,8 +284,11 @@ class AudioTranscriber {
         if (effectiveConfig.whisperApi.mode === 'api' && effectiveConfig.whisperApi.enabled && await this.whisperApiPool.isEnabled() && this.whisperApiPool.hasHealthyEndpoints()) {
           logger.info('🌐 Usando modo API para transcrição (configuração do MongoDB)');
           mode = 'api';
-          endpoint = 'api_pool';
-          result = await this.transcribeViaAPI(audioBuffer, inputFormat);
+          
+          // Use method that returns endpoint info for job tracking
+          const apiResult = await this.transcribeViaAPIWithEndpointInfo(audioBuffer, inputFormat);
+          result = apiResult.transcription;
+          endpoint = apiResult.endpoint?.url || 'api_pool'; // Use specific endpoint URL
         } else {
           logger.info('🏠 Usando modo local para transcrição');
           mode = 'local';
@@ -289,6 +310,23 @@ class AudioTranscriber {
           );
         }
 
+        // Register job success (passive monitoring)
+        if (jobId) {
+          try {
+            const { getJobInterceptor } = await import('./jobInterceptor.js');
+            const interceptor = getJobInterceptor();
+            await interceptor.registerJobSuccess(jobId, {
+              transcription: result,
+              mode: effectiveConfig.whisperApi.mode,
+              endpoint: endpoint, // Now contains the specific endpoint URL
+              duration,
+              audioSize
+            });
+          } catch (error) {
+            logger.debug('Failed to register job success, continuing normally');
+          }
+        }
+
         return result;
       } catch (error) {
         // Record metrics for failed transcription
@@ -306,6 +344,17 @@ class AudioTranscriber {
             audioSize
           );
           this.metricsService.recordError('whisper_transcription_error', 'whisper_service', userId);
+        }
+
+        // Register job failure (passive monitoring)
+        if (jobId) {
+          try {
+            const { getJobInterceptor } = await import('./jobInterceptor.js');
+            const interceptor = getJobInterceptor();
+            await interceptor.registerJobFailure(jobId, error, mode === 'api' ? 'api_pool' : 'local');
+          } catch (interceptorError) {
+            logger.debug('Failed to register job failure, continuing normally');
+          }
         }
 
         throw error;

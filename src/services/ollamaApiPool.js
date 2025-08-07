@@ -621,7 +621,12 @@ class OllamaAPIPool {
       
       const duration = Date.now() - startTime;
       logger.success(`✅ Chat #${this.requestCount}: Chat bem-sucedido via ${selectedClient.baseURL} em ${duration}ms`);
-      return result;
+      return {
+        result,
+        endpoint: selectedClient.baseURL,
+        client: selectedClient,
+        duration
+      };
       
     } catch (error) {
       selectedClient.retryCount++;

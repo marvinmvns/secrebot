@@ -34,6 +34,9 @@ export const COMMANDS = {
   CRYPTO_STOP: '!cryptostop',
   CRYPTO_STATUS: '!cryptostatus',
   CRYPTO_CONFIG: '!cryptoconfig',
+  CRYPTO_PREFERENCES: '!cryptoprefs',
+  CRYPTO_LIST_COINS: '!cryptolist',
+  CRYPTO_SELECT_COINS: '!cryptoselect',
   TTS_CONFIG: '!tts'
 };
 
@@ -117,7 +120,10 @@ export const NUMERIC_SHORTCUTS = {
   '9.2': COMMANDS.CRYPTO_START,
   '9.3': COMMANDS.CRYPTO_STOP,
   '9.4': COMMANDS.CRYPTO_STATUS,
-  '9.5': COMMANDS.CRYPTO_CONFIG
+  '9.5': COMMANDS.CRYPTO_CONFIG,
+  '9.6': COMMANDS.CRYPTO_PREFERENCES,
+  '9.7': COMMANDS.CRYPTO_LIST_COINS,
+  '9.8': COMMANDS.CRYPTO_SELECT_COINS
 };
 
 export const CHAT_MODES = {
@@ -131,6 +137,7 @@ export const CHAT_MODES = {
   RESUMIR_VIDEO: 'resumir_video',
   RESUMIR_VIDEO2: 'resumir_video2',
   TROCAR_MODELO: 'trocar_modelo',
+  CRYPTO_COIN_SELECTION: 'crypto_coin_selection',
   TROCAR_MODELO_WHISPER: 'trocar_modelo_whisper',
   WHISPERSILENT_CONFIG: 'whispersilent_config'
 };

@@ -58,9 +58,19 @@ class WhatsAppBot {
     this.awaitingLinkedinCreds = new Map();
     this.flowExecutionService = null; // Será definido pelo ApplicationFactory
     this.client = new Client({
-      authStrategy: new LocalAuth(),
+      authStrategy: new LocalAuth({
+        dataPath: './.wwebjs_auth/'
+      }),
       puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        args: [
+          '--no-sandbox', 
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu'
+        ]
       },
       // ffmpegPath: '/usr/bin/ffmpeg', // Descomentar se necessário para áudio opus
     });
@@ -152,6 +162,10 @@ class WhatsAppBot {
       logger.info('📱 QR Code gerado. Escaneie para login.');
     });
 
+    this.client.on('loading_screen', (percent, message) => {
+      logger.info(`📲 Carregando WhatsApp: ${percent}% - ${message}`);
+    });
+
     this.client.on('ready', () => {
       logger.info('✅ Cliente WhatsApp pronto!');
       this.startScheduler();
@@ -159,14 +173,25 @@ class WhatsAppBot {
     });
 
     this.client.on('authenticated', () => logger.info('🔐 WhatsApp autenticado.'));
+    
     this.client.on('auth_failure', msg => {
       logger.error('❌ Falha na autenticação', msg);
-      process.exit(1);
+      logger.info('🔄 Tentando reconectar em 5 segundos...');
+      setTimeout(() => {
+        this.client.initialize();
+      }, 5000);
     });
 
     this.client.on('disconnected', reason => {
       logger.error('🔌 WhatsApp desconectado', reason);
-      process.exit(1);
+      if (reason === 'LOGOUT') {
+        logger.info('📱 Logout detectado - será necessário escanear QR code novamente');
+      } else {
+        logger.info('🔄 Tentando reconectar em 10 segundos...');
+        setTimeout(() => {
+          this.client.initialize();
+        }, 10000);
+      }
     });
 
     this.client.on('message', async msg => {
@@ -641,6 +666,15 @@ class WhatsAppBot {
       case '9.5':
         await this.handleCryptoConfig(contactId);
         return true;
+      case '9.6':
+        await this.handleCryptoPreferences(contactId);
+        return true;
+      case '9.7':
+        await this.handleCryptoListCoins(contactId);
+        return true;
+      case '9.8':
+        await this.handleCryptoSelectCoins(contactId);
+        return true;
       case '0':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
         await this.sendResponse(contactId, MENU_MESSAGE);
@@ -1053,6 +1087,9 @@ class WhatsAppBot {
           [COMMANDS.CRYPTO_STOP]: () => this.handleCryptoStopMonitoring(contactId),
           [COMMANDS.CRYPTO_STATUS]: () => this.handleCryptoStatus(contactId),
           [COMMANDS.CRYPTO_CONFIG]: () => this.handleCryptoConfig(contactId, originalText),
+          [COMMANDS.CRYPTO_PREFERENCES]: () => this.handleCryptoPreferences(contactId),
+          [COMMANDS.CRYPTO_LIST_COINS]: () => this.handleCryptoListCoins(contactId),
+          [COMMANDS.CRYPTO_SELECT_COINS]: () => this.handleCryptoSelectCoins(contactId),
           [COMMANDS.FOTO]: async () => {
               await this.sendResponse(contactId, ERROR_MESSAGES.IMAGE_REQUIRED);
           },
@@ -2547,12 +2584,17 @@ Use emojis e formatação clara para facilitar a leitura.`;
         
         // Show transcription with endpoint info in the requested format
         let endpointInfo = '';
-        if (result.endpoint.type === 'api') {
-          // Extract IP from URL and convert duration to seconds
-          const url = new URL(result.endpoint.url);
-          const ip = url.hostname;
-          const durationInSeconds = result.endpoint.duration ? (result.endpoint.duration / 1000).toFixed(2) : '0.00';
-          endpointInfo = `${ip} ${durationInSeconds}s`;
+        if (result.endpoint.type === 'api' && result.endpoint.url) {
+          try {
+            // Extract IP from URL and convert duration to seconds
+            const url = new URL(result.endpoint.url);
+            const ip = url.hostname;
+            const durationInSeconds = result.endpoint.duration ? (result.endpoint.duration / 1000).toFixed(2) : '0.00';
+            endpointInfo = `${ip} ${durationInSeconds}s`;
+          } catch (urlError) {
+            logger.warn(`⚠️ URL inválida no endpoint: ${result.endpoint.url}`, urlError);
+            endpointInfo = `API ${result.endpoint.duration ? (result.endpoint.duration / 1000).toFixed(2) : '0.00'}s`;
+          }
         } else {
           endpointInfo = `Local 0.00s`;
         }
@@ -2867,6 +2909,9 @@ usuario@email.com:senha
         break;
       case 'whispersilent_search':
         await this.processWhisperSilentSearchMessage(contactId, text);
+        break;
+      case CHAT_MODES.CRYPTO_COIN_SELECTION:
+        await this.processCryptoCoinSelectionMessage(contactId, text);
         break;
       default:
           logger.warn(`⚠️ Modo desconhecido encontrado: ${currentMode}`);
@@ -4435,10 +4480,28 @@ Mensagem do usuário: ${text}`;
     try {
       await this.sendResponse(contactId, '📊 Buscando cotações atuais...', true);
       
-      const prices = await this.cryptoService.getCurrentPrices();
+      // Get user preferences first
+      const userPreferences = await this.cryptoService.getUserPreferences(contactId);
+      let coins = null;
+      
+      if (userPreferences && userPreferences.coins && userPreferences.coins.length > 0) {
+        coins = userPreferences.coins;
+      }
+      
+      const prices = await this.cryptoService.getCurrentPrices(coins);
       const formattedMessage = this.cryptoService.formatPrices(prices);
       
-      await this.sendResponse(contactId, formattedMessage);
+      // Add user preference info
+      let finalMessage = formattedMessage;
+      if (coins) {
+        finalMessage += `\n\n🎯 _Mostrando suas ${coins.length} moedas favoritas_\n`;
+        finalMessage += `💡 Use 9.6 para ver/alterar preferências`;
+      } else {
+        finalMessage += `\n\n💡 _Mostrando moedas padrão (Bitcoin/Ethereum)_\n`;
+        finalMessage += `🎯 Use 9.8 para selecionar suas moedas favoritas`;
+      }
+      
+      await this.sendResponse(contactId, finalMessage);
     } catch (error) {
       logger.error(`Erro ao buscar cotações crypto para ${contactId}:`, error);
       await this.sendResponse(contactId, `❌ Erro ao obter cotações: ${error.message}\n\n💡 Tente novamente em alguns minutos.`);
@@ -4637,7 +4700,7 @@ Mensagem do usuário: ${text}`;
       message += `🎯 Threshold: 0.1% a 50%\n`;
       message += `⏱️ Timeframes: 1m, 5m, 15m, 1h\n`;
       message += `⏰ Cooldown: 1 a 120 minutos\n`;
-      message += `💰 Moedas: bitcoin, ethereum\n\n`;
+      message += `💰 Moedas: bitcoin, ethereum, cardano, polkadot, polygon\n\n`;
       
       message += `💡 _Exemplo: ${COMMANDS.CRYPTO_CONFIG} threshold 1.5_`;
 
@@ -4670,6 +4733,196 @@ Mensagem do usuário: ${text}`;
     }, 30000);
     
     logger.info('⏰ Timer de alertas crypto iniciado (30s)');
+  }
+
+  // Novos métodos de preferências crypto
+  async handleCryptoPreferences(contactId) {
+    try {
+      await this.sendResponse(contactId, '🔍 Buscando suas preferências...', true);
+      
+      const preferences = await this.cryptoService.getUserPreferences(contactId);
+      
+      let message = `🎯 *Suas Preferências de Criptomoedas*\n\n`;
+      
+      if (preferences && preferences.coins && preferences.coins.length > 0) {
+        message += `✅ *Moedas Selecionadas (${preferences.coins.length}):*\n`;
+        
+        const coinDetails = this.cryptoService.top20Cryptos.filter(coin => 
+          preferences.coins.includes(coin.id)
+        );
+        
+        coinDetails.forEach((coin, index) => {
+          message += `${index + 1}. ${coin.symbol} - ${coin.name}\n`;
+        });
+        
+        message += `\n📅 Última atualização: ${preferences.updatedAt ? new Date(preferences.updatedAt).toLocaleString('pt-BR') : 'N/A'}\n\n`;
+      } else {
+        message += `❌ *Nenhuma moeda selecionada*\n\n`;
+        message += `💡 Use 9.8 para selecionar suas moedas favoritas ou acesse:\n`;
+        message += `🌐 http://localhost:3000/crypto-preferences\n\n`;
+      }
+      
+      message += `📋 *Opções:*\n`;
+      message += `9.7 - Listar top 20 moedas disponíveis\n`;
+      message += `9.8 - Selecionar moedas favoritas\n`;
+      message += `9.1 - Ver cotações das suas moedas`;
+      
+      await this.sendResponse(contactId, message);
+    } catch (error) {
+      logger.error(`Erro ao buscar preferências crypto para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro ao buscar preferências: ${error.message}`);
+    }
+  }
+
+  async handleCryptoListCoins(contactId) {
+    try {
+      const top20 = this.cryptoService.top20Cryptos;
+      
+      let message = `📋 *Top 20 Criptomoedas Mais Atrativas*\n\n`;
+      
+      // Agrupar por categoria
+      const categories = {};
+      top20.forEach(coin => {
+        if (!categories[coin.category]) {
+          categories[coin.category] = [];
+        }
+        categories[coin.category].push(coin);
+      });
+      
+      Object.entries(categories).forEach(([category, coins]) => {
+        message += `🏷️ *${category}:*\n`;
+        coins.forEach(coin => {
+          message += `${coin.rank}. ${coin.symbol} - ${coin.name}\n`;
+        });
+        message += `\n`;
+      });
+      
+      message += `💡 *Para selecionar suas favoritas:*\n`;
+      message += `• Use 9.8 para seleção interativa\n`;
+      message += `• Acesse: http://localhost:3000/crypto-preferences\n\n`;
+      message += `📊 Após selecionar, use 9.1 para ver apenas suas cotações!`;
+      
+      await this.sendResponse(contactId, message);
+    } catch (error) {
+      logger.error(`Erro ao listar moedas crypto para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro ao listar moedas: ${error.message}`);
+    }
+  }
+
+  async handleCryptoSelectCoins(contactId) {
+    try {
+      // Set user to coin selection mode
+      this.setChatMode(contactId, CHAT_MODES.CRYPTO_COIN_SELECTION);
+      
+      let message = `✅ *Seleção de Criptomoedas*\n\n`;
+      message += `📝 *Como selecionar:*\n`;
+      message += `Digite os símbolos das moedas separados por vírgula.\n\n`;
+      message += `💡 *Exemplo:*\n`;
+      message += `BTC, ETH, ADA, DOT, MATIC\n\n`;
+      message += `📋 *Moedas disponíveis:*\n`;
+      
+      // Show available coins in a compact format
+      const top20 = this.cryptoService.top20Cryptos;
+      const symbols = top20.map(coin => coin.symbol).join(', ');
+      message += `${symbols}\n\n`;
+      
+      message += `🌐 *Alternativa:* Use a interface web em:\n`;
+      message += `http://localhost:3000/crypto-preferences\n\n`;
+      message += `❌ Digite "cancelar" para sair da seleção.`;
+      
+      await this.sendResponse(contactId, message);
+    } catch (error) {
+      logger.error(`Erro ao iniciar seleção crypto para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ Erro ao iniciar seleção: ${error.message}`);
+    }
+  }
+
+  async processCryptoCoinSelectionMessage(contactId, text) {
+    try {
+      const lowerText = text.toLowerCase().trim();
+      
+      // Allow cancellation
+      if (lowerText === 'cancelar' || lowerText === 'sair' || lowerText === 'voltar') {
+        this.setChatMode(contactId, null);
+        await this.sendResponse(contactId, '❌ Seleção de moedas cancelada.\n\n📋 Para voltar ao menu crypto: digite 9');
+        return;
+      }
+      
+      // Parse the coin symbols
+      const symbols = text.split(',').map(s => s.trim().toUpperCase()).filter(s => s.length > 0);
+      
+      if (symbols.length === 0) {
+        await this.sendResponse(contactId, '❌ Nenhuma moeda foi identificada.\n\n💡 Digite os símbolos separados por vírgula:\nExemplo: BTC, ETH, ADA\n\n❌ Digite "cancelar" para sair.');
+        return;
+      }
+      
+      // Validate symbols against available coins
+      const top20 = this.cryptoService.top20Cryptos;
+      const availableSymbols = top20.map(coin => coin.symbol.toUpperCase());
+      const validSymbols = [];
+      const invalidSymbols = [];
+      
+      symbols.forEach(symbol => {
+        if (availableSymbols.includes(symbol)) {
+          validSymbols.push(symbol);
+        } else {
+          invalidSymbols.push(symbol);
+        }
+      });
+      
+      if (validSymbols.length === 0) {
+        let message = `❌ Nenhuma moeda válida encontrada.\n\n`;
+        message += `🚫 Símbolos inválidos: ${invalidSymbols.join(', ')}\n\n`;
+        message += `📋 *Símbolos disponíveis:*\n${availableSymbols.join(', ')}\n\n`;
+        message += `💡 Tente novamente ou digite "cancelar" para sair.`;
+        
+        await this.sendResponse(contactId, message);
+        return;
+      }
+      
+      // Convert symbols to coin IDs
+      const selectedCoins = top20
+        .filter(coin => validSymbols.includes(coin.symbol.toUpperCase()))
+        .map(coin => coin.id);
+      
+      // Save user preferences
+      await this.sendResponse(contactId, '💾 Salvando suas preferências...', true);
+      
+      try {
+        await this.cryptoService.saveUserPreferences(contactId, selectedCoins);
+        
+        // Exit selection mode
+        this.setChatMode(contactId, null);
+        
+        let message = `✅ *Preferências salvas com sucesso!*\n\n`;
+        message += `🎯 *Moedas selecionadas (${validSymbols.length}):*\n`;
+        
+        validSymbols.forEach((symbol, index) => {
+          const coin = top20.find(c => c.symbol.toUpperCase() === symbol);
+          message += `${index + 1}. ${symbol} - ${coin.name}\n`;
+        });
+        
+        if (invalidSymbols.length > 0) {
+          message += `\n⚠️ *Símbolos ignorados:* ${invalidSymbols.join(', ')}\n`;
+        }
+        
+        message += `\n💡 *Próximos passos:*\n`;
+        message += `📊 9.1 - Ver cotações das suas moedas\n`;
+        message += `🎯 9.6 - Ver suas preferências\n`;
+        message += `🔔 9.2 - Ativar alertas automáticos`;
+        
+        await this.sendResponse(contactId, message);
+        
+      } catch (error) {
+        logger.error(`Erro ao salvar preferências crypto para ${contactId}:`, error);
+        await this.sendResponse(contactId, `❌ Erro ao salvar preferências: ${error.message}\n\n💡 Tente novamente ou use a interface web:\nhttp://localhost:3000/crypto-preferences`);
+      }
+      
+    } catch (error) {
+      logger.error(`Erro ao processar seleção crypto para ${contactId}:`, error);
+      this.setChatMode(contactId, null);
+      await this.sendResponse(contactId, `❌ Erro interno. Seleção cancelada.\n\n📋 Para voltar ao menu crypto: digite 9`);
+    }
   }
 
   // === Fim dos Métodos de Criptomoedas ===

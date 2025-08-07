@@ -714,24 +714,60 @@ class RestAPI {
       res.render('transcribe');
     });
 
-    // API for the new transcription UI
+    // API for the new transcription UI with job queue integration
     this.app.post('/api/transcribe', upload.none(), async (req, res) => {
-      const { audioData, endpoint } = req.body;
+      const { audioData, endpoint, useJobQueue = true } = req.body;
 
       if (!audioData) {
-        return res.status(400).json({ success: false, error: 'Nenhum dado de áudio enviado.' });
+        return res.status(400).json({ success: false, error: 'Nenhum dados de áudio enviado.' });
       }
 
       try {
         const audioBuffer = Buffer.from(audioData, 'base64');
-        
         const options = endpoint ? { endpointUrl: endpoint } : {};
-        const text = await this.bot.transcriber.transcribe(audioBuffer, options.inputFormat || 'ogg');
-        
-        res.json({ success: true, transcription: text });
+
+        // Use job queue if enabled (default behavior)
+        if (useJobQueue) {
+          const { getJobQueueWrapper } = await import('../services/jobQueueWrapper.js');
+          const jobQueueWrapper = getJobQueueWrapper();
+          
+          const jobOptions = {
+            priority: 'medium',
+            userAgent: req.get('User-Agent'),
+            clientIp: req.ip,
+            sessionId: req.sessionID || req.get('X-Session-ID')
+          };
+
+          const result = await jobQueueWrapper.wrapWhisperTranscription(
+            this.bot.transcriber, 
+            audioBuffer, 
+            { ...options, ...jobOptions }
+          );
+          
+          res.json({ 
+            success: true, 
+            transcription: result.result,
+            jobId: result.jobId,
+            message: 'Transcrição processada via fila de jobs'
+          });
+        } else {
+          // Fallback to direct processing (legacy behavior)
+          const text = await this.bot.transcriber.transcribe(audioBuffer, options.inputFormat || 'ogg');
+          res.json({ success: true, transcription: text });
+        }
       } catch (err) {
         logger.error('Erro em /api/transcribe', err);
-        res.status(500).json({ success: false, error: 'Erro ao transcrever áudio: ' + err.message });
+        
+        if (err.jobId) {
+          res.status(500).json({ 
+            success: false, 
+            error: 'Erro ao transcrever áudio: ' + err.error,
+            jobId: err.jobId,
+            canRetry: err.canRetry
+          });
+        } else {
+          res.status(500).json({ success: false, error: 'Erro ao transcrever áudio: ' + err.message });
+        }
       }
     });
 
@@ -3364,6 +3400,631 @@ class RestAPI {
       }
     });
 
+    // ===== CRYPTO MONITORING ROUTES =====
+    
+    // Página principal de monitoramento de cripto
+    this.app.get('/crypto-monitor', (req, res) => {
+      res.render('crypto-monitor');
+    });
+
+    // Página de preferências de criptomoedas
+    this.app.get('/crypto-preferences', (req, res) => {
+      res.render('crypto-preferences');
+    });
+
+    // API para obter preços de criptomoedas
+    this.app.get('/api/crypto/prices', async (req, res) => {
+      try {
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+
+        // Usar o CryptoService que já tem sistema de fallbacks múltiplos
+        const cryptoData = await this.bot.cryptoService.getCurrentPrices();
+        
+        // Adicionar símbolos e nomes para compatibilidade
+        const formatted = {
+          bitcoin: { ...cryptoData.bitcoin, symbol: 'BTC', name: 'Bitcoin' },
+          ethereum: { ...cryptoData.ethereum, symbol: 'ETH', name: 'Ethereum' },
+          cardano: { ...cryptoData.cardano, symbol: 'ADA', name: 'Cardano' },
+          polkadot: { ...cryptoData.polkadot, symbol: 'DOT', name: 'Polkadot' },
+          polygon: { ...cryptoData.polygon, symbol: 'MATIC', name: 'Polygon' }
+        };
+        
+        res.json({ success: true, data: formatted });
+      } catch (error) {
+        logger.error('❌ Erro ao buscar preços de cripto:', error);
+        res.status(500).json({ success: false, error: 'Erro ao buscar preços' });
+      }
+    });
+
+    // API para obter histórico de preços
+    this.app.get('/api/crypto/history/:coinId', async (req, res) => {
+      try {
+        const { coinId } = req.params;
+        const days = req.query.days || 7;
+        
+        // Tentar buscar do MongoDB primeiro
+        if (this.bot.cryptoService) {
+          const historicalData = await this.bot.cryptoService.getHistoricalDataFromDB(coinId, days);
+          
+          if (historicalData && historicalData.length > 0) {
+            // Converter formato para compatibilidade com CoinGecko
+            const prices = historicalData.map(item => [
+              new Date(item.timestamp).getTime(),
+              item.prices.usd
+            ]);
+            
+            res.json({ success: true, data: { prices }, source: 'MongoDB' });
+            return;
+          }
+        }
+        
+        // Fallback para CoinGecko API
+        const response = await fetch(`https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${days}`);
+        const data = await response.json();
+        
+        res.json({ success: true, data, source: 'CoinGecko' });
+      } catch (error) {
+        logger.error('❌ Erro ao buscar histórico:', error);
+        res.status(500).json({ success: false, error: 'Erro ao buscar histórico' });
+      }
+    });
+
+    // API para análise comparativa
+    this.app.get('/api/crypto/analysis/:symbol', async (req, res) => {
+      try {
+        const { symbol } = req.params;
+        const days = req.query.days || 30;
+        
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+        
+        const analysis = await this.bot.cryptoService.getComparisonAnalysis(symbol, days);
+        res.json({ success: true, analysis });
+      } catch (error) {
+        logger.error('❌ Erro ao gerar análise:', error);
+        res.status(500).json({ success: false, error: 'Erro ao gerar análise' });
+      }
+    });
+
+    // API para testar sistema de alertas (simular variação)
+    this.app.post('/api/crypto/test-alert/:userId', async (req, res) => {
+      try {
+        const { userId } = req.params;
+        const { coin = 'bitcoin', variation = 5.0 } = req.body;
+        
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+        
+        // Simular alerta de variação
+        const mockVariation = {
+          current: 50000,
+          previous: 47500,
+          variation: variation,
+          timestamp: new Date().toISOString(),
+          timeframe: '1m',
+          dataPoints: 1
+        };
+        
+        const mockPrices = {
+          [coin]: {
+            usd: mockVariation.current,
+            brl: mockVariation.current * 5.5
+          }
+        };
+        
+        const mockConfig = {
+          thresholdPercentage: 1.0,
+          alertOnRise: true,
+          alertOnFall: true,
+          cooldownMinutes: 0 // Desativar cooldown para teste
+        };
+        
+        this.bot.cryptoService.sendVariationAlert(userId, coin, mockVariation, mockPrices, mockConfig);
+        
+        res.json({ 
+          success: true, 
+          message: `Alerta de teste enviado para ${userId}`,
+          variation: variation,
+          coin: coin
+        });
+      } catch (error) {
+        logger.error('❌ Erro ao testar alerta:', error);
+        res.status(500).json({ success: false, error: 'Erro ao testar alerta' });
+      }
+    });
+
+    // API para verificar alertas pendentes
+    this.app.get('/api/crypto/pending-alerts', async (req, res) => {
+      try {
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+        
+        const pendingAlerts = this.bot.cryptoService.getPendingAlerts();
+        res.json({ success: true, pendingAlerts, count: pendingAlerts.length });
+      } catch (error) {
+        logger.error('❌ Erro ao buscar alertas pendentes:', error);
+        res.status(500).json({ success: false, error: 'Erro ao buscar alertas' });
+      }
+    });
+
+    // API para ativar monitoramento de um usuário
+    this.app.post('/api/crypto/monitor/activate/:userId', async (req, res) => {
+      try {
+        const { userId } = req.params;
+        const options = req.body || {};
+        
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+        
+        const config = this.bot.cryptoService.activateMonitoring(userId, options);
+        res.json({ 
+          success: true, 
+          message: 'Monitoramento ativado com sucesso',
+          config: config
+        });
+      } catch (error) {
+        logger.error('❌ Erro ao ativar monitoramento:', error);
+        res.status(500).json({ success: false, error: 'Erro ao ativar monitoramento' });
+      }
+    });
+
+    // API para desativar monitoramento de um usuário
+    this.app.post('/api/crypto/monitor/deactivate/:userId', async (req, res) => {
+      try {
+        const { userId } = req.params;
+        
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+        
+        const result = this.bot.cryptoService.deactivateMonitoring(userId);
+        res.json({ 
+          success: true, 
+          message: 'Monitoramento desativado com sucesso',
+          result: result
+        });
+      } catch (error) {
+        logger.error('❌ Erro ao desativar monitoramento:', error);
+        res.status(500).json({ success: false, error: 'Erro ao desativar monitoramento' });
+      }
+    });
+
+    // API para verificar status de monitoramento
+    this.app.get('/api/crypto/monitor/status/:userId', async (req, res) => {
+      try {
+        const { userId } = req.params;
+        
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+        
+        const status = this.bot.cryptoService.getMonitoringStatus(userId);
+        res.json({ success: true, status });
+      } catch (error) {
+        logger.error('❌ Erro ao verificar status:', error);
+        res.status(500).json({ success: false, error: 'Erro ao verificar status' });
+      }
+    });
+
+    // API para buscar histórico de múltiplas moedas de uma vez
+    this.app.post('/api/crypto/history/multiple', async (req, res) => {
+      try {
+        const { coins = ['bitcoin'], days = 7 } = req.body;
+        const results = {};
+        
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+        
+        // Buscar histórico para cada moeda
+        for (const coin of coins) {
+          try {
+            const historicalData = await this.bot.cryptoService.getHistoricalDataFromDB(coin, days);
+            
+            if (historicalData && historicalData.length > 0) {
+              // Converter formato para compatibilidade com CoinGecko
+              const prices = historicalData.map(item => [
+                new Date(item.timestamp).getTime(),
+                item.prices.usd
+              ]);
+              
+              results[coin] = { prices };
+            } else {
+              // Fallback para CoinGecko API se não houver dados no MongoDB
+              const response = await fetch(`https://api.coingecko.com/api/v3/coins/${coin}/market_chart?vs_currency=usd&days=${days}`);
+              const data = await response.json();
+              results[coin] = data;
+            }
+          } catch (error) {
+            logger.error(`❌ Erro ao buscar histórico de ${coin}:`, error);
+            results[coin] = { error: `Erro ao buscar dados de ${coin}` };
+          }
+        }
+        
+        res.json({ success: true, data: results, source: 'MongoDB+CoinGecko' });
+      } catch (error) {
+        logger.error('❌ Erro ao buscar múltiplos históricos:', error);
+        res.status(500).json({ success: false, error: 'Erro ao buscar históricos' });
+      }
+    });
+
+    // API avançada para diferentes granularidades de tempo
+    this.app.post('/api/crypto/history/advanced', async (req, res) => {
+      try {
+        const { coins = ['bitcoin'], interval = '1d', quantity = 7 } = req.body;
+        const results = {};
+        
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+        
+        // Converter parâmetros de intervalo para dias equivalentes
+        const intervalToDays = (interval, quantity) => {
+          const multipliers = {
+            '1s': quantity / 86400, // segundos para dias
+            '1m': quantity / 1440,  // minutos para dias
+            '1h': quantity / 24,    // horas para dias
+            '1d': quantity,         // dias
+            '7d': quantity * 7,     // semanas para dias
+            '1M': quantity * 30,    // meses para dias (aproximado)
+            '1y': quantity * 365,   // anos para dias
+            '10y': quantity * 3650  // décadas para dias
+          };
+          return Math.max(1, Math.ceil(multipliers[interval] || quantity));
+        };
+        
+        const days = intervalToDays(interval, quantity);
+        
+        // Para intervalos muito pequenos (segundos/minutos), usar dados em tempo real ou sintéticos
+        if (interval === '1s' || interval === '1m') {
+          return await this.generateRealtimeData(coins, interval, quantity, res);
+        }
+        
+        // Buscar histórico para cada moeda
+        for (const coin of coins) {
+          try {
+            const historicalData = await this.bot.cryptoService.getHistoricalDataFromDB(coin, days);
+            
+            if (historicalData && historicalData.length > 0) {
+              // Processar dados conforme granularidade solicitada
+              const processedData = this.processDataByInterval(historicalData, interval, quantity);
+              results[coin] = { prices: processedData };
+            } else {
+              // Fallback para CoinGecko API
+              try {
+                const coinGeckoInterval = this.mapIntervalToCoinGecko(interval);
+                const response = await fetch(`https://api.coingecko.com/api/v3/coins/${coin}/market_chart?vs_currency=usd&days=${days}&interval=${coinGeckoInterval}`);
+                const data = await response.json();
+                results[coin] = data;
+              } catch (apiError) {
+                logger.warn(`Fallback CoinGecko falhou para ${coin}:`, apiError.message);
+                results[coin] = { error: `Dados não disponíveis para ${coin}` };
+              }
+            }
+          } catch (error) {
+            logger.error(`❌ Erro ao buscar histórico avançado de ${coin}:`, error);
+            results[coin] = { error: `Erro ao buscar dados de ${coin}` };
+          }
+        }
+        
+        res.json({ 
+          success: true, 
+          data: results, 
+          source: 'MongoDB+CoinGecko',
+          interval: interval,
+          quantity: quantity,
+          totalDays: days
+        });
+      } catch (error) {
+        logger.error('❌ Erro ao buscar históricos avançados:', error);
+        res.status(500).json({ success: false, error: 'Erro ao buscar históricos avançados' });
+      }
+    });
+
+    // =========================================================================
+    //                    APIs PARA GERENCIAMENTO DE PREFERÊNCIAS CRYPTO
+    // =========================================================================
+
+    // API para obter lista das 20 criptomoedas mais atrativas
+    this.app.get('/api/crypto/top20', (req, res) => {
+      try {
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+
+        const top20 = this.bot.cryptoService.getTop20Cryptos();
+        res.json({ success: true, data: top20 });
+      } catch (error) {
+        logger.error('❌ Erro ao obter top 20 cryptos:', error);
+        res.status(500).json({ success: false, error: 'Erro ao obter lista de criptomoedas' });
+      }
+    });
+
+    // API para obter preferências de um usuário
+    this.app.get('/api/crypto/user/:userId/preferences', async (req, res) => {
+      try {
+        const { userId } = req.params;
+        
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+
+        const preferences = await this.bot.cryptoService.getUserPreferences(userId);
+        res.json({ success: true, data: preferences });
+      } catch (error) {
+        logger.error('❌ Erro ao obter preferências do usuário:', error);
+        res.status(500).json({ success: false, error: 'Erro ao obter preferências' });
+      }
+    });
+
+    // API para salvar preferências de um usuário
+    this.app.post('/api/crypto/user/:userId/preferences', async (req, res) => {
+      try {
+        const { userId } = req.params;
+        const preferences = req.body;
+        
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+
+        const savedPrefs = await this.bot.cryptoService.setUserPreferences(userId, preferences);
+        res.json({ success: true, data: savedPrefs });
+      } catch (error) {
+        logger.error('❌ Erro ao salvar preferências do usuário:', error);
+        res.status(500).json({ success: false, error: 'Erro ao salvar preferências' });
+      }
+    });
+
+    // API para adicionar moeda às preferências do usuário
+    this.app.post('/api/crypto/user/:userId/coins/:coinId', async (req, res) => {
+      try {
+        const { userId, coinId } = req.params;
+        
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+
+        const added = await this.bot.cryptoService.addCoinToUser(userId, coinId);
+        res.json({ 
+          success: true, 
+          added,
+          message: added ? `Moeda ${coinId} adicionada` : `Moeda ${coinId} já estava na lista`
+        });
+      } catch (error) {
+        logger.error('❌ Erro ao adicionar moeda:', error);
+        res.status(500).json({ success: false, error: 'Erro ao adicionar moeda' });
+      }
+    });
+
+    // API para remover moeda das preferências do usuário
+    this.app.delete('/api/crypto/user/:userId/coins/:coinId', async (req, res) => {
+      try {
+        const { userId, coinId } = req.params;
+        
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+
+        const removed = await this.bot.cryptoService.removeCoinFromUser(userId, coinId);
+        res.json({ 
+          success: true, 
+          removed,
+          message: removed ? `Moeda ${coinId} removida` : `Moeda ${coinId} não estava na lista`
+        });
+      } catch (error) {
+        logger.error('❌ Erro ao remover moeda:', error);
+        res.status(500).json({ success: false, error: 'Erro ao remover moeda' });
+      }
+    });
+
+    // API para definir lista de moedas do usuário
+    this.app.put('/api/crypto/user/:userId/coins', async (req, res) => {
+      try {
+        const { userId } = req.params;
+        const { coins } = req.body;
+        
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+
+        if (!Array.isArray(coins)) {
+          return res.status(400).json({ success: false, error: 'Lista de moedas deve ser um array' });
+        }
+
+        const preferences = await this.bot.cryptoService.setUserCoins(userId, coins);
+        res.json({ success: true, data: preferences });
+      } catch (error) {
+        logger.error('❌ Erro ao definir moedas do usuário:', error);
+        res.status(500).json({ success: false, error: 'Erro ao definir moedas' });
+      }
+    });
+
+    // API para obter preços das moedas do usuário
+    this.app.get('/api/crypto/user/:userId/prices', async (req, res) => {
+      try {
+        const { userId } = req.params;
+        
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+
+        const userPrices = await this.bot.cryptoService.getUserCryptoPrices(userId);
+        res.json({ success: true, data: userPrices });
+      } catch (error) {
+        logger.error('❌ Erro ao obter preços do usuário:', error);
+        res.status(500).json({ success: false, error: 'Erro ao obter preços personalizados' });
+      }
+    });
+
+    // API para estatísticas de uso das moedas
+    this.app.get('/api/crypto/stats/usage', async (req, res) => {
+      try {
+        if (!this.bot.cryptoService) {
+          return res.status(503).json({ success: false, error: 'Serviço de crypto não disponível' });
+        }
+
+        const stats = await this.bot.cryptoService.getCoinUsageStats();
+        res.json({ success: true, data: stats });
+      } catch (error) {
+        logger.error('❌ Erro ao obter estatísticas de uso:', error);
+        res.status(500).json({ success: false, error: 'Erro ao obter estatísticas' });
+      }
+    });
+
+    // Setup job queue routes synchronously
+    this.setupJobQueueRoutesSync();
+  }
+
+  // Método auxiliar para gerar dados em tempo real
+  async generateRealtimeData(coins, interval, quantity, res) {
+    try {
+      const results = {};
+      const now = Date.now();
+      const intervalMs = interval === '1s' ? 1000 : 60000; // 1s ou 1m em ms
+      
+      for (const coin of coins) {
+        const prices = [];
+        let basePrice = await this.getRandomBasePrice(coin);
+        
+        for (let i = quantity - 1; i >= 0; i--) {
+          const timestamp = now - (i * intervalMs);
+          // Adicionar volatilidade realística
+          const volatility = 0.001; // 0.1% de variação
+          const change = (Math.random() - 0.5) * volatility;
+          basePrice = basePrice * (1 + change);
+          
+          prices.push([timestamp, basePrice]);
+        }
+        
+        results[coin] = { prices };
+      }
+      
+      res.json({
+        success: true,
+        data: results,
+        source: 'Realtime-Synthetic',
+        interval: interval,
+        quantity: quantity
+      });
+    } catch (error) {
+      logger.error('❌ Erro ao gerar dados em tempo real:', error);
+      res.status(500).json({ success: false, error: 'Erro ao gerar dados em tempo real' });
+    }
+  }
+
+  // Método auxiliar para obter preço base atual real
+  async getRandomBasePrice(coin) {
+    try {
+      // Obter preço atual real do CryptoService
+      const currentPrices = await this.bot.cryptoService.getCurrentPrices();
+      
+      if (currentPrices[coin] && currentPrices[coin].usd) {
+        return currentPrices[coin].usd;
+      }
+      
+      // Fallback para preços aproximados atualizados
+      const fallbackPrices = {
+        bitcoin: 118000,
+        ethereum: 3800,
+        cardano: 0.77,
+        polkadot: 3.8,
+        polygon: 0.9
+      };
+      return fallbackPrices[coin] || 1;
+    } catch (error) {
+      logger.warn(`⚠️ Erro ao obter preço atual para ${coin}, usando fallback:`, error.message);
+      
+      // Fallback para preços aproximados atualizados
+      const fallbackPrices = {
+        bitcoin: 118000,
+        ethereum: 3800,
+        cardano: 0.77,
+        polkadot: 3.8,
+        polygon: 0.9
+      };
+      return fallbackPrices[coin] || 1;
+    }
+  }
+
+  // Método auxiliar para processar dados por intervalo
+  processDataByInterval(historicalData, interval, quantity) {
+    if (!historicalData.length) return [];
+    
+    // Para intervalos longos, fazer amostragem dos dados
+    if (historicalData.length > quantity) {
+      const step = Math.floor(historicalData.length / quantity);
+      const sampled = [];
+      
+      for (let i = 0; i < quantity; i++) {
+        const index = Math.min(i * step, historicalData.length - 1);
+        const item = historicalData[index];
+        sampled.push([
+          new Date(item.timestamp).getTime(),
+          item.prices.usd
+        ]);
+      }
+      
+      return sampled;
+    }
+    
+    // Converter todos os dados disponíveis
+    return historicalData.map(item => [
+      new Date(item.timestamp).getTime(),
+      item.prices.usd
+    ]);
+  }
+
+  // Método auxiliar para mapear intervalos para CoinGecko
+  mapIntervalToCoinGecko(interval) {
+    const mapping = {
+      '1h': 'hourly',
+      '1d': 'daily',
+      '7d': 'daily',
+      '1M': 'daily',
+      '1y': 'daily',
+      '10y': 'daily'
+    };
+    return mapping[interval] || 'daily';
+  }
+
+  setupJobQueueRoutesSync() {
+    try {
+      logger.info('🔧 Setting up job queue routes...');
+      
+      // Job Queue Monitor page
+      this.app.get('/monitorfila', (req, res) => {
+        res.render('job-queue-monitor');
+      });
+
+      // Lazy load job queue monitor when needed
+      const getJobQueueMonitorLazy = async () => {
+        const { getJobQueueMonitor } = await import('../services/jobQueueMonitor.js');
+        return getJobQueueMonitor();
+      };
+
+      // API endpoint para obter estatísticas da fila
+      this.app.get('/api/job-queue/stats', async (req, res) => {
+        try {
+          const jobQueueMonitor = await getJobQueueMonitorLazy();
+          const stats = await jobQueueMonitor.getJobStats();
+          res.json(stats);
+        } catch (error) {
+          logger.error('❌ Erro ao obter estatísticas da fila:', error);
+          res.status(500).json({ success: false, error: 'Erro interno' });
+        }
+      });
+
+      logger.info('✅ Job queue routes successfully set up');
+    } catch (error) {
+      logger.error('❌ Erro ao carregar job queue monitor:', error);
+    }
+
     // Rota catch-all para 404
     this.app.use((req, res) => {
         res.status(404).json({ error: '❌ Rota não encontrada' });
@@ -3517,7 +4178,340 @@ class RestAPI {
     return analysis;
   }
 
-  start() {
+  setupJobQueueRoutesSync() {
+    try {
+      logger.info('🔧 Setting up job queue routes...');
+      
+      // Job Queue Monitor page
+      this.app.get('/monitorfila', (req, res) => {
+        res.render('job-queue-monitor');
+      });
+
+      // Lazy load job queue monitor when needed
+      const getJobQueueMonitorLazy = async () => {
+        const { getJobQueueMonitor } = await import('../services/jobQueueMonitor.js');
+        return getJobQueueMonitor();
+      };
+
+      // API endpoint para obter estatísticas da fila
+      this.app.get('/api/job-queue/stats', async (req, res) => {
+        try {
+          const jobQueueMonitor = await getJobQueueMonitorLazy();
+          const stats = await jobQueueMonitor.getJobStats();
+          res.json(stats);
+        } catch (error) {
+          logger.error('❌ Erro ao obter estatísticas da fila:', error);
+          res.status(500).json({ 
+            error: 'Erro ao obter estatísticas da fila',
+            details: error.message 
+          });
+        }
+      });
+
+      // API endpoint para listar jobs
+      this.app.get('/api/job-queue/jobs', async (req, res) => {
+        try {
+          const jobQueueMonitor = await getJobQueueMonitorLazy();
+          const page = parseInt(req.query.page) || 1;
+          const limit = parseInt(req.query.limit) || 20;
+          const offset = (page - 1) * limit;
+          
+          const filter = {};
+          if (req.query.status) filter.status = req.query.status;
+          if (req.query.type) filter.type = req.query.type;
+
+          const jobs = await jobQueueMonitor.getAllJobs(filter, limit, offset);
+          
+          // Get total count for pagination
+          const totalJobs = await jobQueueMonitor.getAllJobs(filter, 10000, 0);
+          const totalCount = totalJobs.length;
+          const totalPages = Math.ceil(totalCount / limit);
+
+          res.json({
+            jobs,
+            pagination: {
+              currentPage: page,
+              totalPages,
+              totalCount,
+              limit
+            }
+          });
+        } catch (error) {
+          logger.error('❌ Erro ao listar jobs:', error);
+          res.status(500).json({ 
+            error: 'Erro ao listar jobs',
+            details: error.message 
+          });
+        }
+      });
+
+      // API endpoint para obter detalhes de um job específico
+      this.app.get('/api/job-queue/jobs/:jobId', async (req, res) => {
+        try {
+          const jobQueueMonitor = await getJobQueueMonitorLazy();
+          const { jobId } = req.params;
+          const job = await jobQueueMonitor.getJob(jobId);
+          
+          if (!job) {
+            return res.status(404).json({ error: 'Job não encontrado' });
+          }
+
+          res.json(job);
+        } catch (error) {
+          logger.error(`❌ Erro ao obter job ${req.params.jobId}:`, error);
+          res.status(500).json({ 
+            error: 'Erro ao obter detalhes do job',
+            details: error.message 
+          });
+        }
+      });
+
+      // API endpoint para reprocessar um job específico
+      this.app.post('/api/job-queue/jobs/:jobId/retry', async (req, res) => {
+        try {
+          const jobQueueMonitor = await getJobQueueMonitorLazy();
+          const { jobId } = req.params;
+          const job = await jobQueueMonitor.retryJob(jobId);
+          res.json({ success: true, job });
+        } catch (error) {
+          logger.error(`❌ Erro ao reprocessar job ${req.params.jobId}:`, error);
+          res.status(400).json({ 
+            success: false,
+            error: 'Erro ao reprocessar job',
+            message: error.message 
+          });
+        }
+      });
+
+      // API endpoint para deletar um job específico
+      this.app.delete('/api/job-queue/jobs/:jobId', async (req, res) => {
+        try {
+          const jobQueueMonitor = await getJobQueueMonitorLazy();
+          const { jobId } = req.params;
+          await jobQueueMonitor.deleteJob(jobId);
+          res.json({ success: true });
+        } catch (error) {
+          logger.error(`❌ Erro ao deletar job ${req.params.jobId}:`, error);
+          res.status(500).json({ 
+            success: false,
+            error: 'Erro ao deletar job',
+            details: error.message 
+          });
+        }
+      });
+
+      // API endpoint para reprocessar todos os jobs que falharam
+      this.app.post('/api/job-queue/retry-failed', async (req, res) => {
+        try {
+          const jobQueueMonitor = await getJobQueueMonitorLazy();
+          const failedJobs = await jobQueueMonitor.getAllJobs({ status: 'failed' }, 1000, 0);
+          let retriedCount = 0;
+
+          for (const job of failedJobs) {
+            try {
+              if (job.attempts < job.maxAttempts) {
+                await jobQueueMonitor.retryJob(job.jobId);
+                retriedCount++;
+              }
+            } catch (error) {
+              logger.warn(`⚠️ Erro ao reprocessar job ${job.jobId}:`, error.message);
+            }
+          }
+
+          res.json({ success: true, retriedCount });
+        } catch (error) {
+          logger.error('❌ Erro ao reprocessar jobs que falharam:', error);
+          res.status(500).json({ 
+            success: false,
+            error: 'Erro ao reprocessar jobs que falharam',
+            details: error.message 
+          });
+        }
+      });
+
+      // API endpoint para limpar jobs concluídos antigos
+      this.app.post('/api/job-queue/cleanup', async (req, res) => {
+        try {
+          const jobQueueMonitor = await getJobQueueMonitorLazy();
+          const olderThanDays = parseInt(req.query.days) || 7;
+          const cleanupResult = await jobQueueMonitor.cleanup(olderThanDays);
+          
+          const cutoffDate = new Date();
+          cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+          
+          res.json({ 
+            success: true, 
+            deletedCount: cleanupResult.totalCleanedCount,
+            memoryCleanedCount: cleanupResult.memoryCleanedCount,
+            databaseCleanedCount: cleanupResult.databaseCleanedCount,
+            cutoffDate: cutoffDate.toISOString()
+          });
+        } catch (error) {
+          logger.error('❌ Erro ao limpar jobs antigos:', error);
+          res.status(500).json({ 
+            success: false,
+            error: 'Erro ao limpar jobs antigos',
+            details: error.message 
+          });
+        }
+      });
+      
+      logger.info('✅ Job queue routes successfully set up');
+    } catch (error) {
+      logger.error('❌ Erro ao carregar job queue monitor:', error);
+    }
+  }
+
+  async setupJobQueueRoutes() {
+    try {
+      logger.info('🔧 Setting up job queue routes...');
+      // Import job queue monitor
+      const { getJobQueueMonitor } = await import('../services/jobQueueMonitor.js');
+      const jobQueueMonitor = getJobQueueMonitor();
+
+      // Job Queue Monitor page
+      this.app.get('/monitorfila', (req, res) => {
+        res.render('job-queue-monitor');
+      });
+
+      // API endpoint para obter estatísticas da fila
+      this.app.get('/api/job-queue/stats', async (req, res) => {
+        try {
+          const stats = await jobQueueMonitor.getJobStats();
+          res.json(stats);
+        } catch (error) {
+          logger.error('❌ Erro ao obter estatísticas da fila:', error);
+          res.status(500).json({ 
+            error: 'Erro ao obter estatísticas da fila',
+            details: error.message 
+          });
+        }
+      });
+
+      // API endpoint para listar jobs
+      this.app.get('/api/job-queue/jobs', async (req, res) => {
+        try {
+          const page = parseInt(req.query.page) || 1;
+          const limit = parseInt(req.query.limit) || 20;
+          const offset = (page - 1) * limit;
+          
+          const filter = {};
+          if (req.query.status) filter.status = req.query.status;
+          if (req.query.type) filter.type = req.query.type;
+
+          const jobs = await jobQueueMonitor.getAllJobs(filter, limit, offset);
+          
+          // Get total count for pagination
+          const totalJobs = await jobQueueMonitor.getAllJobs(filter, 10000, 0);
+          const totalCount = totalJobs.length;
+          const totalPages = Math.ceil(totalCount / limit);
+
+          res.json({
+            jobs,
+            pagination: {
+              currentPage: page,
+              totalPages,
+              totalCount,
+              limit
+            }
+          });
+        } catch (error) {
+          logger.error('❌ Erro ao listar jobs:', error);
+          res.status(500).json({ 
+            error: 'Erro ao listar jobs',
+            details: error.message 
+          });
+        }
+      });
+
+      // API endpoint para obter detalhes de um job específico
+      this.app.get('/api/job-queue/jobs/:jobId', async (req, res) => {
+        try {
+          const { jobId } = req.params;
+          const job = await jobQueueMonitor.getJob(jobId);
+          
+          if (!job) {
+            return res.status(404).json({ error: 'Job não encontrado' });
+          }
+
+          res.json(job);
+        } catch (error) {
+          logger.error(`❌ Erro ao obter job ${req.params.jobId}:`, error);
+          res.status(500).json({ 
+            error: 'Erro ao obter detalhes do job',
+            details: error.message 
+          });
+        }
+      });
+
+      // API endpoint para reprocessar um job específico
+      this.app.post('/api/job-queue/jobs/:jobId/retry', async (req, res) => {
+        try {
+          const { jobId } = req.params;
+          const job = await jobQueueMonitor.retryJob(jobId);
+          res.json({ success: true, job });
+        } catch (error) {
+          logger.error(`❌ Erro ao reprocessar job ${req.params.jobId}:`, error);
+          res.status(400).json({ 
+            success: false,
+            error: 'Erro ao reprocessar job',
+            message: error.message 
+          });
+        }
+      });
+
+      // API endpoint para deletar um job específico
+      this.app.delete('/api/job-queue/jobs/:jobId', async (req, res) => {
+        try {
+          const { jobId } = req.params;
+          await jobQueueMonitor.deleteJob(jobId);
+          res.json({ success: true });
+        } catch (error) {
+          logger.error(`❌ Erro ao deletar job ${req.params.jobId}:`, error);
+          res.status(500).json({ 
+            success: false,
+            error: 'Erro ao deletar job',
+            details: error.message 
+          });
+        }
+      });
+
+      // API endpoint para reprocessar todos os jobs que falharam
+      this.app.post('/api/job-queue/retry-failed', async (req, res) => {
+        try {
+          const failedJobs = await jobQueueMonitor.getAllJobs({ status: 'failed' }, 1000, 0);
+          let retriedCount = 0;
+
+          for (const job of failedJobs) {
+            try {
+              if (job.attempts < job.maxAttempts) {
+                await jobQueueMonitor.retryJob(job.jobId);
+                retriedCount++;
+              }
+            } catch (error) {
+              logger.warn(`⚠️ Erro ao reprocessar job ${job.jobId}:`, error.message);
+            }
+          }
+
+          res.json({ success: true, retriedCount });
+        } catch (error) {
+          logger.error('❌ Erro ao reprocessar jobs que falharam:', error);
+          res.status(500).json({ 
+            success: false,
+            error: 'Erro ao reprocessar jobs que falharam',
+            details: error.message 
+          });
+        }
+      });
+
+      
+      logger.info('✅ Job queue routes successfully set up');
+    } catch (error) {
+      logger.error('❌ Erro ao carregar job queue monitor:', error);
+    }
+  }
+
+  async start() {
     this.app.listen(CONFIG.server.port, () => {
       logger.startup(`🌐 API REST iniciada e ouvindo na porta ${CONFIG.server.port}`);
       logger.info(`📊 Interface disponível em http://localhost:${CONFIG.server.port}/`);

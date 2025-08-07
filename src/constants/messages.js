@@ -181,15 +181,18 @@ Qual método você prefere?
 
   crypto: `₿ *Monitoramento de Criptomoedas*
 
-9.1 📊 Ver cotações atuais (Bitcoin/Ethereum)
+9.1 📊 Ver cotações atuais
 9.2 🔔 Ativar alertas de variação
 9.3 🔕 Desativar alertas de variação
 9.4 📈 Status do monitoramento
 9.5 ⚙️ Configurar parâmetros de oscilação
+9.6 🎯 Suas preferências de moedas
+9.7 📋 Listar top 20 criptomoedas
+9.8 ✅ Selecionar moedas favoritas
 
 0️⃣ Voltar ao Menu Principal
 
-💰 _Acompanhe Bitcoin e Ethereum em tempo real com alertas automáticos personalizáveis._`
+💰 _Acompanhe suas criptomoedas favoritas em tempo real com alertas automáticos personalizáveis._`
 };
 
 /**

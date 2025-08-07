@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Preferências de Criptomoedas - SecreBot</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      text-align: center;
+      color: white;
+      margin-bottom: 30px;
+    }
+    
+    .preferences-card {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 15px;
+      padding: 30px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      margin-bottom: 20px;
+    }
+    
+    .user-id-input {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 15px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+    
+    .coin-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+    
+    .coin-card {
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 15px;
+      background: #f8fafc;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    
+    .coin-card:hover {
+      border-color: #667eea;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    }
+    
+    .coin-card.selected {
+      border-color: #48bb78;
+      background: #f0fff4;
+      box-shadow: 0 4px 12px rgba(72, 187, 120, 0.2);
+    }
+    
+    .coin-card .checkbox {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 20px;
+      height: 20px;
+    }
+    
+    .coin-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .coin-symbol {
+      background: #667eea;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-right: 10px;
+    }
+    
+    .coin-name {
+      font-weight: 600;
+      color: #2d3748;
+    }
+    
+    .coin-category {
+      background: #e2e8f0;
+      color: #4a5568;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      margin-top: 8px;
+      display: inline-block;
+    }
+    
+    .coin-rank {
+      color: #718096;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    
+    .btn-save {
+      background: #48bb78;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 30px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin: 10px 5px;
+    }
+    
+    .btn-save:hover {
+      background: #38a169;
+      transform: translateY(-2px);
+    }
+    
+    .btn-load {
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 30px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin: 10px 5px;
+    }
+    
+    .btn-load:hover {
+      background: #5a67d8;
+      transform: translateY(-2px);
+    }
+    
+    .selected-count {
+      background: #48bb78;
+      color: white;
+      padding: 8px 15px;
+      border-radius: 20px;
+      font-weight: 600;
+      margin-left: 15px;
+    }
+    
+    .alert {
+      border-radius: 10px;
+      margin: 15px 0;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #667eea;
+    }
+    
+    .category-filter {
+      margin-bottom: 20px;
+    }
+    
+    .category-btn {
+      background: #e2e8f0;
+      color: #4a5568;
+      border: none;
+      border-radius: 20px;
+      padding: 8px 16px;
+      margin: 5px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .category-btn.active {
+      background: #667eea;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1><i class="fas fa-cog"></i> Preferências de Criptomoedas</h1>
+      <p>Escolha as moedas que deseja acompanhar</p>
+    </div>
+    
+    <!-- Input para ID do usuário -->
+    <div class="user-id-input">
+      <div class="row align-items-center">
+        <div class="col-md-6">
+          <label for="userId" class="form-label"><strong>ID do Usuário (WhatsApp ou Email):</strong></label>
+          <input type="text" class="form-control" id="userId" placeholder="Ex: 5511987654321@c.us ou user@email.com">
+        </div>
+        <div class="col-md-6">
+          <button class="btn-load" onclick="loadUserPreferences()">
+            <i class="fas fa-download"></i> Carregar Preferências
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Card de preferências -->
+    <div class="preferences-card">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h3>
+            <i class="fas fa-coins"></i> Top 20 Criptomoedas Mais Atrativas
+            <span class="selected-count" id="selected-count">0 selecionadas</span>
+          </h3>
+        </div>
+        <div>
+          <button class="btn-save" onclick="saveUserPreferences()">
+            <i class="fas fa-save"></i> Salvar Preferências
+          </button>
+        </div>
+      </div>
+      
+      <!-- Filtros por categoria -->
+      <div class="category-filter">
+        <strong>Filtrar por categoria:</strong><br>
+        <button class="category-btn active" onclick="filterByCategory('all')">Todas</button>
+        <button class="category-btn" onclick="filterByCategory('Smart Contracts')">Smart Contracts</button>
+        <button class="category-btn" onclick="filterByCategory('Payments')">Pagamentos</button>
+        <button class="category-btn" onclick="filterByCategory('DeFi')">DeFi</button>
+        <button class="category-btn" onclick="filterByCategory('Meme')">Meme</button>
+        <button class="category-btn" onclick="filterByCategory('Stablecoin')">Stablecoin</button>
+      </div>
+      
+      <div id="loading" class="loading" style="display: none;">
+        <i class="fas fa-spinner fa-spin"></i> Carregando criptomoedas...
+      </div>
+      
+      <div id="alert-container"></div>
+      
+      <div class="coin-grid" id="coin-grid">
+        <!-- Moedas serão carregadas aqui -->
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let top20Cryptos = [];
+    let selectedCoins = [];
+    let currentUserId = '';
+    
+    async function loadTop20Cryptos() {
+      try {
+        document.getElementById('loading').style.display = 'block';
+        
+        const response = await fetch('/api/crypto/top20');
+        const result = await response.json();
+        
+        if (result.success) {
+          top20Cryptos = result.data;
+          renderCoinGrid();
+          updateSelectedCount();
+        } else {
+          showAlert('error', 'Erro ao carregar lista de criptomoedas: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Erro:', error);
+        showAlert('error', 'Erro ao carregar criptomoedas');
+      } finally {
+        document.getElementById('loading').style.display = 'none';
+      }
+    }
+    
+    function renderCoinGrid(filteredCoins = null) {
+      const grid = document.getElementById('coin-grid');
+      const coinsToRender = filteredCoins || top20Cryptos;
+      
+      grid.innerHTML = '';
+      
+      coinsToRender.forEach(coin => {
+        const isSelected = selectedCoins.includes(coin.id);
+        
+        const coinCard = document.createElement('div');
+        coinCard.className = `coin-card ${isSelected ? 'selected' : ''}`;
+        coinCard.onclick = () => toggleCoin(coin.id);
+        
+        coinCard.innerHTML = `
+          <input type="checkbox" class="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation()">
+          <div class="coin-header">
+            <div class="coin-symbol">${coin.symbol}</div>
+            <div class="coin-name">${coin.name}</div>
+          </div>
+          <div class="coin-rank">Rank #${coin.rank}</div>
+          <div class="coin-category">${coin.category}</div>
+        `;
+        
+        grid.appendChild(coinCard);
+      });
+    }
+    
+    function toggleCoin(coinId) {
+      const index = selectedCoins.indexOf(coinId);
+      if (index > -1) {
+        selectedCoins.splice(index, 1);
+      } else {
+        selectedCoins.push(coinId);
+      }
+      
+      renderCoinGrid();
+      updateSelectedCount();
+    }
+    
+    function updateSelectedCount() {
+      document.getElementById('selected-count').textContent = `${selectedCoins.length} selecionadas`;
+    }
+    
+    function filterByCategory(category) {
+      // Atualizar botões ativos
+      document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+      
+      if (category === 'all') {
+        renderCoinGrid();
+      } else {
+        const filtered = top20Cryptos.filter(coin => coin.category === category);
+        renderCoinGrid(filtered);
+      }
+    }
+    
+    async function loadUserPreferences() {
+      const userId = document.getElementById('userId').value.trim();
+      if (!userId) {
+        showAlert('warning', 'Por favor, digite um ID de usuário');
+        return;
+      }
+      
+      currentUserId = userId;
+      
+      try {
+        const response = await fetch(`/api/crypto/user/${encodeURIComponent(userId)}/preferences`);
+        const result = await response.json();
+        
+        if (result.success) {
+          selectedCoins = result.data.coins || [];
+          renderCoinGrid();
+          updateSelectedCount();
+          showAlert('success', `Preferências carregadas para ${userId}. ${selectedCoins.length} moedas selecionadas.`);
+        } else {
+          showAlert('error', 'Erro ao carregar preferências: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Erro:', error);
+        showAlert('error', 'Erro ao carregar preferências do usuário');
+      }
+    }
+    
+    async function saveUserPreferences() {
+      const userId = document.getElementById('userId').value.trim();
+      if (!userId) {
+        showAlert('warning', 'Por favor, digite um ID de usuário');
+        return;
+      }
+      
+      if (selectedCoins.length === 0) {
+        showAlert('warning', 'Selecione pelo menos uma criptomoeda');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/crypto/user/${encodeURIComponent(userId)}/coins`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            coins: selectedCoins
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showAlert('success', `Preferências salvas com sucesso! ${selectedCoins.length} moedas selecionadas para ${userId}.`);
+          currentUserId = userId;
+        } else {
+          showAlert('error', 'Erro ao salvar preferências: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Erro:', error);
+        showAlert('error', 'Erro ao salvar preferências');
+      }
+    }
+    
+    function showAlert(type, message) {
+      const alertContainer = document.getElementById('alert-container');
+      const alertClass = type === 'success' ? 'alert-success' : 
+                        type === 'warning' ? 'alert-warning' : 'alert-danger';
+      
+      const alertIcon = type === 'success' ? 'fa-check-circle' : 
+                       type === 'warning' ? 'fa-exclamation-triangle' : 'fa-times-circle';
+      
+      alertContainer.innerHTML = `
+        <div class="alert ${alertClass}" role="alert">
+          <i class="fas ${alertIcon} me-2"></i>
+          ${message}
+        </div>
+      `;
+      
+      // Auto-remove após 5 segundos
+      setTimeout(() => {
+        alertContainer.innerHTML = '';
+      }, 5000);
+    }
+    
+    // Carregar dados ao inicializar
+    document.addEventListener('DOMContentLoaded', () => {
+      loadTop20Cryptos();
+    });
+  </script>
+</body>
+</html>

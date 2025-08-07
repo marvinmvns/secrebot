@@ -132,6 +132,25 @@ class LLMService {
 
   async chat(contactId, text, type, systemPrompt, maxRetries = this.timeoutLevels.length) {
     const startTime = Date.now();
+    
+    // Register job in monitor (passive monitoring)
+    let jobId = null;
+    try {
+      const { getJobInterceptor } = await import('./jobInterceptor.js');
+      const interceptor = getJobInterceptor();
+      jobId = await interceptor.registerJobStart('ollama-completion', {
+        contactId,
+        text: text.substring(0, 200) + (text.length > 200 ? '...' : ''), // Truncated for storage
+        type,
+        systemPrompt: systemPrompt.substring(0, 100) + '...'
+      }, {
+        priority: 'medium',
+        timeout: 1200000 // 20 minutes
+      });
+    } catch (error) {
+      logger.debug('Job interceptor not available, continuing without monitoring');
+    }
+    
     const context = await this.getContext(contactId, type);
     context.push({ role: 'user', content: text });
     
@@ -195,6 +214,25 @@ class LLMService {
           );
         }
         
+        // Register job success (passive monitoring)
+        if (jobId) {
+          try {
+            const { getJobInterceptor } = await import('./jobInterceptor.js');
+            const interceptor = getJobInterceptor();
+            await interceptor.registerJobSuccess(jobId, {
+              response: content,
+              model,
+              endpoint,
+              duration,
+              inputTokens,
+              outputTokens,
+              attempt: attempt + 1
+            });
+          } catch (error) {
+            logger.debug('Failed to register job success, continuing normally');
+          }
+        }
+        
         return content;
       } catch (err) {
         const isTimeout = err.code === 'UND_ERR_HEADERS_TIMEOUT' || err.name === 'TimeoutError' || err.message?.includes('timeout');
@@ -224,6 +262,17 @@ class LLMService {
               0 // No output tokens on failure
             );
             this.metricsService.recordError('llm_request_final_failure', 'llm_service', contactId);
+          }
+          
+          // Register job failure (passive monitoring)
+          if (jobId) {
+            try {
+              const { getJobInterceptor } = await import('./jobInterceptor.js');
+              const interceptor = getJobInterceptor();
+              await interceptor.registerJobFailure(jobId, lastError, endpoint);
+            } catch (interceptorError) {
+              logger.debug('Failed to register job failure, continuing normally');
+            }
           }
           
           // Remove the failed user message from context on final failure
@@ -505,7 +554,9 @@ ${structuredText}`;
       
       if (useApiPool) {
         logger.debug('🔄 Usando Ollama API Pool para geração de resposta');
-        response = await this.ollamaApiPool.chat(requestParams);
+        const apiResult = await this.ollamaApiPool.chatWithLoadBalancing(requestParams);
+        // Handle endpoint info from pool
+        response = apiResult.result || apiResult;
       } else {
         logger.debug('🔄 Usando Ollama local para geração de resposta');
         response = await this.ollama.chat(requestParams);
@@ -745,10 +796,13 @@ ${structuredText}`;
       if (await this.shouldUseApiPool()) {
         logger.debug('📡 Usando OllamaAPI pool');
         try {
-          const response = await this.ollamaApiPool.chat({
+          const apiResult = await this.ollamaApiPool.chatWithLoadBalancing({
             model,
             messages: [{ role: 'user', content: prompt }]
           });
+          
+          // Handle endpoint info from pool
+          const response = apiResult.result || apiResult;
           
           // Record metrics for API pool success
           const duration = (Date.now() - startTime) / 1000;
@@ -835,7 +889,9 @@ ${structuredText}`;
       
       if (useApiPool) {
         logger.debug('🔄 Usando Ollama API Pool para geração de texto');
-        response = await this.ollamaApiPool.chat(requestParams);
+        const apiResult = await this.ollamaApiPool.chatWithLoadBalancing(requestParams);
+        // Handle endpoint info from pool
+        response = apiResult.result || apiResult;
         return response.message.content;
       } else {
         logger.debug('🔄 Usando Ollama local para geração de texto');

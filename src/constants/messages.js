@@ -198,6 +198,7 @@ Qual método você prefere?
 
 *ANÁLISE AVANÇADA COM IA*
 9.16 🤖 Análise IA e recomendação (COMPRAR/VENDER/SEGURAR)
+9.17 🎯 Trading automático: análise de todas suas moedas
 
 *FERRAMENTAS DE TESTE*
 9.13 🔧 Debug: Status detalhado

@@ -120,12 +120,12 @@ export class ApplicationFactory {
     return whisperSilentService;
   }
 
-  createCryptoService() {
+  createCryptoService(llmService) {
     if (this.services.has('cryptoService')) {
       return this.services.get('cryptoService');
     }
 
-    const cryptoService = new CryptoService();
+    const cryptoService = new CryptoService(llmService);
     this.services.set('cryptoService', cryptoService);
     logger.info('Crypto service initialized');
     return cryptoService;
@@ -323,7 +323,7 @@ export class ApplicationFactory {
       const transcriber = this.createAudioTranscriber(configService, llmService);
       const ttsService = this.createTtsService();
       const whisperSilentService = this.createWhisperSilentService();
-      const cryptoService = this.createCryptoService();
+      const cryptoService = this.createCryptoService(llmService);
       const cryptoMLService = this.createCryptoMLService(cryptoService);
       
       // Configure YouTubeService to use the parametrized transcriber

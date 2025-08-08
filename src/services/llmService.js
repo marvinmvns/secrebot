@@ -31,6 +31,107 @@ class LLMService {
     ];
   }
 
+  validateResponseStructure(response, apiType = 'auto') {
+    if (!response) {
+      logger.error(`❌ Response validation: Response is null or undefined`);
+      throw new Error('Response is null or undefined');
+    }
+
+    // Safe logging without circular references
+    this.debugResponseStructure(response, apiType);
+
+    // Auto-detect format and convert if needed
+    return this.validateAndConvertResponse(response);
+  }
+
+  validateAndConvertResponse(response) {
+    logger.debug('🔧 Auto-detecting response format...');
+
+    // Check if already in expected format (message.content exists)
+    if (response.message && response.message.content !== undefined) {
+      logger.debug('✅ Response already in expected format');
+      return;
+    }
+
+    // Try OpenAI API format (ChatGPT)
+    if (response.choices && response.choices[0] && response.choices[0].message && response.choices[0].message.content !== undefined) {
+      logger.info('🔄 Converting from OpenAI API format (ChatGPT)');
+      response.message = response.choices[0].message;
+      return;
+    }
+
+    // Try Ollama generate format
+    if (response.response !== undefined) {
+      logger.info('🔄 Converting from Ollama generate format');
+      response.message = {
+        role: 'assistant',
+        content: response.response
+      };
+      return;
+    }
+
+    // Try RKLlama text format
+    if (response.text !== undefined) {
+      logger.info('🔄 Converting from RKLlama text format');
+      response.message = {
+        role: 'assistant',
+        content: response.text
+      };
+      return;
+    }
+
+    // Try result wrapper (from API pool)
+    if (response.result && response.result.message) {
+      logger.info('🔄 Extracting from result wrapper');
+      response.message = response.result.message;
+      return;
+    }
+
+    // If we get here, we couldn't find valid content
+    logger.error('❌ Could not find valid content in response');
+    this.debugMessageStructure(response.message || {}, 'unknown');
+    throw new Error('Response missing valid message structure');
+  }
+
+
+  debugResponseStructure(response, apiType = 'unknown') {
+    try {
+      // Create a safe object for logging (avoiding circular references)
+      const safeResponse = {
+        apiType: apiType,
+        hasMessage: !!response.message,
+        hasChoices: !!response.choices,
+        hasResponse: !!response.response,
+        hasResult: !!response.result,
+        hasText: !!response.text,
+        messageKeys: response.message ? Object.keys(response.message) : [],
+        topLevelKeys: Object.keys(response),
+        messageContent: response.message?.content ? '[CONTENT PRESENT]' : '[NO CONTENT]',
+        messageRole: response.message?.role || '[NO ROLE]'
+      };
+      logger.debug(`🔍 ${apiType} Response structure (safe):`, JSON.stringify(safeResponse, null, 2));
+    } catch (error) {
+      logger.debug(`🔍 ${apiType} Response structure: [Object - too complex to stringify]`);
+    }
+  }
+
+  debugMessageStructure(message, apiType = 'unknown') {
+    try {
+      const safeMessage = {
+        apiType: apiType,
+        hasContent: !!message?.content,
+        hasRole: !!message?.role,
+        contentType: typeof message?.content,
+        contentLength: message?.content?.length || 0,
+        keys: message ? Object.keys(message) : []
+      };
+      logger.debug(`🔍 ${apiType} Message structure (safe):`, JSON.stringify(safeMessage, null, 2));
+    } catch (error) {
+      logger.debug(`🔍 ${apiType} Message structure: [Object - too complex to stringify]`);
+    }
+  }
+
+
   initializeOllama() {
     this.ollama = new Ollama({ host: CONFIG.llm.host });
     logger.info(`Ollama client initialized with host: ${CONFIG.llm.host}`);
@@ -178,6 +279,9 @@ class LLMService {
           }, timeoutMs)
         );
         
+        // Validate response structure (generic validation works for all types)
+        this.validateResponseStructure(response);
+        
         // Usa o método estático de Utils para extrair JSON
         const content = type === CHAT_MODES.AGENDABOT 
           ? Utils.extractJSON(response.message.content)
@@ -298,41 +402,50 @@ class LLMService {
       try {
         const useApiPool = await this.shouldUseApiPool();
         let response;
+        let lastError = null;
         
         if (useApiPool) {
           logger.debug('🔄 Usando Ollama API Pool para chat');
-          response = await this.ollamaApiPool.chat({
-            ...requestParams,
-            stream: false
-          });
-        } else {
-          logger.debug('🔄 Usando Ollama local para chat');
-          response = await this.ollama.chat(requestParams);
-        }
-        
-        clearTimeout(timeout);
-        resolve(response);
-      } catch (error) {
-        clearTimeout(timeout);
-        
-        // Se falhou com API Pool, sempre tenta fallback para local
-        const usedApiPool = await this.shouldUseApiPool();
-        if (usedApiPool) {
           try {
-            logger.warn('⚠️ Todos os endpoints API falharam, tentando Ollama local como fallback...');
-            const response = await this.ollama.chat(requestParams);
-            logger.success('✅ Fallback para Ollama local bem-sucedido');
+            // Primeiro tenta com o pool de APIs (múltiplos endpoints)
+            response = await this.ollamaApiPool.chat({
+              ...requestParams,
+              stream: false
+            });
+            
+            // Se conseguiu resposta do pool, valida e retorna
+            clearTimeout(timeout);
             resolve(response);
             return;
-          } catch (fallbackError) {
-            logger.error('❌ Fallback para Ollama local também falhou:', fallbackError.message);
-            // Use the more informative error message
-            const combinedError = new Error(`API pool failed: ${error.message}. Local fallback failed: ${fallbackError.message}`);
-            reject(combinedError);
-            return;
+          } catch (apiPoolError) {
+            lastError = apiPoolError;
+            logger.warn('⚠️ API Pool falhou, tentando fallback para Ollama local...', apiPoolError.message);
+            
+            // Fallback para Ollama local
+            try {
+              response = await this.ollama.chat(requestParams);
+              logger.success('✅ Fallback para Ollama local bem-sucedido');
+              clearTimeout(timeout);
+              resolve(response);
+              return;
+            } catch (localError) {
+              logger.error('❌ Ollama local também falhou:', localError.message);
+              clearTimeout(timeout);
+              const combinedError = new Error(`API pool failed: ${apiPoolError.message}. Local fallback failed: ${localError.message}`);
+              reject(combinedError);
+              return;
+            }
           }
+        } else {
+          // Se não tem pool ativo, usa direto o Ollama local
+          logger.debug('🔄 Usando Ollama local para chat');
+          response = await this.ollama.chat(requestParams);
+          clearTimeout(timeout);
+          resolve(response);
         }
         
+      } catch (error) {
+        clearTimeout(timeout);
         reject(error);
       }
     });
@@ -375,6 +488,7 @@ class LLMService {
         messages: messages
       });
       
+      this.validateResponseStructure(response);
       const content = response.message.content;
       context.push({ role: 'assistant', content });
       
@@ -412,6 +526,7 @@ class LLMService {
         messages: messages
       });
       
+      this.validateResponseStructure(response);
       const content = response.message.content;
       context.push({ role: 'assistant', content });
       
@@ -562,6 +677,7 @@ ${structuredText}`;
         response = await this.ollama.chat(requestParams);
       }
       
+      this.validateResponseStructure(response);
       return response.message.content;
     } catch (error) {
       // Fallback para local se a API falhar
@@ -576,6 +692,7 @@ ${structuredText}`;
               temperature: temperature
             }
           });
+          this.validateResponseStructure(response);
           logger.success('✅ Fallback para Ollama local bem-sucedido na geração de resposta');
           return response.message.content;
         } catch (fallbackError) {
@@ -615,6 +732,7 @@ ${structuredText}`;
         response = await this.ollama.chat(requestParams);
       }
       
+      this.validateResponseStructure(response);
       return response.message.content;
     } catch (error) {
       // Fallback para local se a API falhar
@@ -631,6 +749,7 @@ ${structuredText}`;
               images: [imagePath]
             }]
           });
+          this.validateResponseStructure(response);
           logger.success('✅ Fallback para Ollama local bem-sucedido na análise de imagem');
           return response.message.content;
         } catch (fallbackError) {
@@ -892,10 +1011,12 @@ ${structuredText}`;
         const apiResult = await this.ollamaApiPool.chatWithLoadBalancing(requestParams);
         // Handle endpoint info from pool
         response = apiResult.result || apiResult;
+        this.validateResponseStructure(response);
         return response.message.content;
       } else {
         logger.debug('🔄 Usando Ollama local para geração de texto');
         response = await this.ollama.chat(requestParams);
+        this.validateResponseStructure(response);
         return response.message.content;
       }
     } catch (error) {
@@ -911,6 +1032,7 @@ ${structuredText}`;
               temperature: temperature
             }
           });
+          this.validateResponseStructure(response);
           logger.success('✅ Fallback para Ollama local bem-sucedido na geração de texto');
           return response.message.content;
         } catch (fallbackError) {

@@ -4,7 +4,7 @@
  * Script de teste para verificar se os alertas de crypto estão funcionando
  */
 
-import CryptoService from './src/services/cryptoService.js';
+import CryptoService from '../src/services/cryptoService.js';
 
 async function testCryptoAlerts() {
   console.log('🧪 Iniciando teste de alertas crypto...\n');

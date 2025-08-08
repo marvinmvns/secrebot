@@ -40,6 +40,7 @@ export const COMMANDS = {
   CRYPTO_ML_TRAIN: '!cryptoml',
   CRYPTO_ML_PREDICT: '!cryptopredict',
   CRYPTO_ML_STATUS: '!cryptomlstatus',
+  CRYPTO_AUTO_TRADING: '!cryptoauto',
   TTS_CONFIG: '!tts'
 };
 
@@ -128,6 +129,7 @@ export const NUMERIC_SHORTCUTS = {
   '9.7': COMMANDS.CRYPTO_LIST_COINS,
   '9.8': COMMANDS.CRYPTO_SELECT_COINS,
   '9.9': 'submenu_crypto_ml',
+  '9.17': COMMANDS.CRYPTO_AUTO_TRADING,
   
   // Machine Learning para Crypto
   '9.9.1': COMMANDS.CRYPTO_ML_TRAIN,

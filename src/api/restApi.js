@@ -817,7 +817,7 @@ class RestAPI {
         } catch (error) {
           logger.error('❌ Erro na análise de imagem via LLMService:', error);
           // Fallback to direct Ollama call
-          resp = await this.bot.llmService.ollama.generate({ model: CONFIG.llm.imageModel, prompt, images: [imagePath], stream: false });
+          resp = { response: await this.bot.llmService.generateImageAnalysis(prompt, imagePath) };
         }
         const desc = resp.response.trim();
         if (mode !== 'calories') return desc;
@@ -2407,10 +2407,10 @@ class RestAPI {
     // API endpoint para listar modelos ChatGPT/OpenAI
     this.app.post('/api/chatgpt/models', async (req, res) => {
       try {
-        const { url } = req.body;
-        let apikey = process.env.OPENAI_API_KEY;
+        const { url, apikey: requestApiKey } = req.body;
+        let apikey = requestApiKey || process.env.OPENAI_API_KEY;
         
-        // Buscar API key do MongoDB se não estiver nas env vars
+        // Buscar API key do MongoDB se não estiver nas env vars e nem na requisição
         if (!apikey && this.configService) {
           try {
             const mongoConfig = await this.configService.getConfig();
@@ -2435,7 +2435,7 @@ class RestAPI {
         if (!apikey) {
           return res.status(400).json({ 
             success: false,
-            error: 'API Key da OpenAI não configurada (verifique configurações)' 
+            error: 'API Key da OpenAI não configurada (verifique configurações ou forneça na requisição)' 
           });
         }
 

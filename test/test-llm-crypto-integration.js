@@ -4,7 +4,7 @@
  * Test script para verificar a integração LLM de análise crypto
  */
 
-import CryptoService from './src/services/cryptoService.js';
+import CryptoService from '../src/services/cryptoService.js';
 
 async function testLLMIntegration() {
   console.log('🧪 Testando integração LLM para análise crypto...\n');

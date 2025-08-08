@@ -11,6 +11,7 @@ class OllamaAPIPool {
     this.lastHealthCheck = 0;
     this.healthCheckInterval = null;
     this.requestCount = 0; // Para tracking de balanceamento
+    this.imageSupportCache = {}; // Cache para resultados de suporte a imagens
     this.initialize();
   }
 
@@ -388,8 +389,126 @@ class OllamaAPIPool {
   async generate(options = {}) {
     logger.service('🤖 Iniciando geração via Ollama API...');
     
+    // Verificar se é uma requisição com imagem e se o modelo suporta
+    if (options.images && options.images.length > 0) {
+      const supportedEndpoint = await this.findImageCapableEndpoint(options.model);
+      if (supportedEndpoint) {
+        logger.info(`📸 Usando endpoint com suporte a imagens: ${supportedEndpoint.baseURL}`);
+        return await this.generateWithSpecificClient(supportedEndpoint, options);
+      } else {
+        logger.warn('⚠️ Nenhum endpoint encontrado com suporte a análise de imagens');
+        // Continue com o balanceamento normal, pode ser que funcione
+      }
+    }
+    
     // Use balanceamento adequado baseado na estratégia configurada
     return await this.generateWithLoadBalancing(options);
+  }
+
+  /**
+   * Encontra um endpoint capaz de processar imagens
+   */
+  async findImageCapableEndpoint(model) {
+    const healthyClients = this.getHealthyClients();
+    
+    for (const client of healthyClients) {
+      try {
+        // Testar rapidamente se o endpoint suporta análise de imagem
+        const testSupport = await this.testImageSupport(client, model);
+        if (testSupport) {
+          logger.info(`✅ Endpoint ${client.baseURL} suporta análise de imagens com modelo ${model}`);
+          return client;
+        }
+      } catch (error) {
+        logger.debug(`❌ Endpoint ${client.baseURL} não suporta análise de imagens: ${error.message}`);
+        continue;
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Testa se um cliente/modelo suporta análise de imagem
+   */
+  async testImageSupport(client, model) {
+    // Cache do resultado para evitar testes repetidos
+    const clientId = client.baseURL || client.config?.host || 'unknown';
+    const cacheKey = `${clientId}_${model}_image_support`;
+    
+    if (this.imageSupportCache && this.imageSupportCache[cacheKey] !== undefined) {
+      return this.imageSupportCache[cacheKey];
+    }
+
+    try {
+      // Criar um pequeno teste com uma imagem vazia (base64 de 1x1 pixel)
+      const testImage = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+      
+      const testOptions = {
+        model: model,
+        prompt: 'What do you see?',
+        images: [testImage],
+        stream: false
+      };
+
+      // Fazer uma requisição rápida com timeout baixo
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Test timeout')), 3000)
+      );
+
+      const testPromise = client.generate(testOptions);
+      await Promise.race([testPromise, timeoutPromise]);
+      
+      // Se chegou aqui, o endpoint suporta imagens
+      if (!this.imageSupportCache) this.imageSupportCache = {};
+      this.imageSupportCache[cacheKey] = true;
+      
+      return true;
+    } catch (error) {
+      // Se falhou, endpoint não suporta imagens ou modelo não existe
+      if (!this.imageSupportCache) this.imageSupportCache = {};
+      this.imageSupportCache[cacheKey] = false;
+      
+      return false;
+    }
+  }
+
+  /**
+   * Gera usando um cliente específico
+   */
+  async generateWithSpecificClient(client, options) {
+    const startTime = Date.now();
+    
+    try {
+      let result;
+      const endpointType = this.getEndpointType(client.endpoint);
+      
+      if (endpointType === 'chatgpt') {
+        const prompt = options.prompt || '';
+        const generateOptions = { ...options };
+        delete generateOptions.prompt;
+        result = await client.generate(prompt, generateOptions);
+      } else {
+        result = await client.generate(options);
+      }
+      
+      const duration = Date.now() - startTime;
+      logger.success(`✅ Geração com imagem bem-sucedida via ${client.baseURL} em ${duration}ms`);
+      return result;
+      
+    } catch (error) {
+      client.retryCount++;
+      const duration = Date.now() - startTime;
+      logger.error(`❌ Falha na geração com imagem via ${client.baseURL} após ${duration}ms: ${error.message}`);
+      
+      // Marcar cache como falso para este endpoint/modelo
+      const cacheKey = `${client.baseURL}_${options.model}_image_support`;
+      if (this.imageSupportCache) {
+        this.imageSupportCache[cacheKey] = false;
+      }
+      
+      throw error;
+    }
   }
 
   async generateWithLoadBalancing(options = {}) {

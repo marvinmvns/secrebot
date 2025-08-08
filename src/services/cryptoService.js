@@ -8,7 +8,8 @@ import logger from '../utils/logger.js';
  * Integra com APIs gratuitas para obter cotações de Bitcoin e Ethereum
  */
 class CryptoService {
-  constructor() {
+  constructor(llmService) {
+    this.llmService = llmService;
     // Histórico de preços para tracking de variações
     this.priceHistory = new Map(); // {coin: [{price, timestamp}]}
     this.activeMonitoring = new Map(); // {userId: {active, coins, threshold}}
@@ -20,6 +21,11 @@ class CryptoService {
     this.db = null;
     this.collection = null;
     this.isConnected = false;
+    
+    // Initialize MongoDB connection asynchronously
+    this.initializeMongoDB().catch(error => {
+      logger.error('Failed to initialize CryptoService MongoDB during construction:', error.message);
+    });
     
     // URLs das APIs para fallbacks múltiplos (20+ fontes)
     this.apiUrls = {
@@ -111,6 +117,86 @@ class CryptoService {
     // Preferências de usuários (cache em memória + MongoDB)
     this.userPreferences = new Map(); // {userId: {coins: [], settings: {}}}
     this.userPrefsCollection = null;
+  }
+
+  /**
+   * Inicializa conexão MongoDB para persistência de configurações
+   */
+  async initializeMongoDB() {
+    try {
+      this.client = new MongoClient(CONFIG.mongo.uri);
+      await this.client.connect();
+      this.db = this.client.db(CONFIG.mongo.database);
+      this.collection = this.db.collection('crypto_monitoring');
+      this.userPrefsCollection = this.db.collection('crypto_user_prefs');
+      this.isConnected = true;
+      
+      logger.info('✅ CryptoService MongoDB connection established');
+      
+      // Load existing monitoring configurations
+      await this.loadMonitoringConfigs();
+      
+    } catch (error) {
+      logger.error('❌ Failed to initialize CryptoService MongoDB:', error.message);
+      this.isConnected = false;
+    }
+  }
+
+  /**
+   * Carrega configurações de monitoramento do MongoDB
+   */
+  async loadMonitoringConfigs() {
+    if (!this.isConnected) return;
+
+    try {
+      const configs = await this.collection.find({ active: true }).toArray();
+      
+      for (const config of configs) {
+        const { userId, ...monitoringConfig } = config;
+        this.activeMonitoring.set(userId, monitoringConfig);
+        logger.info(`📊 Loaded crypto monitoring config for user: ${userId}`);
+      }
+      
+      logger.info(`✅ Loaded ${configs.length} crypto monitoring configurations from database`);
+      
+    } catch (error) {
+      logger.error('❌ Failed to load monitoring configs:', error.message);
+    }
+  }
+
+  /**
+   * Salva configuração de monitoramento no MongoDB
+   */
+  async saveMonitoringConfig(userId, config) {
+    if (!this.isConnected) return;
+
+    try {
+      await this.collection.replaceOne(
+        { userId },
+        { userId, ...config },
+        { upsert: true }
+      );
+      
+      logger.info(`💾 Saved crypto monitoring config for user: ${userId}`);
+      
+    } catch (error) {
+      logger.error(`❌ Failed to save monitoring config for ${userId}:`, error.message);
+    }
+  }
+
+  /**
+   * Remove configuração de monitoramento do MongoDB
+   */
+  async deleteMonitoringConfig(userId) {
+    if (!this.isConnected) return;
+
+    try {
+      await this.collection.deleteOne({ userId });
+      logger.info(`🗑️ Deleted crypto monitoring config for user: ${userId}`);
+      
+    } catch (error) {
+      logger.error(`❌ Failed to delete monitoring config for ${userId}:`, error.message);
+    }
   }
 
   /**
@@ -346,14 +432,15 @@ class CryptoService {
   /**
    * Sistema de fallbacks múltiplos (20+ fontes) para obter cotações
    */
-  async getCurrentPrices() {
-    const requiredCoins = ['bitcoin', 'ethereum', 'cardano', 'polkadot', 'polygon'];
+  async getCurrentPrices(customCoins = null) {
+    // Se customCoins for fornecido, usar essas moedas; senão usar padrão
+    const requiredCoins = customCoins || ['bitcoin', 'ethereum', 'cardano', 'polkadot', 'polygon'];
     let result = {};
     let attemptCount = 0;
     
     // Lista ordenada de fallbacks por prioridade/confiabilidade
     const fallbackMethods = [
-      { name: 'CoinGecko', method: () => this.getCryptoPricesFromCoinGecko() },
+      { name: 'CoinGecko', method: () => this.getCryptoPricesFromCoinGecko(requiredCoins) },
       { name: 'CryptoCompare', method: () => this.getCryptoPricesFromCryptoCompare() },
       { name: 'Binance', method: () => this.getCryptoPricesFromBinance() },
       { name: 'Coinbase', method: () => this.getCryptoPricesFromCoinbase() },
@@ -414,26 +501,44 @@ class CryptoService {
     // Fallback final: preços estáticos/estimados
     logger.warn('⚠️ Todos os fallbacks falharam, usando preços estáticos');
     const usdToBrl = await this.getUsdToBrlRate();
-    const staticPrices = {
-      bitcoin: { usd: 118000, brl: 118000 * usdToBrl, source: 'Static-Emergency-Fallback' },
-      ethereum: { usd: 3800, brl: 3800 * usdToBrl, source: 'Static-Emergency-Fallback' },
-      cardano: { usd: 0.77, brl: 0.77 * usdToBrl, source: 'Static-Emergency-Fallback' },
-      polkadot: { usd: 3.8, brl: 3.8 * usdToBrl, source: 'Static-Emergency-Fallback' },
-      polygon: { usd: 0.9, brl: 0.9 * usdToBrl, source: 'Static-Emergency-Fallback' }
+    
+    // Preços estáticos para as principais criptomoedas
+    const staticPricesData = {
+      bitcoin: { usd: 118000 },
+      ethereum: { usd: 3800 },
+      cardano: { usd: 0.77 },
+      polkadot: { usd: 3.8 },
+      polygon: { usd: 0.9 },
+      binancecoin: { usd: 720 },
+      solana: { usd: 280 },
+      ripple: { usd: 0.58 },
+      dogecoin: { usd: 0.42 },
+      avalanche: { usd: 50 },
+      tron: { usd: 0.28 },
+      chainlink: { usd: 28 },
+      litecoin: { usd: 125 },
+      'usd-coin': { usd: 1.0 },
+      tether: { usd: 1.0 },
+      stellar: { usd: 0.15 },
+      monero: { usd: 185 },
+      'ethereum-classic': { usd: 32 },
+      vechain: { usd: 0.06 }
     };
 
     // Preencher dados ausentes com preços estáticos
-    for (const coin of requiredCoins) {
-      if (!result[coin] || typeof result[coin].usd !== 'number') {
-        result[coin] = {
-          usd: staticPrices[coin].usd,
-          brl: staticPrices[coin].brl,
+    for (const coinId of requiredCoins) {
+      const priceKey = this.mapCoinIdToPriceKey(coinId);
+      if (!result[priceKey] || typeof result[priceKey].usd !== 'number') {
+        const staticPrice = staticPricesData[priceKey] || { usd: 1.0 }; // Fallback para $1
+        result[priceKey] = {
+          usd: staticPrice.usd,
+          brl: staticPrice.usd * usdToBrl,
           usd_24h_change: 0,
           usd_market_cap: null,
           usd_24h_vol: null,
-          source: staticPrices[coin].source
+          source: 'Static-Emergency-Fallback'
         };
-        logger.warn(`⚠️ Usando preço estático para ${coin}: $${staticPrices[coin].usd}`);
+        logger.warn(`⚠️ Usando preço estático para ${priceKey}: $${staticPrice.usd}`);
       }
     }
 
@@ -444,8 +549,11 @@ class CryptoService {
   /**
    * CoinGecko API call 
    */
-  async getCryptoPricesFromCoinGecko() {
-    const response = await axios.get(`${this.apiUrls.coinGecko}?ids=bitcoin,ethereum,cardano,polkadot,matic-network&vs_currencies=usd,brl&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true`, {
+  async getCryptoPricesFromCoinGecko(coinIds = ['bitcoin', 'ethereum', 'cardano', 'polkadot', 'matic-network']) {
+    // Mapear coin IDs para os IDs da CoinGecko API
+    const coinGeckoIds = coinIds.map(coinId => this.mapCoinIdToCoinGeckoId(coinId)).join(',');
+    
+    const response = await axios.get(`${this.apiUrls.coinGecko}?ids=${coinGeckoIds}&vs_currencies=usd,brl&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true`, {
       timeout: 5000
     });
     
@@ -456,56 +564,33 @@ class CryptoService {
       throw new Error(`CoinGecko API Error: ${data.status.error_message}`);
     }
     
-    // Validar se temos dados válidos para todas as moedas
-    const requiredCoins = ['bitcoin', 'ethereum', 'cardano', 'polkadot', 'matic-network'];
+    // Validar se temos dados válidos para as moedas solicitadas
+    const requiredCoins = coinIds.map(coinId => this.mapCoinIdToCoinGeckoId(coinId));
     for (const coin of requiredCoins) {
       if (!data[coin] || typeof data[coin].usd === 'undefined') {
         throw new Error(`Dados incompletos para ${coin} na resposta da CoinGecko`);
       }
     }
     
-    return {
-      bitcoin: {
-        usd: data.bitcoin.usd,
-        brl: data.bitcoin.brl,
-        usd_24h_change: data.bitcoin.usd_24h_change,
-        usd_market_cap: data.bitcoin.usd_market_cap,
-        usd_24h_vol: data.bitcoin.usd_24h_vol,
-        source: 'CoinGecko'
-      },
-      ethereum: {
-        usd: data.ethereum.usd,
-        brl: data.ethereum.brl,
-        usd_24h_change: data.ethereum.usd_24h_change,
-        usd_market_cap: data.ethereum.usd_market_cap,
-        usd_24h_vol: data.ethereum.usd_24h_vol,
-        source: 'CoinGecko'
-      },
-      cardano: {
-        usd: data.cardano.usd,
-        brl: data.cardano.brl,
-        usd_24h_change: data.cardano.usd_24h_change,
-        usd_market_cap: data.cardano.usd_market_cap,
-        usd_24h_vol: data.cardano.usd_24h_vol,
-        source: 'CoinGecko'
-      },
-      polkadot: {
-        usd: data.polkadot.usd,
-        brl: data.polkadot.brl,
-        usd_24h_change: data.polkadot.usd_24h_change,
-        usd_market_cap: data.polkadot.usd_market_cap,
-        usd_24h_vol: data.polkadot.usd_24h_vol,
-        source: 'CoinGecko'
-      },
-      polygon: {
-        usd: data['matic-network'].usd,
-        brl: data['matic-network'].brl,
-        usd_24h_change: data['matic-network'].usd_24h_change,
-        usd_market_cap: data['matic-network'].usd_market_cap,
-        usd_24h_vol: data['matic-network'].usd_24h_vol,
-        source: 'CoinGecko'
+    // Construir resposta dinamicamente baseado nas moedas solicitadas
+    const result = {};
+    for (const coinId of coinIds) {
+      const coinGeckoId = this.mapCoinIdToCoinGeckoId(coinId);
+      const priceKey = this.mapCoinIdToPriceKey(coinId);
+      
+      if (data[coinGeckoId]) {
+        result[priceKey] = {
+          usd: data[coinGeckoId].usd,
+          brl: data[coinGeckoId].brl,
+          usd_24h_change: data[coinGeckoId].usd_24h_change,
+          usd_market_cap: data[coinGeckoId].usd_market_cap,
+          usd_24h_vol: data[coinGeckoId].usd_24h_vol,
+          source: 'CoinGecko'
+        };
       }
-    };
+    }
+    
+    return result;
   }
 
   /**
@@ -825,6 +910,9 @@ ${formatChange(prices.polygon.usd, maticPrevious)}
     
     this.activeMonitoring.set(userId, config);
     
+    // Save to MongoDB
+    this.saveMonitoringConfig(userId, config);
+    
     // Iniciar monitoramento global se não estiver ativo
     if (!this.monitoringInterval) {
       this.startGlobalMonitoring();
@@ -839,6 +927,9 @@ ${formatChange(prices.polygon.usd, maticPrevious)}
    */
   deactivateMonitoring(userId) {
     this.activeMonitoring.delete(userId);
+    
+    // Remove from MongoDB
+    this.deleteMonitoringConfig(userId);
     
     // Se não há mais usuários monitorando, parar monitoramento global
     if (this.activeMonitoring.size === 0 && this.monitoringInterval) {
@@ -890,14 +981,24 @@ ${formatChange(prices.polygon.usd, maticPrevious)}
    */
   async checkPriceChanges() {
     try {
-      const currentPrices = await this.getCurrentPrices();
+      // Coletar todas as moedas que os usuários estão monitorando
+      const allMonitoredCoins = new Set(['bitcoin', 'ethereum', 'cardano', 'polkadot', 'matic-network']); // Padrão
       
-      // Armazenar histórico em memória
-      this.storePriceHistory('bitcoin', currentPrices.bitcoin.usd);
-      this.storePriceHistory('ethereum', currentPrices.ethereum.usd);
-      this.storePriceHistory('cardano', currentPrices.cardano.usd);
-      this.storePriceHistory('polkadot', currentPrices.polkadot.usd);
-      this.storePriceHistory('polygon', currentPrices.polygon.usd);
+      for (const [userId, config] of this.activeMonitoring.entries()) {
+        if (config.active && config.coins) {
+          config.coins.forEach(coin => allMonitoredCoins.add(coin));
+        }
+      }
+      
+      const currentPrices = await this.getCurrentPrices(Array.from(allMonitoredCoins));
+      
+      // Armazenar histórico em memória para todas as moedas monitoradas
+      for (const coinId of allMonitoredCoins) {
+        const priceKey = this.mapCoinIdToPriceKey(coinId);
+        if (currentPrices[priceKey] && currentPrices[priceKey].usd) {
+          this.storePriceHistory(priceKey, currentPrices[priceKey].usd);
+        }
+      }
       
       // Armazenar histórico no MongoDB
       await this.savePriceHistoryToDB(currentPrices);
@@ -929,12 +1030,13 @@ ${formatChange(prices.polygon.usd, maticPrevious)}
         }
       }
       
-      // Atualizar últimos preços
-      this.lastPrices.set('bitcoin', currentPrices.bitcoin.usd);
-      this.lastPrices.set('ethereum', currentPrices.ethereum.usd);
-      this.lastPrices.set('cardano', currentPrices.cardano.usd);
-      this.lastPrices.set('polkadot', currentPrices.polkadot.usd);
-      this.lastPrices.set('polygon', currentPrices.polygon.usd);
+      // Atualizar últimos preços para todas as moedas monitoradas
+      for (const coinId of allMonitoredCoins) {
+        const priceKey = this.mapCoinIdToPriceKey(coinId);
+        if (currentPrices[priceKey] && currentPrices[priceKey].usd) {
+          this.lastPrices.set(priceKey, currentPrices[priceKey].usd);
+        }
+      }
       
     } catch (error) {
       logger.error('Erro ao verificar mudanças de preço:', error);
@@ -1274,6 +1376,35 @@ ${formatChange(prices.polygon.usd, maticPrevious)}
       timestamp: allPrices.timestamp,
       userCoins: prefs.coins
     };
+  }
+
+  /**
+   * Mapeia IDs das moedas para os IDs da CoinGecko API
+   */
+  mapCoinIdToCoinGeckoId(coinId) {
+    const mapping = {
+      'bitcoin': 'bitcoin',
+      'ethereum': 'ethereum', 
+      'cardano': 'cardano',
+      'polkadot': 'polkadot',
+      'matic-network': 'matic-network',
+      'binancecoin': 'binancecoin',
+      'solana': 'solana',
+      'ripple': 'ripple',
+      'dogecoin': 'dogecoin',
+      'avalanche-2': 'avalanche-2',
+      'tron': 'tron',
+      'chainlink': 'chainlink',
+      'litecoin': 'litecoin',
+      'polygon': 'matic-network', // Polygon usa matic-network na CoinGecko
+      'usd-coin': 'usd-coin',
+      'tether': 'tether',
+      'stellar': 'stellar',
+      'monero': 'monero',
+      'ethereum-classic': 'ethereum-classic',
+      'vechain': 'vechain'
+    };
+    return mapping[coinId] || coinId;
   }
 
   /**
@@ -1894,8 +2025,8 @@ ${formatChange(prices.polygon.usd, maticPrevious)}
   /**
    * Gera análise e projeção usando LLM baseada nos dados históricos
    */
-  async generateLLMAnalysis(coinSymbol, days = 30, llmService = null) {
-    if (!llmService) {
+  async generateLLMAnalysis(coinSymbol, days = 30) {
+    if (!this.llmService) {
       throw new Error('LLM Service não fornecido para análise inteligente');
     }
 
@@ -1921,8 +2052,8 @@ ${formatChange(prices.polygon.usd, maticPrevious)}
       // 3. Construir prompt especializado
       const prompt = this.buildLLMAnalysisPrompt(analysisData);
 
-      // 4. Chamar LLM para análise
-      const llmResponse = await llmService.processQuery(prompt, 'crypto_analysis');
+      // 4. Chamar LLM para análise usando o endpoint Ollama existente
+      const llmResponse = await this.llmService.generateText(prompt);
 
       // 5. Processar resposta do LLM
       const parsedAnalysis = this.parseLLMAnalysisResponse(llmResponse, analysisData);
@@ -1944,6 +2075,239 @@ ${formatChange(prices.polygon.usd, maticPrevious)}
       logger.error(`❌ Erro na análise LLM para ${coinSymbol}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Análise automática de trading com decisões para múltiplas moedas do usuário
+   */
+  async generateAutomaticTradingAnalysis(userId, days = 7) {
+    if (!this.llmService) {
+      throw new Error('LLM Service não fornecido para análise de trading automática');
+    }
+
+    logger.info(`🤖 Gerando análise automática de trading para usuário ${userId} (${days} dias)`);
+
+    try {
+      // 1. Obter moedas configuradas pelo usuário
+      const userPrefs = await this.getUserPreferences(userId);
+      const coinsToAnalyze = userPrefs.coins || ['bitcoin', 'ethereum', 'cardano'];
+      
+      if (coinsToAnalyze.length === 0) {
+        return {
+          error: 'Nenhuma moeda configurada para análise',
+          suggestion: 'Configure suas moedas favoritas primeiro'
+        };
+      }
+
+      // 2. Analisar cada moeda
+      const coinAnalyses = [];
+      let totalSuccessful = 0;
+
+      for (const coinId of coinsToAnalyze.slice(0, 5)) { // Limitar a 5 para performance
+        try {
+          logger.info(`📊 Analisando ${coinId}...`);
+          
+          // Obter dados históricos da base
+          const historicalData = await this.getHistoricalDataFromDB(coinId, days);
+          const technicalAnalysis = await this.getTechnicalAnalysis(coinId, days) || { analysis: null };
+          
+          if (historicalData.length < 3) {
+            coinAnalyses.push({
+              coin: coinId,
+              error: 'Dados históricos insuficientes',
+              recommendation: 'HOLD',
+              confidence: 0,
+              reasoning: 'Sem dados suficientes para análise'
+            });
+            continue;
+          }
+
+          // Preparar dados para análise
+          const analysisData = this.prepareDataForLLMAnalysis(coinId, historicalData, technicalAnalysis, null);
+          
+          // Prompt especializado para trading automático
+          const prompt = this.buildAutomaticTradingPrompt(analysisData);
+          
+          // Chamar LLM
+          const llmResponse = await this.llmService.generateText(prompt);
+          
+          // Processar resposta
+          const tradingDecision = this.parseAutomaticTradingResponse(llmResponse, analysisData);
+          
+          coinAnalyses.push({
+            coin: coinId,
+            ...tradingDecision,
+            dataPoints: historicalData.length,
+            analysisDate: new Date().toISOString()
+          });
+          
+          totalSuccessful++;
+          logger.info(`✅ Análise completa para ${coinId}: ${tradingDecision.recommendation}`);
+          
+        } catch (error) {
+          logger.error(`❌ Erro na análise automática para ${coinId}:`, error);
+          coinAnalyses.push({
+            coin: coinId,
+            error: error.message,
+            recommendation: 'HOLD',
+            confidence: 0,
+            reasoning: 'Erro na análise'
+          });
+        }
+      }
+
+      // 3. Compilar análise geral do portfólio
+      const portfolioSummary = this.generatePortfolioSummary(coinAnalyses);
+
+      return {
+        userId,
+        analysisDate: new Date().toISOString(),
+        period: `${days} dias`,
+        coinsAnalyzed: coinsToAnalyze.length,
+        successfulAnalyses: totalSuccessful,
+        coinAnalyses,
+        portfolioSummary,
+        disclaimer: 'Esta análise é baseada em dados históricos e IA. NÃO constitui aconselhamento financeiro. Invista com responsabilidade.'
+      };
+
+    } catch (error) {
+      logger.error(`❌ Erro na análise automática de trading para ${userId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Prompt especializado para decisões de trading automático
+   */
+  buildAutomaticTradingPrompt(data) {
+    return `Você é um analista de trading de criptomoedas especializado em decisões rápidas e precisas baseadas em dados históricos.
+
+DADOS DA MOEDA: ${data.coin.toUpperCase()}
+
+PREÇO ATUAL: $${data.currentPrice.toLocaleString()}
+PERÍODO ANALISADO: ${data.statistics.dataPoints} pontos de dados
+
+MÉTRICAS DE PREÇO:
+- Mínimo: $${data.priceRange.min.toLocaleString()}
+- Máximo: $${data.priceRange.max.toLocaleString()}
+- Variação total: ${data.priceRange.totalChange.toFixed(2)}%
+- Volatilidade: ${data.statistics.volatility.toFixed(2)}%
+
+INDICADORES TÉCNICOS:
+${data.technicalIndicators ? `
+- RSI: ${data.technicalIndicators.rsi?.toFixed(1)} ${data.technicalIndicators.rsi > 70 ? '(SOBRECOMPRADO)' : data.technicalIndicators.rsi < 30 ? '(SOBREVENDIDO)' : '(NEUTRO)'}
+- SMA 7: $${data.technicalIndicators.sma7?.toLocaleString()}
+- Tendência: ${data.technicalIndicators.trend}
+- Suporte: $${data.technicalIndicators.support?.toLocaleString()}
+- Resistência: $${data.technicalIndicators.resistance?.toLocaleString()}
+` : 'Indicadores limitados'}
+
+TAREFA: Tome UMA decisão de trading clara e objetiva.
+
+RESPOSTA OBRIGATÓRIA (use EXATAMENTE este formato):
+
+DECISÃO: [COMPRAR/VENDER/HOLD]
+CONFIANÇA: [1-10]
+RAZÃO: [Uma frase explicando o principal motivo]
+RISCO: [BAIXO/MÉDIO/ALTO]
+TIMEFRAME: [1-7 dias para ação]
+
+REGRAS:
+- COMPRAR: Se tendência de alta clara, RSI < 70, boa entrada
+- VENDER: Se tendência de queda, RSI > 70, sinais de reversão  
+- HOLD: Se incerto, consolidação, ou dados insuficientes
+- Seja conservador - prefira HOLD se não há sinais claros
+- Confiança baixa para dados limitados`;
+  }
+
+  /**
+   * Processa resposta do LLM para decisões de trading
+   */
+  parseAutomaticTradingResponse(llmResponse, originalData) {
+    try {
+      const response = llmResponse.toUpperCase();
+      
+      // Extrair decisão
+      let recommendation = 'HOLD';
+      if (response.includes('DECISÃO: COMPRAR') || response.includes('COMPRAR')) {
+        recommendation = 'COMPRAR';
+      } else if (response.includes('DECISÃO: VENDER') || response.includes('VENDER')) {
+        recommendation = 'VENDER';
+      }
+      
+      // Extrair confiança
+      const confidenceMatch = response.match(/CONFIANÇA:\s*(\d+)/);
+      const confidence = confidenceMatch ? parseInt(confidenceMatch[1]) : 5;
+      
+      // Extrair razão
+      const reasonMatch = llmResponse.match(/RAZÃO:\s*([^\n\r]+)/i);
+      const reasoning = reasonMatch ? reasonMatch[1].trim() : 'Análise baseada em indicadores técnicos';
+      
+      // Extrair risco
+      const riskMatch = response.match(/RISCO:\s*(BAIXO|MÉDIO|ALTO)/);
+      const risk = riskMatch ? riskMatch[1] : 'MÉDIO';
+      
+      // Extrair timeframe
+      const timeframeMatch = response.match(/TIMEFRAME:\s*(\d+)/);
+      const timeframe = timeframeMatch ? `${timeframeMatch[1]} dias` : '3-5 dias';
+
+      return {
+        recommendation,
+        confidence: Math.min(Math.max(confidence, 1), 10),
+        reasoning,
+        risk,
+        timeframe,
+        currentPrice: originalData.currentPrice,
+        volatility: originalData.statistics.volatility,
+        rawResponse: llmResponse.substring(0, 500) // Para debug se necessário
+      };
+      
+    } catch (error) {
+      logger.error('❌ Erro ao processar resposta de trading:', error);
+      return {
+        recommendation: 'HOLD',
+        confidence: 1,
+        reasoning: 'Erro no processamento da análise',
+        risk: 'ALTO',
+        timeframe: '1-7 dias',
+        currentPrice: originalData.currentPrice || 0,
+        volatility: originalData.statistics?.volatility || 0
+      };
+    }
+  }
+
+  /**
+   * Gera resumo geral do portfólio
+   */
+  generatePortfolioSummary(coinAnalyses) {
+    const totalCoins = coinAnalyses.length;
+    const buySignals = coinAnalyses.filter(c => c.recommendation === 'COMPRAR').length;
+    const sellSignals = coinAnalyses.filter(c => c.recommendation === 'VENDER').length;
+    const holdSignals = coinAnalyses.filter(c => c.recommendation === 'HOLD').length;
+    
+    const avgConfidence = coinAnalyses.reduce((sum, c) => sum + (c.confidence || 0), 0) / totalCoins;
+    
+    let marketSentiment = 'NEUTRO';
+    if (buySignals > sellSignals && buySignals >= holdSignals) {
+      marketSentiment = 'BULLISH';
+    } else if (sellSignals > buySignals && sellSignals >= holdSignals) {
+      marketSentiment = 'BEARISH';  
+    }
+    
+    let recommendation = 'Diversifique e mantenha estratégia atual';
+    if (buySignals >= totalCoins * 0.6) {
+      recommendation = 'Considere aumentar posições em moedas selecionadas';
+    } else if (sellSignals >= totalCoins * 0.6) {
+      recommendation = 'Considere reduzir exposição e proteger capital';
+    }
+
+    return {
+      totalCoins,
+      signals: { buy: buySignals, sell: sellSignals, hold: holdSignals },
+      averageConfidence: Math.round(avgConfidence * 10) / 10,
+      marketSentiment,
+      recommendation
+    };
   }
 
   /**
@@ -1986,7 +2350,7 @@ ${formatChange(prices.polygon.usd, maticPrevious)}
       patterns: trends,
       supportResistance: support_resistance,
       recentPrices: prices.slice(-10), // Últimos 10 preços
-      comparison: comparisonAnalysis.analysis || null
+      comparison: comparisonAnalysis?.analysis || null
     };
   }
 

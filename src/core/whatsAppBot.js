@@ -704,6 +704,9 @@ class WhatsAppBot {
       case '9.16':
         await this.handleCryptoLLMAnalysis(contactId);
         return true;
+      case '9.17':
+        await this.handleCryptoAutoTrading(contactId);
+        return true;
       case '9.9.1':
         await this.handleCryptoMLTrain(contactId);
         return true;
@@ -1132,6 +1135,7 @@ class WhatsAppBot {
           [COMMANDS.CRYPTO_PREFERENCES]: () => this.handleCryptoPreferences(contactId),
           [COMMANDS.CRYPTO_LIST_COINS]: () => this.handleCryptoListCoins(contactId),
           [COMMANDS.CRYPTO_SELECT_COINS]: () => this.handleCryptoSelectCoins(contactId),
+          [COMMANDS.CRYPTO_AUTO_TRADING]: () => this.handleCryptoAutoTrading(contactId),
           [COMMANDS.FOTO]: async () => {
               await this.sendResponse(contactId, ERROR_MESSAGES.IMAGE_REQUIRED);
           },
@@ -2153,14 +2157,7 @@ async handleRecursoCommand(contactId) {
         logger.error('❌ Erro na análise de imagem via LLMService, tentando fallback:', error);
         // Fallback to direct Ollama call
         const { Ollama } = await import('ollama');
-        const ollamaClient = new Ollama({ host: CONFIG.llm.host });
-        const response = await ollamaClient.generate({
-          model: CONFIG.llm.imageModel,
-          prompt: prompt,
-          images: [imagePath],
-          stream: false
-        });
-        description = response.response.trim();
+        description = await this.llmService.generateImageAnalysis(prompt, imagePath);
       }
       logger.verbose(`🤖 Resposta da análise de imagem (${mode}): ${description.substring(0, 100)}...`);
 
@@ -2729,12 +2726,7 @@ Use emojis e formatação clara para facilitar a leitura.`;
     // Se não encontrou mapeamento direto, usar LLM
     if (mappedCommand === 'INVALIDO') {
       try {
-        const response = await ollamaClient.chat({
-            model: CONFIG.llm.model,
-            messages: [{ role: 'user', content: commandPrompt }],
-            options: { temperature: 0.2 }
-        });
-        mappedCommand = response.message.content.trim();
+        mappedCommand = await this.llmService.generateText(commandPrompt, 0.2);
         logger.api(`🤖 LLM mapeou áudio para: ${mappedCommand}`);
       } catch (error) {
         logger.error('❌ Erro ao mapear comando de áudio via LLM:', error);
@@ -2801,12 +2793,7 @@ ${currentMenuText}`);
 
     if (mappedCommand === 'INVALIDO') {
       try {
-        const response = await ollamaClient.chat({
-            model: CONFIG.llm.model,
-            messages: [{ role: 'user', content: commandPrompt }],
-            options: { temperature: 0.2 }
-        });
-        mappedCommand = response.message.content.trim();
+        mappedCommand = await this.llmService.generateText(commandPrompt, 0.2);
         logger.api(`🤖 LLM mapeou texto para: ${mappedCommand}`);
       } catch (error) {
         logger.error('❌ Erro ao mapear comando de texto via LLM:', error);
@@ -4572,12 +4559,25 @@ Mensagem do usuário: ${text}`;
         return;
       }
 
+      // Carregar preferências personalizadas do usuário
+      const userPrefs = await this.cryptoService.getUserPreferences(contactId);
+      
       const config = this.cryptoService.activateMonitoring(contactId, {
-        thresholdPercentage: 1.0, // 1% de variação padrão
-        notifications: true
+        thresholdPercentage: userPrefs.settings?.thresholdPercentage || 1.0,
+        notifications: userPrefs.settings?.notifications !== false,
+        alertOnRise: userPrefs.settings?.alertOnRise !== false,
+        alertOnFall: userPrefs.settings?.alertOnFall !== false,
+        coins: userPrefs.coins || ['bitcoin', 'ethereum', 'cardano', 'polkadot', 'matic-network']
       });
 
-      await this.sendResponse(contactId, `🔔 *Monitoramento ativado!*\n\n✅ Configuração padrão:\n🎯 Threshold: ${config.thresholdPercentage}%\n⏱️ Timeframe: ${config.timeframe}\n📈 Alertar alta: ${config.alertOnRise ? '✅' : '❌'}\n📉 Alertar queda: ${config.alertOnFall ? '✅' : '❌'}\n⏰ Cooldown: ${config.cooldownMinutes} min\n\n💡 Use 9.5 para personalizar as configurações`);
+      // Buscar nomes das moedas para exibição
+      const top20 = this.cryptoService.top20Cryptos;
+      const coinNames = config.coins.map(coinId => {
+        const coin = top20.find(c => c.id === coinId);
+        return coin ? `${coin.symbol} (${coin.name})` : coinId.toUpperCase();
+      }).join('\n• ');
+
+      await this.sendResponse(contactId, `🔔 *Monitoramento ativado!*\n\n✅ Suas configurações:\n🎯 Threshold: ${config.thresholdPercentage}%\n⏱️ Timeframe: ${config.timeframe}\n📈 Alertar alta: ${config.alertOnRise ? '✅' : '❌'}\n📉 Alertar queda: ${config.alertOnFall ? '✅' : '❌'}\n⏰ Cooldown: ${config.cooldownMinutes} min\n\n🪙 *Suas moedas (${config.coins.length}):*\n• ${coinNames}\n\n💡 Use 9.5 para personalizar ou 9.7 para escolher outras moedas`);
       
       logger.info(`Monitoramento crypto ativado para ${contactId}`);
     } catch (error) {
@@ -5306,7 +5306,26 @@ Mensagem do usuário: ${text}`;
 
   async handleCryptoLLMAnalysis(contactId) {
     try {
-      await this.sendResponse(contactId, '🤖 *Análise IA de Criptomoedas*\n\n🔍 Qual moeda deseja analisar?\n\nEnvie o símbolo (ex: bitcoin, ethereum, binancecoin)', true);
+      // Buscar as moedas configuradas pelo usuário
+      const userPrefs = await this.cryptoService.getUserPreferences(contactId);
+      const top20 = this.cryptoService.top20Cryptos;
+      
+      let message = '🤖 *Análise IA de Criptomoedas*\n\n🔍 Qual moeda deseja analisar?\n\n';
+      
+      if (userPrefs.coins && userPrefs.coins.length > 0) {
+        message += `💡 *Suas moedas favoritas:*\n`;
+        userPrefs.coins.forEach((coinId, index) => {
+          const coin = top20.find(c => c.id === coinId);
+          if (coin) {
+            message += `• ${coin.symbol} (${coin.name})\n`;
+          }
+        });
+        message += `\n📝 Digite o símbolo de qualquer uma das suas moedas ou outra disponível.`;
+      } else {
+        message += `📝 Envie o símbolo (ex: bitcoin, ethereum, binancecoin)\n\n💡 Use 9.7 primeiro para configurar suas moedas favoritas.`;
+      }
+      
+      await this.sendResponse(contactId, message, true);
       
       this.setMode(contactId, CHAT_MODES.CRYPTO_LLM_ANALYSIS);
       
@@ -5399,6 +5418,62 @@ Mensagem do usuário: ${text}`;
       errorMessage += `\n\n🔄 Digite outro símbolo ou ${COMMANDS.VOLTAR} para voltar.`;
       
       await this.sendResponse(contactId, errorMessage);
+    }
+  }
+
+  async handleCryptoAutoTrading(contactId) {
+    try {
+      await this.sendResponse(contactId, '🎯 *Análise Automática de Trading*\n\n⏳ Analisando todas suas moedas configuradas com IA para decisões de COMPRAR/VENDER/HOLD...\n\n_Isso pode levar até 3 minutos._', true);
+      
+      // Realizar análise automática de trading
+      const analysis = await this.cryptoService.generateAutomaticTradingAnalysis(contactId);
+      
+      if (analysis.error) {
+        await this.sendResponse(contactId, `❌ *Erro na Análise*\n\n${analysis.error}\n\n💡 ${analysis.suggestion || 'Use 9.7 para configurar suas moedas favoritas primeiro.'}`);
+        return;
+      }
+      
+      // Formatear resposta
+      let message = `🎯 *ANÁLISE AUTOMÁTICA DE TRADING*\n\n`;
+      message += `📊 *Resumo do Portfólio:*\n`;
+      message += `💰 Moedas analisadas: ${analysis.coinsAnalyzed}\n`;
+      message += `✅ Análises bem-sucedidas: ${analysis.successfulAnalyses}\n`;
+      message += `📈 Sentimento: ${analysis.portfolioSummary.marketSentiment}\n`;
+      message += `🎯 Confiança média: ${analysis.portfolioSummary.averageConfidence}/10\n\n`;
+      
+      // Signals summary
+      const signals = analysis.portfolioSummary.signals;
+      message += `📊 *Sinais de Trading:*\n`;
+      message += `🟢 COMPRAR: ${signals.buy}\n`;
+      message += `🔴 VENDER: ${signals.sell}\n`;
+      message += `🟡 MANTER (HOLD): ${signals.hold}\n\n`;
+      
+      // Detailed analysis for each coin
+      message += `📋 *Análise Detalhada:*\n\n`;
+      
+      for (const coin of analysis.coinAnalyses.slice(0, 5)) { // Mostrar até 5 moedas
+        const emoji = coin.recommendation === 'COMPRAR' ? '🟢' : 
+                     coin.recommendation === 'VENDER' ? '🔴' : '🟡';
+        
+        message += `${emoji} *${coin.coin.toUpperCase()}*\n`;
+        message += `└ ${coin.recommendation} (${coin.confidence}/10)\n`;
+        message += `└ ${coin.reasoning}\n`;
+        message += `└ Risco: ${coin.risk} | ${coin.timeframe}\n\n`;
+      }
+      
+      // Portfolio recommendation
+      message += `💡 *Recomendação Geral:*\n${analysis.portfolioSummary.recommendation}\n\n`;
+      
+      // Disclaimer
+      message += `⚠️ ${analysis.disclaimer}`;
+      
+      await this.sendResponse(contactId, message);
+      
+      logger.info(`✅ Análise automática de trading concluída para ${contactId}`);
+      
+    } catch (error) {
+      logger.error(`❌ Erro na análise automática de trading para ${contactId}:`, error);
+      await this.sendResponse(contactId, `❌ *Erro na Análise*\n\n${error.message}\n\n💡 Verifique se suas moedas estão configuradas (9.7) e se há dados históricos suficientes.`);
     }
   }
 

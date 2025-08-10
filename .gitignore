@@ -80,7 +80,10 @@ pids/
 # Backup files
 *.backup
 *.bak
+*.jpg
+
 
 # Lock files (keep only one type)
 package-lock.json
 yarn.lock
+MODULARIZATION.md

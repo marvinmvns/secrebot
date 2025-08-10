@@ -977,13 +977,13 @@
             // Attach event listeners for visible endpoints only
             sortedEndpoints.forEach((_, sortedIndex) => {
                 const originalIndex = sortedToOriginalIndex.get(sortedIndex);
-                ['url', 'type', 'enabled', 'priority', 'maxRetries', 'model', 'apikey'].forEach(field => {
+                ['url', 'type', 'enabled', 'priority', 'maxRetries', 'model', 'apikey', 'useStreaming'].forEach(field => {
                     const element = document.getElementById(`endpoint_${sortedIndex}_${field}`);
                     if (element) {
                         element.addEventListener('change', () => {
                             updateEndpointConfig(originalIndex);
                             if (field === 'type') {
-                                toggleRKLlamaSection(sortedIndex);
+                                toggleTypeSpecificSections(sortedIndex);
                             }
                             if (field === 'model') {
                                 const currentType = document.getElementById(`endpoint_${sortedIndex}_type`).value;
@@ -1011,8 +1011,8 @@
                 document.getElementById(`diagnoseEndpoint_${sortedIndex}`).addEventListener('click', 
                     () => diagnoseEndpoint(originalIndex));
                 
-                // Initialize RKLLama section visibility
-                toggleRKLlamaSection(sortedIndex);
+                // Initialize type-specific section visibility
+                toggleTypeSpecificSections(sortedIndex);
             });
         }
 
@@ -1347,22 +1347,39 @@
             const type = document.getElementById(`endpoint_${index}_type`).value;
             const rkLlamaSection = document.getElementById(`rkllama_${index}`);
             const chatgptSection = document.getElementById(`chatgpt_${index}`);
+            const modelSelect = document.getElementById(`endpoint_${index}_model`);
+            const statusSpan = document.getElementById(`modelStatus_${index}`);
             
             // Hide all type-specific sections first
-            rkLlamaSection.style.display = 'none';
-            chatgptSection.style.display = 'none';
+            if (rkLlamaSection) rkLlamaSection.style.display = 'none';
+            if (chatgptSection) chatgptSection.style.display = 'none';
             
-            // Show the appropriate section based on type
+            // Reset model selection when type changes
+            modelSelect.innerHTML = '<option value="">Selecione um modelo...</option>';
+            modelSelect.disabled = true;
+            
+            // Show the appropriate section and update status based on type
             if (type === 'rkllama') {
-                rkLlamaSection.style.display = 'block';
+                if (rkLlamaSection) rkLlamaSection.style.display = 'block';
+                statusSpan.innerHTML = '<i class="fas fa-robot text-info"></i> RKLLama: Configure URL e clique em carregar modelos';
+                statusSpan.className = 'text-info';
             } else if (type === 'chatgpt') {
-                chatgptSection.style.display = 'block';
+                if (chatgptSection) chatgptSection.style.display = 'block';
                 // Auto-set URL for ChatGPT
                 const urlInput = document.getElementById(`endpoint_${index}_url`);
-                if (urlInput && !urlInput.value) {
+                if (urlInput && (!urlInput.value || urlInput.value.includes('localhost'))) {
                     urlInput.value = 'https://api.openai.com';
                 }
+                statusSpan.innerHTML = '<i class="fas fa-rocket text-info"></i> ChatGPT: Configure API Key e clique em carregar modelos';
+                statusSpan.className = 'text-info';
+            } else {
+                // Ollama
+                statusSpan.innerHTML = '<i class="fas fa-brain text-info"></i> Ollama: Configure URL e clique em carregar modelos';
+                statusSpan.className = 'text-info';
             }
+            
+            // Update endpoint configuration when type changes
+            updateEndpointConfig(index);
         }
         
         // Backward compatibility alias
@@ -1392,11 +1409,13 @@
 
             try {
                 let response;
+                let requestBody = {};
+                
                 if (type === 'chatgpt') {
-                    // For ChatGPT, get API key and use models API
+                    // For ChatGPT, get API key and use dedicated ChatGPT API
                     const apikey = document.getElementById(`endpoint_${index}_apikey`).value;
                     if (!apikey) {
-                        throw new Error('API Key da OpenAI é obrigatória para carregar modelos');
+                        throw new Error('API Key da OpenAI é obrigatória para carregar modelos ChatGPT');
                     }
                     
                     response = await fetch('/api/chatgpt/models', {
@@ -1404,37 +1423,69 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ url, apikey })
                     });
-                } else {
+                } else if (type === 'rkllama') {
+                    // For RKLLama, use endpoint-models API with type specification
                     response = await fetch('/api/ollama-api/endpoint-models', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url, type })
+                        body: JSON.stringify({ url, type: 'rkllama' })
+                    });
+                } else {
+                    // For Ollama (default), use endpoint-models API
+                    response = await fetch('/api/ollama-api/endpoint-models', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url, type: 'ollama' })
                     });
                 }
 
                 const result = await response.json();
                 
                 if (result.success) {
-                    // Clear existing options
+                    // Clear existing options except placeholder
                     modelSelect.innerHTML = '<option value="">Selecione um modelo...</option>';
                     
-                    // Add models to select
+                    // Add models to select based on API type
                     const models = result.models || [];
                     models.forEach(model => {
                         const option = document.createElement('option');
-                        option.value = typeof model === 'string' ? model : model.name || model.model;
-                        option.textContent = typeof model === 'string' ? model : model.name || model.model;
+                        let modelName, modelDisplay;
+                        
+                        if (typeof model === 'string') {
+                            // Simple string model name
+                            modelName = model;
+                            modelDisplay = model;
+                        } else if (model.id) {
+                            // ChatGPT format: { id: "gpt-4", owned_by: "openai", ... }
+                            modelName = model.id;
+                            modelDisplay = model.id;
+                        } else {
+                            // Ollama/RKLLama format: { name: "llama2", model: "llama2:7b", ... }
+                            modelName = model.name || model.model || model.id;
+                            modelDisplay = modelName;
+                            
+                            // Add size info if available for local models
+                            if (model.size) {
+                                modelDisplay += ` (${(model.size / 1024 / 1024 / 1024).toFixed(1)}GB)`;
+                            }
+                        }
+                        
+                        option.value = modelName;
+                        option.textContent = modelDisplay;
                         modelSelect.appendChild(option);
                     });
                     
                     // Restore selected model if it exists
                     const savedModel = currentConfig.ollamaApi?.endpoints?.[index]?.model;
-                    if (savedModel && models.some(m => (typeof m === 'string' ? m : m.name || m.model) === savedModel)) {
+                    if (savedModel && models.some(m => {
+                        const modelName = typeof m === 'string' ? m : (m.id || m.name || m.model);
+                        return modelName === savedModel;
+                    })) {
                         modelSelect.value = savedModel;
                     }
                     
                     modelSelect.disabled = false;
-                    statusSpan.textContent = `${models.length} modelo(s) encontrado(s)`;
+                    statusSpan.innerHTML = `<i class="fas fa-server text-success"></i> ${models.length} modelo(s) encontrado(s) (${result.type || type})`;
                     statusSpan.className = 'text-success';
                     
                     // Update load model button for RKLLama
@@ -1442,12 +1493,12 @@
                         updateLoadModelButton(index);
                     }
                 } else {
-                    statusSpan.textContent = `Erro: ${result.error}`;
-                    statusSpan.className = 'text-danger';
+                    throw new Error(result.error || 'Erro desconhecido na listagem de modelos');
                 }
             } catch (error) {
-                statusSpan.textContent = `Erro na conexão: ${error.message}`;
+                statusSpan.innerHTML = `<i class="fas fa-exclamation-triangle text-danger"></i> Erro: ${error.message}`;
                 statusSpan.className = 'text-danger';
+                console.error(`Erro ao carregar modelos para endpoint ${index} (${type}):`, error);
             } finally {
                 loadButton.disabled = false;
                 loadButton.innerHTML = '<i class="fas fa-sync-alt"></i>';

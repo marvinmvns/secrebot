@@ -42,7 +42,7 @@ import { getMetricsService } from '../services/metricsService.js';
 // ============ Bot do WhatsApp ============
 class WhatsAppBot {
   // CORREÇÃO: Adicionar ttsService ao construtor e atribuí-lo
-  constructor(scheduler, llmService, transcriber, ttsService, whisperSilentService, cryptoService, sessionService) {
+  constructor(scheduler, llmService, transcriber, ttsService, whisperSilentService, cryptoService, sessionService, configService) {
     this.scheduler = scheduler;
     this.llmService = llmService;
     this.transcriber = transcriber;
@@ -50,12 +50,14 @@ class WhatsAppBot {
     this.whisperSilentService = whisperSilentService;
     this.cryptoService = cryptoService;
     this.sessionService = sessionService;
+    this.configService = configService;
     this.metricsService = getMetricsService();
     this.chatModes = new Map(); // Mantém cache local para performance
     this.navigationStates = new Map(); // Para navegação hierárquica
     this.userPreferences = new Map(); // Para armazenar preferências (ex: { voiceResponse: true/false })
     this.linkedinSessions = new Map(); // contato -> li_at
     this.awaitingLinkedinCreds = new Map();
+    this.sessions = new Map(); // Para armazenar sessões de usuário (endpoint específico, etc.)
     this.flowExecutionService = null; // Será definido pelo ApplicationFactory
     this.client = new Client({
       authStrategy: new LocalAuth({
@@ -509,6 +511,14 @@ class WhatsAppBot {
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
         await this.handleMessage({ ...msg, body: COMMANDS.TRANSCREVER_RESUMIR });
         return true;
+      case '2.6':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.CHOOSE_MODEL });
+        return true;
+      case '2.6.1':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: 'trocar_modelo_especifico' });
+        return true;
       case '0':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
         await this.sendResponse(contactId, MENU_MESSAGE);
@@ -530,6 +540,14 @@ class WhatsAppBot {
       case '3.3':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
         await this.handleMessage({ ...msg, body: COMMANDS.CALORIAS });
+        return true;
+      case '3.4':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: COMMANDS.CHOOSE_WHISPER_ENDPOINT });
+        return true;
+      case '3.4.1':
+        this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
+        await this.handleMessage({ ...msg, body: 'trocar_endpoint_whisper_especifico' });
         return true;
       case '0':
         this.setNavigationState(contactId, NAVIGATION_STATES.MAIN_MENU);
@@ -1114,6 +1132,10 @@ class WhatsAppBot {
               await this.sendResponse(contactId, HELP_GUIDE);
           },
           [COMMANDS.DEEP]: () => this.handleDeepCommand(contactId, originalText),
+          [COMMANDS.CHOOSE_MODEL]: () => this.handleChooseModelCommand(contactId),
+          'trocar_modelo_especifico': () => this.handleChangeSpecificModelCommand(contactId),
+          [COMMANDS.CHOOSE_WHISPER_ENDPOINT]: () => this.handleChooseWhisperEndpointCommand(contactId),
+          'trocar_endpoint_whisper_especifico': () => this.handleChangeSpecificWhisperEndpointCommand(contactId),
           [COMMANDS.AGENDA]: () => this.handleAgendabotCommand(contactId, originalText),
           [COMMANDS.TRANSCREVER]: () => this.handleTranscreverCommand(contactId),
           [COMMANDS.TRANSCREVER_RESUMIR]: () => this.handleTranscreverResumir(contactId),
@@ -2215,6 +2237,168 @@ async handleRecursoCommand(contactId) {
     await this.sendResponse(contactId, response);
   }
 
+  async handleChooseModelCommand(contactId) {
+    // Sempre mostrar lista de endpoints para seleção (sem verificar sessão prévia)
+    this.setMode(contactId, CHAT_MODES.CHOOSE_SPECIFIC_MODEL);
+    const endpointsList = await this.getAvailableEndpoints();
+    let message = MODE_MESSAGES[CHAT_MODES.CHOOSE_SPECIFIC_MODEL] + '\n\n';
+    
+    if (endpointsList.length === 0) {
+      message += '❌ *Nenhum endpoint ativo encontrado.*\n\n';
+      message += 'Configure endpoints em: http://127.0.0.1:3000/ollama-api-config';
+      await this.sendResponse(contactId, message);
+      this.setMode(contactId, null);
+      return;
+    } 
+    
+    // Mostrar endpoint atual selecionado (se houver)
+    const userSession = this.sessions.get(contactId);
+    if (userSession?.specificEndpoint) {
+      message += `📌 *Endpoint atual:* ${userSession.specificEndpoint.name}\n`;
+      message += `   _${userSession.specificEndpoint.type} • ${userSession.specificEndpoint.model || 'Modelo padrão'}_\n\n`;
+    }
+    
+    message += '🎯 *Endpoints disponíveis:*\n\n';
+    endpointsList.forEach((endpoint, index) => {
+      const icon = endpoint.type === 'chatgpt' ? '🚀' : endpoint.type === 'rkllama' ? '🤖' : '🧠';
+      const modelText = endpoint.model ? ` | Modelo: *${endpoint.model}*` : ' | Modelo: *Padrão*';
+      message += `${index + 1}️⃣ ${icon} *${endpoint.name}*${modelText}\n`;
+      message += `   📍 _${endpoint.type.toUpperCase()} • ${endpoint.url}_\n\n`;
+    });
+    message += `0️⃣ Cancelar e voltar ao menu`;
+    
+    await this.sendResponse(contactId, message);
+  }
+
+  async handleChangeSpecificModelCommand(contactId) {
+    // Mesmo comportamento de escolher modelo, mas para trocar
+    this.setMode(contactId, CHAT_MODES.CHANGE_SPECIFIC_MODEL);
+    const endpointsList = await this.getAvailableEndpoints();
+    let message = MODE_MESSAGES[CHAT_MODES.CHANGE_SPECIFIC_MODEL] + '\n\n';
+    
+    if (endpointsList.length === 0) {
+      message += '❌ *Nenhum endpoint ativo encontrado.*\n\n';
+      message += 'Configure endpoints em: http://127.0.0.1:3000/ollama-api-config';
+    } else {
+      endpointsList.forEach((endpoint, index) => {
+        const icon = endpoint.type === 'chatgpt' ? '🚀' : endpoint.type === 'rkllama' ? '🤖' : '🧠';
+        const modelText = endpoint.model ? ` - ${endpoint.model}` : '';
+        message += `${index + 1}️⃣ ${icon} *${endpoint.name}*${modelText}\n`;
+        message += `   _${endpoint.type} • ${endpoint.url}_\n\n`;
+      });
+      message += `0️⃣ Cancelar`;
+    }
+    
+    await this.sendResponse(contactId, message);
+  }
+
+  async handleChooseWhisperEndpointCommand(contactId) {
+    // Sempre mostrar lista de endpoints Whisper para seleção
+    this.setMode(contactId, CHAT_MODES.CHOOSE_SPECIFIC_WHISPER_ENDPOINT);
+    const endpointsList = await this.getAvailableWhisperEndpoints();
+    let message = MODE_MESSAGES[CHAT_MODES.CHOOSE_SPECIFIC_WHISPER_ENDPOINT] + '\n\n';
+    
+    if (endpointsList.length === 0) {
+      message += '❌ *Nenhum endpoint Whisper ativo encontrado.*\n\n';
+      message += 'Configure endpoints em: http://127.0.0.1:3000/whisper-api-config';
+      await this.sendResponse(contactId, message);
+      this.setMode(contactId, null);
+      return;
+    } 
+    
+    // Mostrar endpoint atual selecionado (se houver)
+    const userSession = this.sessions.get(contactId);
+    if (userSession?.specificWhisperEndpoint) {
+      message += `📌 *Endpoint atual:* ${userSession.specificWhisperEndpoint.name}\n`;
+      message += `   _${userSession.specificWhisperEndpoint.type} • ${userSession.specificWhisperEndpoint.model || 'Modelo padrão'}_\n\n`;
+    }
+    
+    message += '🎤 *Endpoints Whisper disponíveis:*\n\n';
+    endpointsList.forEach((endpoint, index) => {
+      const modelText = endpoint.model ? ` | Modelo: *${endpoint.model}*` : ' | Modelo: *Padrão*';
+      message += `${index + 1}️⃣ 🎵 *${endpoint.name}*${modelText}\n`;
+      message += `   📍 _WHISPER • ${endpoint.url}_\n\n`;
+    });
+    message += `0️⃣ Cancelar e voltar ao menu`;
+    
+    await this.sendResponse(contactId, message);
+  }
+
+  async handleChangeSpecificWhisperEndpointCommand(contactId) {
+    // Mesmo comportamento de escolher endpoint, mas para trocar
+    this.setMode(contactId, CHAT_MODES.CHANGE_SPECIFIC_WHISPER_ENDPOINT);
+    const endpointsList = await this.getAvailableWhisperEndpoints();
+    let message = MODE_MESSAGES[CHAT_MODES.CHANGE_SPECIFIC_WHISPER_ENDPOINT] + '\n\n';
+    
+    if (endpointsList.length === 0) {
+      message += '❌ *Nenhum endpoint Whisper disponível.*\n\n';
+      message += 'Configure endpoints em: http://127.0.0.1:3000/whisper-api-config';
+    } else {
+      endpointsList.forEach((endpoint, index) => {
+        const modelText = endpoint.model ? ` | Modelo: *${endpoint.model}*` : ' | Modelo: *Padrão*';
+        message += `${index + 1}️⃣ 🎵 *${endpoint.name}*${modelText}\n`;
+        message += `   📍 _WHISPER • ${endpoint.url}_\n\n`;
+      });
+      message += `0️⃣ Cancelar`;
+    }
+    
+    await this.sendResponse(contactId, message);
+  }
+
+  async getAvailableEndpoints() {
+    try {
+      // Buscar configuração dos endpoints
+      const config = await this.configService.getConfig();
+      if (!config?.ollamaApi?.endpoints) {
+        return [];
+      }
+
+      // Filtrar apenas endpoints ativos
+      const activeEndpoints = config.ollamaApi.endpoints.filter(endpoint => 
+        endpoint.enabled && endpoint.url && endpoint.name
+      );
+
+      return activeEndpoints.map(endpoint => ({
+        url: endpoint.url,
+        name: endpoint.name,
+        type: endpoint.type || 'ollama',
+        model: endpoint.model || null,
+        priority: endpoint.priority || 1,
+        apikey: endpoint.apikey || null // Para ChatGPT
+      })).sort((a, b) => (a.priority || 1) - (b.priority || 1));
+    } catch (error) {
+      logger.error('Erro ao buscar endpoints disponíveis:', error);
+      return [];
+    }
+  }
+
+  async getAvailableWhisperEndpoints() {
+    try {
+      // Buscar configuração dos endpoints Whisper
+      const config = await this.configService.getConfig();
+      if (!config?.whisperApi?.endpoints) {
+        return [];
+      }
+
+      // Filtrar apenas endpoints ativos
+      const activeEndpoints = config.whisperApi.endpoints.filter(endpoint => 
+        endpoint.enabled && endpoint.url && endpoint.name
+      );
+
+      return activeEndpoints.map(endpoint => ({
+        url: endpoint.url,
+        name: endpoint.name,
+        type: 'whisper',
+        model: endpoint.model || 'large-v3-turbo',
+        priority: endpoint.priority || 1,
+        maxRetries: endpoint.maxRetries || 2
+      })).sort((a, b) => (a.priority || 1) - (b.priority || 1));
+    } catch (error) {
+      logger.error('Erro ao buscar endpoints Whisper disponíveis:', error);
+      return [];
+    }
+  }
+
   async handleAgendabotCommand(contactId, text) {
     this.setMode(contactId, CHAT_MODES.AGENDABOT);
     const query = text.substring(COMMANDS.AGENDA.length).trim();
@@ -2933,6 +3117,24 @@ usuario@email.com:senha
       case CHAT_MODES.TROCAR_MODELO_WHISPER:
         await this.processTrocarModeloWhisperMessage(contactId, text);
         break;
+      case CHAT_MODES.CHOOSE_SPECIFIC_MODEL:
+        await this.processChooseSpecificModelMessage(contactId, text);
+        break;
+      case CHAT_MODES.CHANGE_SPECIFIC_MODEL:
+        await this.processChangeSpecificModelMessage(contactId, text);
+        break;
+      case CHAT_MODES.ASSISTANT_WITH_SPECIFIC_MODEL:
+        await this.processAssistantWithSpecificModelMessage(contactId, text);
+        break;
+      case CHAT_MODES.CHOOSE_SPECIFIC_WHISPER_ENDPOINT:
+        await this.processChooseSpecificWhisperEndpointMessage(contactId, text);
+        break;
+      case CHAT_MODES.CHANGE_SPECIFIC_WHISPER_ENDPOINT:
+        await this.processChangeSpecificWhisperEndpointMessage(contactId, text);
+        break;
+      case CHAT_MODES.TRANSCRIBE_WITH_SPECIFIC_ENDPOINT:
+        await this.processTranscribeWithSpecificEndpointMessage(contactId, msg);
+        break;
       case CHAT_MODES.WHISPERSILENT_CONFIG:
         await this.processWhisperSilentConfigMessage(contactId, text);
         break;
@@ -3226,6 +3428,419 @@ Mensagem do usuário: ${text}`;
       logger.error(`❌ Erro ao processar troca de modelo Whisper para ${contactId}`, err);
       await this.sendErrorMessage(contactId, '❌ Erro interno ao trocar modelo Whisper. Tente novamente.');
       this.setMode(contactId, null);
+    }
+  }
+
+  async processChooseSpecificModelMessage(contactId, text) {
+    try {
+      const selectedNumber = parseInt(text.trim());
+      
+      if (text.trim() === '0') {
+        // Cancelar e voltar ao menu
+        this.setMode(contactId, null);
+        await this.sendResponse(contactId, '❌ Seleção cancelada!\n\nVoltando ao menu principal...');
+        await this.sendResponse(contactId, MENU_MESSAGE);
+        return;
+      }
+      
+      if (isNaN(selectedNumber) || selectedNumber < 1) {
+        await this.sendResponse(contactId, '❌ *Número inválido!*\n\nPor favor, digite um número válido da lista de endpoints.\n\nDigite um número ou 0 para cancelar.');
+        return;
+      }
+      
+      const endpointsList = await this.getAvailableEndpoints();
+      
+      if (endpointsList.length === 0) {
+        await this.sendResponse(contactId, '❌ *Nenhum endpoint disponível!*\n\nConfigure endpoints em: http://127.0.0.1:3000/ollama-api-config');
+        this.setMode(contactId, null);
+        return;
+      }
+      
+      if (selectedNumber > endpointsList.length) {
+        await this.sendResponse(contactId, `❌ *Número fora do intervalo!*\n\nEscolha um número entre 1 e ${endpointsList.length}.\n\nDigite um número válido ou 0 para cancelar.`);
+        return;
+      }
+      
+      const selectedEndpoint = endpointsList[selectedNumber - 1];
+      
+      // Salvar endpoint específico na sessão
+      let userSession = this.sessions.get(contactId);
+      if (!userSession) {
+        userSession = {};
+        this.sessions.set(contactId, userSession);
+      }
+      userSession.specificEndpoint = selectedEndpoint;
+      
+      // Ativar modo de conversa com modelo específico
+      this.setMode(contactId, CHAT_MODES.ASSISTANT_WITH_SPECIFIC_MODEL);
+      
+      const modelInfo = {
+        name: selectedEndpoint.name,
+        model: selectedEndpoint.model || 'Modelo preferido',
+        type: selectedEndpoint.type
+      };
+      
+      const messageTemplate = MODE_MESSAGES[CHAT_MODES.ASSISTANT_WITH_SPECIFIC_MODEL];
+      const message = typeof messageTemplate === 'function' ? messageTemplate(modelInfo) : messageTemplate;
+      await this.sendResponse(contactId, message);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao processar escolha de modelo para ${contactId}`, err);
+      await this.sendErrorMessage(contactId, '❌ Erro interno ao selecionar modelo. Tente novamente.');
+      this.setMode(contactId, null);
+    }
+  }
+
+  async processChangeSpecificModelMessage(contactId, text) {
+    try {
+      const selectedNumber = parseInt(text.trim());
+      
+      if (text.trim() === '0') {
+        // Cancelar e voltar ao chat com modelo atual
+        const userSession = this.sessions.get(contactId);
+        if (userSession?.specificEndpoint) {
+          this.setMode(contactId, CHAT_MODES.ASSISTANT_WITH_SPECIFIC_MODEL);
+          const modelInfo = {
+            name: userSession.specificEndpoint.name,
+            model: userSession.specificEndpoint.model || 'Modelo preferido',
+            type: userSession.specificEndpoint.type
+          };
+          const messageTemplate = MODE_MESSAGES[CHAT_MODES.ASSISTANT_WITH_SPECIFIC_MODEL];
+          const message = typeof messageTemplate === 'function' ? messageTemplate(modelInfo) : messageTemplate;
+          await this.sendResponse(contactId, message);
+        } else {
+          this.setMode(contactId, null);
+          await this.sendResponse(contactId, MENU_MESSAGE);
+        }
+        return;
+      }
+      
+      if (isNaN(selectedNumber) || selectedNumber < 1) {
+        await this.sendResponse(contactId, '❌ *Número inválido!*\n\nPor favor, digite um número válido da lista de endpoints.\n\nDigite um número ou 0 para cancelar.');
+        return;
+      }
+      
+      const endpointsList = await this.getAvailableEndpoints();
+      
+      if (endpointsList.length === 0) {
+        await this.sendResponse(contactId, '❌ *Nenhum endpoint disponível!*\n\nConfigure endpoints em: http://127.0.0.1:3000/ollama-api-config');
+        this.setMode(contactId, null);
+        return;
+      }
+      
+      if (selectedNumber > endpointsList.length) {
+        await this.sendResponse(contactId, `❌ *Número fora do intervalo!*\n\nEscolha um número entre 1 e ${endpointsList.length}.\n\nDigite um número válido ou 0 para cancelar.`);
+        return;
+      }
+      
+      const selectedEndpoint = endpointsList[selectedNumber - 1];
+      
+      // Atualizar endpoint específico na sessão
+      let userSession = this.sessions.get(contactId);
+      if (!userSession) {
+        userSession = {};
+        this.sessions.set(contactId, userSession);
+      }
+      userSession.specificEndpoint = selectedEndpoint;
+      
+      // Voltar para modo de conversa com novo modelo
+      this.setMode(contactId, CHAT_MODES.ASSISTANT_WITH_SPECIFIC_MODEL);
+      
+      const modelInfo = {
+        name: selectedEndpoint.name,
+        model: selectedEndpoint.model || 'Modelo preferido',
+        type: selectedEndpoint.type
+      };
+      
+      let successMessage = `🔄 *Modelo trocado com sucesso!*\n\n`;
+      successMessage += `🎯 **Agora conversando com:** ${modelInfo.name}\n`;
+      successMessage += `📋 **Modelo:** ${modelInfo.model}\n`;
+      successMessage += `🔧 **Tipo:** ${modelInfo.type}\n\n`;
+      const messageTemplate = MODE_MESSAGES[CHAT_MODES.ASSISTANT_WITH_SPECIFIC_MODEL];
+      const templateMessage = typeof messageTemplate === 'function' ? messageTemplate(modelInfo) : messageTemplate;
+      successMessage += templateMessage;
+      
+      await this.sendResponse(contactId, successMessage);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao processar troca de modelo para ${contactId}`, err);
+      await this.sendErrorMessage(contactId, '❌ Erro interno ao trocar modelo. Tente novamente.');
+      this.setMode(contactId, null);
+    }
+  }
+
+  async processAssistantWithSpecificModelMessage(contactId, text) {
+    try {
+      // Verificar se é comando 2.6.1 para trocar modelo
+      if (text.trim() === '2.6.1') {
+        await this.handleChangeSpecificModelCommand(contactId);
+        return;
+      }
+      
+      // Verificar se o usuário tem endpoint específico configurado
+      const userSession = this.sessions.get(contactId);
+      if (!userSession?.specificEndpoint) {
+        await this.sendResponse(contactId, '❌ *Endpoint específico não configurado!*\n\nUse 2.6 para escolher um modelo.');
+        this.setMode(contactId, null);
+        return;
+      }
+      
+      // Processar mensagem com endpoint específico
+      await this.sendResponse(contactId, '🤔 Processando...', true);
+      
+      // Usar o LLM Service com endpoint específico
+      const response = await this.llmService.getAssistantResponseWithSpecificEndpoint(
+        contactId, 
+        text,
+        userSession.specificEndpoint
+      );
+      
+      await this.sendResponse(contactId, response);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao processar mensagem com modelo específico para ${contactId}`, err);
+      await this.sendErrorMessage(contactId, '❌ Erro ao processar sua mensagem. Tente novamente.');
+    }
+  }
+
+  async processChooseSpecificWhisperEndpointMessage(contactId, text) {
+    try {
+      const selectedNumber = parseInt(text.trim());
+      
+      if (text.trim() === '0') {
+        // Cancelar e voltar ao menu
+        this.setMode(contactId, null);
+        await this.sendResponse(contactId, '❌ Seleção cancelada!\n\nVoltando ao menu principal...');
+        await this.sendResponse(contactId, MENU_MESSAGE);
+        return;
+      }
+      
+      if (isNaN(selectedNumber) || selectedNumber < 1) {
+        await this.sendResponse(contactId, '❌ *Número inválido!*\n\nPor favor, digite um número válido da lista de endpoints.\n\nDigite um número ou 0 para cancelar.');
+        return;
+      }
+      
+      const endpointsList = await this.getAvailableWhisperEndpoints();
+      
+      if (endpointsList.length === 0) {
+        await this.sendResponse(contactId, '❌ *Nenhum endpoint disponível!*\n\nConfigure endpoints em: http://127.0.0.1:3000/whisper-api-config');
+        this.setMode(contactId, null);
+        return;
+      }
+      
+      if (selectedNumber > endpointsList.length) {
+        await this.sendResponse(contactId, `❌ *Número fora do intervalo!*\n\nEscolha um número entre 1 e ${endpointsList.length}.\n\nDigite um número válido ou 0 para cancelar.`);
+        return;
+      }
+      
+      const selectedEndpoint = endpointsList[selectedNumber - 1];
+      
+      // Salvar endpoint específico na sessão
+      let userSession = this.sessions.get(contactId);
+      if (!userSession) {
+        userSession = {};
+        this.sessions.set(contactId, userSession);
+      }
+      userSession.specificWhisperEndpoint = selectedEndpoint;
+      
+      // Ativar modo de transcrição com endpoint específico
+      this.setMode(contactId, CHAT_MODES.TRANSCRIBE_WITH_SPECIFIC_ENDPOINT);
+      
+      const endpointInfo = {
+        name: selectedEndpoint.name,
+        model: selectedEndpoint.model || 'large-v3-turbo',
+        type: selectedEndpoint.type
+      };
+      
+      const messageTemplate = MODE_MESSAGES[CHAT_MODES.TRANSCRIBE_WITH_SPECIFIC_ENDPOINT];
+      const message = typeof messageTemplate === 'function' ? messageTemplate(endpointInfo) : messageTemplate;
+      await this.sendResponse(contactId, message);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao processar escolha de endpoint Whisper para ${contactId}`, err);
+      await this.sendErrorMessage(contactId, '❌ Erro interno ao selecionar endpoint. Tente novamente.');
+      this.setMode(contactId, null);
+    }
+  }
+
+  async processChangeSpecificWhisperEndpointMessage(contactId, text) {
+    try {
+      const selectedNumber = parseInt(text.trim());
+      
+      if (text.trim() === '0') {
+        // Cancelar e voltar ao chat com endpoint atual
+        const userSession = this.sessions.get(contactId);
+        if (userSession?.specificWhisperEndpoint) {
+          this.setMode(contactId, CHAT_MODES.TRANSCRIBE_WITH_SPECIFIC_ENDPOINT);
+          const endpointInfo = {
+            name: userSession.specificWhisperEndpoint.name,
+            model: userSession.specificWhisperEndpoint.model || 'large-v3-turbo',
+            type: userSession.specificWhisperEndpoint.type
+          };
+          const messageTemplate = MODE_MESSAGES[CHAT_MODES.TRANSCRIBE_WITH_SPECIFIC_ENDPOINT];
+          const message = typeof messageTemplate === 'function' ? messageTemplate(endpointInfo) : messageTemplate;
+          await this.sendResponse(contactId, message);
+        } else {
+          this.setMode(contactId, null);
+          await this.sendResponse(contactId, MENU_MESSAGE);
+        }
+        return;
+      }
+      
+      if (isNaN(selectedNumber) || selectedNumber < 1) {
+        await this.sendResponse(contactId, '❌ *Número inválido!*\n\nPor favor, digite um número válido da lista de endpoints.\n\nDigite um número ou 0 para cancelar.');
+        return;
+      }
+      
+      const endpointsList = await this.getAvailableWhisperEndpoints();
+      
+      if (endpointsList.length === 0) {
+        await this.sendResponse(contactId, '❌ *Nenhum endpoint disponível!*\n\nConfigure endpoints em: http://127.0.0.1:3000/whisper-api-config');
+        this.setMode(contactId, null);
+        return;
+      }
+      
+      if (selectedNumber > endpointsList.length) {
+        await this.sendResponse(contactId, `❌ *Número fora do intervalo!*\n\nEscolha um número entre 1 e ${endpointsList.length}.\n\nDigite um número válido ou 0 para cancelar.`);
+        return;
+      }
+      
+      const selectedEndpoint = endpointsList[selectedNumber - 1];
+      
+      // Atualizar endpoint específico na sessão
+      let userSession = this.sessions.get(contactId);
+      if (!userSession) {
+        userSession = {};
+        this.sessions.set(contactId, userSession);
+      }
+      userSession.specificWhisperEndpoint = selectedEndpoint;
+      
+      // Voltar para modo de transcrição com novo endpoint
+      this.setMode(contactId, CHAT_MODES.TRANSCRIBE_WITH_SPECIFIC_ENDPOINT);
+      
+      const endpointInfo = {
+        name: selectedEndpoint.name,
+        model: selectedEndpoint.model || 'large-v3-turbo',
+        type: selectedEndpoint.type
+      };
+      
+      let successMessage = `🔄 *Endpoint trocado com sucesso!*\n\n`;
+      successMessage += `🎤 **Agora transcrevendo com:** ${endpointInfo.name}\n`;
+      successMessage += `📋 **Modelo:** ${endpointInfo.model}\n`;
+      successMessage += `🔧 **Tipo:** ${endpointInfo.type}\n\n`;
+      const messageTemplate = MODE_MESSAGES[CHAT_MODES.TRANSCRIBE_WITH_SPECIFIC_ENDPOINT];
+      const templateMessage = typeof messageTemplate === 'function' ? messageTemplate(endpointInfo) : messageTemplate;
+      successMessage += templateMessage;
+      
+      await this.sendResponse(contactId, successMessage);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao processar troca de endpoint Whisper para ${contactId}`, err);
+      await this.sendErrorMessage(contactId, '❌ Erro interno ao trocar endpoint. Tente novamente.');
+      this.setMode(contactId, null);
+    }
+  }
+
+  async processTranscribeWithSpecificEndpointMessage(contactId, msg) {
+    try {
+      const text = msg.body;
+      
+      // Verificar se é comando 3.4.1 para trocar endpoint
+      if (text.trim() === '3.4.1') {
+        await this.handleChangeSpecificWhisperEndpointCommand(contactId);
+        return;
+      }
+      
+      // Verificar se o usuário tem endpoint específico configurado
+      const userSession = this.sessions.get(contactId);
+      if (!userSession?.specificWhisperEndpoint) {
+        await this.sendResponse(contactId, '❌ *Endpoint específico não configurado!*\n\nUse 3.4 para escolher um endpoint.');
+        this.setMode(contactId, null);
+        return;
+      }
+
+      // Verificar se a mensagem tem áudio
+      if (!msg.hasMedia || msg.type !== 'ptt' && msg.type !== 'audio') {
+        await this.sendResponse(contactId, '🎵 *Por favor, envie um áudio para transcrever.*\n\nOu digite 3.4.1 para trocar endpoint.');
+        return;
+      }
+
+      // Processar transcrição com endpoint específico
+      await this.sendResponse(contactId, '🎤 Transcrevendo áudio...', true);
+      
+      // Usar o serviço de transcrição com endpoint específico
+      const transcription = await this.transcribeWithSpecificEndpoint(
+        msg, 
+        userSession.specificWhisperEndpoint
+      );
+      
+      if (transcription) {
+        await this.sendResponse(contactId, `✅ *Transcrição concluída:*\n\n${transcription}`);
+      } else {
+        await this.sendResponse(contactId, '❌ Erro na transcrição. Tente novamente.');
+      }
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao processar transcrição com endpoint específico para ${contactId}`, err);
+      await this.sendErrorMessage(contactId, '❌ Erro ao transcrever áudio. Tente novamente.');
+    }
+  }
+
+  async transcribeWithSpecificEndpoint(msg, endpointInfo) {
+    try {
+      // Download do áudio
+      const media = await Utils.downloadMediaWithRetry(msg);
+      if (!media) {
+        throw new Error('Não foi possível baixar o áudio');
+      }
+      
+      // Obter o pool de Whisper APIs
+      const whisperPool = this.transcriber?.whisperApiPool;
+      if (!whisperPool) {
+        throw new Error('Pool de APIs Whisper não disponível');
+      }
+      
+      // Encontrar o cliente específico pelo URL
+      const specificClient = whisperPool.clients.find(client => 
+        client.baseURL === endpointInfo.url || client.endpoint.url === endpointInfo.url
+      );
+      
+      if (!specificClient) {
+        throw new Error(`Endpoint ${endpointInfo.url} não encontrado no pool`);
+      }
+      
+      if (!specificClient.isHealthy) {
+        throw new Error(`Endpoint ${endpointInfo.url} não está saudável`);
+      }
+      
+      logger.info(`🎯 Transcrevendo com endpoint específico: ${endpointInfo.url} (${endpointInfo.model})`);
+      
+      // Transcrever diretamente com o cliente específico
+      const audioBuffer = Buffer.from(media.data, 'base64');
+      const filename = `audio_${Date.now()}.ogg`;
+      
+      const result = await specificClient.transcribeBufferAndWait(audioBuffer, filename, {});
+      
+      // Extrair o texto da resposta
+      let transcription = '';
+      if (result.result && result.result.result && result.result.result.text) {
+        transcription = result.result.result.text;
+      } else if (result.result && result.result.text) {
+        transcription = result.result.text;
+      } else if (result.result && typeof result.result === 'string') {
+        transcription = result.result;
+      } else if (result.text) {
+        transcription = result.text;
+      } else {
+        throw new Error('Estrutura de resposta inesperada da API');
+      }
+      
+      logger.success(`✅ Transcrição concluída com ${endpointInfo.url}: ${transcription.substring(0, 100)}...`);
+      return transcription;
+      
+    } catch (error) {
+      logger.error(`❌ Erro na transcrição com endpoint específico ${endpointInfo.url}:`, error);
+      throw error;
     }
   }
 

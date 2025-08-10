@@ -142,13 +142,13 @@ export class ApplicationFactory {
     return cryptoMLService;
   }
 
-  async createWhatsAppBot(scheduler, llmService, transcriber, ttsService, whisperSilentService, cryptoService, sessionService) {
+  async createWhatsAppBot(scheduler, llmService, transcriber, ttsService, whisperSilentService, cryptoService, sessionService, configService) {
     if (this.services.has('whatsAppBot')) {
       return this.services.get('whatsAppBot');
     }
 
     try {
-      const bot = new WhatsAppBot(scheduler, llmService, transcriber, ttsService, whisperSilentService, cryptoService, sessionService);
+      const bot = new WhatsAppBot(scheduler, llmService, transcriber, ttsService, whisperSilentService, cryptoService, sessionService, configService);
       await bot.initialize();
       
       // Criar e configurar FlowService  
@@ -329,7 +329,7 @@ export class ApplicationFactory {
       // Configure YouTubeService to use the parametrized transcriber
       YouTubeService.setTranscriber(transcriber);
       logger.debug('🔧 YouTubeService configured with parametrized AudioTranscriber');
-      const bot = await this.createWhatsAppBot(scheduler, llmService, transcriber, ttsService, whisperSilentService, cryptoService, sessionService);
+      const bot = await this.createWhatsAppBot(scheduler, llmService, transcriber, ttsService, whisperSilentService, cryptoService, sessionService, configService);
       bot.setCryptoMLService(cryptoMLService);
       const api = this.createRestAPI(bot, configService);
 

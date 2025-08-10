@@ -41,7 +41,9 @@ export const COMMANDS = {
   CRYPTO_ML_PREDICT: '!cryptopredict',
   CRYPTO_ML_STATUS: '!cryptomlstatus',
   CRYPTO_AUTO_TRADING: '!cryptoauto',
-  TTS_CONFIG: '!tts'
+  TTS_CONFIG: '!tts',
+  CHOOSE_MODEL: '!escolhermodelo',
+  CHOOSE_WHISPER_ENDPOINT: '!escolherendpointwhisper'
 };
 
 export const NUMERIC_SHORTCUTS = {
@@ -69,11 +71,15 @@ export const NUMERIC_SHORTCUTS = {
   '2.3': 'submenu_video',
   '2.4': COMMANDS.FOTO,
   '2.5': COMMANDS.TRANSCREVER_RESUMIR,
+  '2.6': COMMANDS.CHOOSE_MODEL,
+  '2.6.1': 'trocar_modelo_especifico',
   
   // Mídia & Conteúdo
   '3.1': COMMANDS.TRANSCREVER,
   '3.2': COMMANDS.VOZ,
   '3.3': COMMANDS.CALORIAS,
+  '3.4': COMMANDS.CHOOSE_WHISPER_ENDPOINT,
+  '3.4.1': 'trocar_endpoint_whisper_especifico',
   
   // Análise Profissional
   '4.1': COMMANDS.LINKEDIN,
@@ -153,7 +159,13 @@ export const CHAT_MODES = {
   CRYPTO_ML_MODEL_SELECTION: 'crypto_ml_model_selection',
   CRYPTO_ML_TRAINING: 'crypto_ml_training',
   TROCAR_MODELO_WHISPER: 'trocar_modelo_whisper',
-  WHISPERSILENT_CONFIG: 'whispersilent_config'
+  WHISPERSILENT_CONFIG: 'whispersilent_config',
+  CHOOSE_SPECIFIC_MODEL: 'choose_specific_model',
+  ASSISTANT_WITH_SPECIFIC_MODEL: 'assistant_with_specific_model',
+  CHANGE_SPECIFIC_MODEL: 'change_specific_model',
+  CHOOSE_SPECIFIC_WHISPER_ENDPOINT: 'choose_specific_whisper_endpoint',
+  TRANSCRIBE_WITH_SPECIFIC_ENDPOINT: 'transcribe_with_specific_endpoint',
+  CHANGE_SPECIFIC_WHISPER_ENDPOINT: 'change_specific_whisper_endpoint'
 };
 
 export const NAVIGATION_STATES = {

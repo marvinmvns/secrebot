@@ -473,6 +473,71 @@ class LLMService {
     return this.chat(contactId, text, CHAT_MODES.ASSISTANT, PROMPTS.assistant(date));
   }
 
+  async getAssistantResponseWithSpecificEndpoint(contactId, text, endpointConfig) {
+    // Usar endpoint específico para resposta do assistente sem balanceamento
+    const date = Utils.getCurrentDateInGMTMinus3().toISOString();
+    const context = await this.getContext(contactId, CHAT_MODES.ASSISTANT_WITH_SPECIFIC_MODEL);
+    context.push({ role: 'user', content: text });
+    
+    const limitedContext = Utils.limitContext([...context]); 
+    const messages = [{ role: 'system', content: PROMPTS.assistant(date) }, ...limitedContext];
+    
+    try {
+      let response;
+      
+      if (endpointConfig.type === 'chatgpt') {
+        // Usar ChatGPT diretamente
+        const { ChatGPTAPIClient } = await import('./chatgptApiClient.js');
+        const chatgptClient = new ChatGPTAPIClient(endpointConfig.url, endpointConfig.apikey);
+        
+        response = await chatgptClient.chat({
+          messages: messages,
+          model: endpointConfig.model || 'gpt-4',
+          stream: false
+        });
+      } else if (endpointConfig.type === 'rkllama') {
+        // Usar RKLLama diretamente
+        const RKLlamaAPIClient = (await import('./rkllamaApiClient.js')).default;
+        const rkLlamaClient = new RKLlamaAPIClient(endpointConfig.url);
+        
+        response = await rkLlamaClient.chat({
+          messages: messages,
+          model: endpointConfig.model || 'default'
+        });
+      } else {
+        // Usar Ollama diretamente (default)
+        const OllamaAPIClient = (await import('./ollamaApiClient.js')).default;
+        const ollamaClient = new OllamaAPIClient(endpointConfig.url);
+        
+        response = await ollamaClient.chat({
+          messages: messages,
+          model: endpointConfig.model
+        });
+      }
+      
+      this.validateResponseStructure(response, endpointConfig.type);
+      const content = response.message.content;
+      context.push({ role: 'assistant', content });
+      
+      // Persiste o contexto atualizado na sessão com contexto específico
+      if (this.sessionService) {
+        try {
+          await this.sessionService.saveLLMContext(contactId, CHAT_MODES.ASSISTANT_WITH_SPECIFIC_MODEL, context);
+        } catch (error) {
+          logger.error(`❌ Erro ao persistir contexto LLM específico para ${contactId}:`, error);
+        }
+      }
+      
+      logger.success(`✅ LLM resposta obtida do endpoint específico ${endpointConfig.name} (${endpointConfig.type}) para ${contactId}`);
+      return content;
+    } catch (error) {
+      // Remove mensagem do usuário em caso de falha
+      context.pop();
+      logger.error(`❌ Erro no endpoint específico ${endpointConfig.name} para ${contactId}:`, error);
+      throw error;
+    }
+  }
+
   async chatWithSpecificEndpoint(contactId, text, endpointUrl) {
     // Usar endpoint específico para resposta do assistente
     const date = Utils.getCurrentDateInGMTMinus3().toISOString();

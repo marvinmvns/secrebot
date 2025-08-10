@@ -2184,6 +2184,40 @@ class RestAPI {
       }
     });
 
+    // API endpoint para listar endpoints Whisper ativos
+    this.app.get('/api/whisper-api/endpoints', async (req, res) => {
+      try {
+        const audioTranscriber = this.bot.transcriber;
+        const whisperPool = audioTranscriber?.whisperApiPool;
+        
+        if (!whisperPool) {
+          return res.status(503).json({ 
+            success: false, 
+            error: 'Pool de APIs Whisper não disponível' 
+          });
+        }
+
+        const endpoints = await whisperPool.getPoolStatus();
+        
+        res.json({
+          success: true,
+          endpoints: endpoints.endpoints || [],
+          stats: {
+            total: endpoints.totalEndpoints || 0,
+            healthy: endpoints.healthyEndpoints || 0
+          }
+        });
+
+      } catch (error) {
+        logger.error('Erro ao listar endpoints Whisper API:', error);
+        res.status(500).json({ 
+          success: false,
+          error: 'Erro ao obter endpoints Whisper',
+          details: error.message 
+        });
+      }
+    });
+
     // ============ TTS Routes ============
     
     // Página de configuração do TTS

@@ -66,6 +66,7 @@ export const SUBMENU_MESSAGES = {
 2.3 🎥 Resumir vídeo do YouTube
 2.4 🖼️ Analisar uma imagem
 2.5 🎤 Transcrever e resumir áudio
+2.6 🎯 Escolher modelo específico para conversar
 
 0️⃣ Voltar ao Menu Principal
 
@@ -76,6 +77,7 @@ export const SUBMENU_MESSAGES = {
 3.1 🎤 Transcrever áudio para texto
 3.2 🔊 Ativar ou desativar respostas por voz
 3.3 🍎 Calcular calorias de uma foto
+3.4 🎯 Escolher endpoint para transcrição
 
 0️⃣ Voltar ao Menu Principal
 
@@ -239,6 +241,26 @@ Qual método você prefere?
 export const MODE_MESSAGES = {
   [CHAT_MODES.ASSISTANT]: `🤖 *Modo Assistente Ativado!*
 Pode perguntar o que quiser. Para sair, digite ${COMMANDS.VOLTAR}`,
+  [CHAT_MODES.CHOOSE_SPECIFIC_MODEL]: `🎯 *Escolha um Modelo Específico*
+Digite o número do endpoint que deseja usar:`,
+  [CHAT_MODES.ASSISTANT_WITH_SPECIFIC_MODEL]: (modelInfo) => `🤖 *Conversando com: ${modelInfo.name}*
+_Modelo: ${modelInfo.model} | Tipo: ${modelInfo.type}_
+
+💬 Pode perguntar o que quiser. 
+🔄 Para trocar modelo, digite *2.6.1*
+🚪 Para sair, digite ${COMMANDS.VOLTAR}`,
+  [CHAT_MODES.CHANGE_SPECIFIC_MODEL]: `🔄 *Trocar Modelo Específico*
+Digite o número do novo endpoint que deseja usar:`,
+  [CHAT_MODES.CHOOSE_SPECIFIC_WHISPER_ENDPOINT]: `🎯 *Escolha um Endpoint Whisper*
+Digite o número do endpoint que deseja usar para transcrição:`,
+  [CHAT_MODES.TRANSCRIBE_WITH_SPECIFIC_ENDPOINT]: (endpointInfo) => `🎤 *Transcrevendo com: ${endpointInfo.name}*
+_Modelo: ${endpointInfo.model} | Tipo: ${endpointInfo.type}_
+
+🎵 Envie um *áudio* para transcrever
+🔄 Para trocar endpoint, digite *3.4.1*  
+🚪 Para sair, digite ${COMMANDS.VOLTAR}`,
+  [CHAT_MODES.CHANGE_SPECIFIC_WHISPER_ENDPOINT]: `🔄 *Trocar Endpoint Whisper*
+Digite o número do novo endpoint para transcrição:`,
 
   [CHAT_MODES.AGENDABOT]: `📅 *Modo Agendamento Ativado!*
 Me diga o que e quando agendar.

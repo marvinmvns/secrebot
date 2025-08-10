@@ -180,7 +180,8 @@ export class ApplicationFactory {
         whisperSilentService,
         toggleVoicePreference: () => false,
         setFlowService: () => {},
-        setFlowExecutionService: () => {}
+        setFlowExecutionService: () => {},
+        setCryptoMLService: () => {}
       };
       
       // Criar FlowService e FlowExecutionService mesmo com bot mock

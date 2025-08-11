@@ -1,5 +1,5 @@
 import logger from '../utils/logger.js';
-import { CHAT_MODES } from '../config/index.js';
+import { CHAT_MODES, COMMANDS } from '../config/index.js';
 
 export default class CryptoHandler {
   constructor(whatsAppBot) {
@@ -365,9 +365,158 @@ export default class CryptoHandler {
     return await this.whatsAppBot.handleCryptoMLModelSelection(contactId, messageBody);
   }
 
+  // === CRYPTO CONFIGURATION AND MANAGEMENT ===
+  
+  async showCryptoConfig(contactId) {
+    try {
+      const currentConfig = this.whatsAppBot.cryptoService.getUserConfig(contactId);
+      
+      let message = `⚙️ *CONFIGURAÇÃO DE CRIPTOMOEDAS* ⚙️\n\n`;
+      
+      if (currentConfig) {
+        message += `📊 *Configurações Atuais:*\n`;
+        message += `🎯 Threshold: ${currentConfig.thresholdPercentage}%\n`;
+        message += `⏱️ Timeframe: ${currentConfig.timeframe}\n`;
+        message += `💰 Moedas: ${currentConfig.coins.join(', ')}\n`;
+        message += `📈 Alertar alta: ${currentConfig.alertOnRise ? '✅' : '❌'}\n`;
+        message += `📉 Alertar queda: ${currentConfig.alertOnFall ? '✅' : '❌'}\n`;
+        message += `⏰ Cooldown: ${currentConfig.cooldownMinutes} min\n\n`;
+        
+        message += `📝 *Para Alterar:*\n`;
+        message += `• "${COMMANDS.CRYPTO_CONFIG} threshold 2.5" - Define threshold para 2.5%\n`;
+        message += `• "${COMMANDS.CRYPTO_CONFIG} timeframe 5m" - Define timeframe para 5 minutos\n`;
+        message += `• "${COMMANDS.CRYPTO_CONFIG} cooldown 30" - Define cooldown para 30 minutos\n`;
+        message += `• "${COMMANDS.CRYPTO_CONFIG} alta off" - Desativa alertas de alta\n`;
+        message += `• "${COMMANDS.CRYPTO_CONFIG} queda off" - Desativa alertas de queda\n\n`;
+      } else {
+        message += `❌ *Monitoramento não está ativo*\n\n`;
+        message += `💡 Use 9.2 para ativar primeiro e depois configure os parâmetros.\n\n`;
+      }
+      
+      message += `📋 *Opções Disponíveis:*\n`;
+      message += `🎯 Threshold: 0.1% a 50%\n`;
+      message += `⏱️ Timeframes: 1m, 5m, 15m, 1h\n`;
+      message += `⏰ Cooldown: 1 a 120 minutos\n`;
+      message += `💰 Moedas: bitcoin, ethereum, cardano, polkadot, polygon\n\n`;
+      
+      message += `💡 _Exemplo: ${COMMANDS.CRYPTO_CONFIG} threshold 1.5_`;
+
+      await this.whatsAppBot.sendResponse(contactId, message);
+    } catch (error) {
+      logger.error(`Erro ao mostrar configuração crypto para ${contactId}:`, error);
+      await this.whatsAppBot.sendResponse(contactId, `❌ Erro ao acessar configurações: ${error.message}`);
+    }
+  }
+
+  async checkAndSendCryptoAlerts() {
+    try {
+      const pendingAlerts = this.whatsAppBot.cryptoService.getPendingAlerts();
+      
+      for (const alert of pendingAlerts) {
+        await this.whatsAppBot.sendResponse(alert.userId, alert.message);
+        logger.info(`Alerta crypto enviado para ${alert.userId}`);
+      }
+    } catch (error) {
+      logger.error('Erro ao enviar alertas crypto:', error);
+    }
+  }
+
+  startCryptoAlertsTimer() {
+    // Verificar alertas a cada 30 segundos
+    this.whatsAppBot.cryptoAlertsTimer = setInterval(async () => {
+      await this.checkAndSendCryptoAlerts();
+    }, 30000);
+    
+    logger.info('⏰ Timer de alertas crypto iniciado (30s)');
+  }
+
   // Chat mode processing for crypto-specific modes
   async processCryptoCoinSelectionMessage(contactId, text) {
-    return await this.whatsAppBot.processCryptoCoinSelectionMessage(contactId, text);
+    try {
+      const lowerText = text.toLowerCase().trim();
+      
+      // Allow cancellation
+      if (lowerText === 'cancelar' || lowerText === 'sair' || lowerText === 'voltar') {
+        this.whatsAppBot.setMode(contactId, null);
+        await this.whatsAppBot.sendResponse(contactId, '❌ Seleção de moedas cancelada.\n\n📋 Para voltar ao menu crypto: digite 9');
+        return;
+      }
+      
+      // Parse the coin symbols
+      const symbols = text.split(',').map(s => s.trim().toUpperCase()).filter(s => s.length > 0);
+      
+      if (symbols.length === 0) {
+        await this.whatsAppBot.sendResponse(contactId, '❌ Nenhuma moeda foi identificada.\n\n💡 Digite os símbolos separados por vírgula:\nExemplo: BTC, ETH, ADA\n\n❌ Digite "cancelar" para sair.');
+        return;
+      }
+      
+      // Validate symbols against available coins
+      const top20 = this.whatsAppBot.cryptoService.top20Cryptos;
+      const availableSymbols = top20.map(coin => coin.symbol.toUpperCase());
+      const validSymbols = [];
+      const invalidSymbols = [];
+      
+      symbols.forEach(symbol => {
+        if (availableSymbols.includes(symbol)) {
+          validSymbols.push(symbol);
+        } else {
+          invalidSymbols.push(symbol);
+        }
+      });
+      
+      if (validSymbols.length === 0) {
+        let message = `❌ Nenhuma moeda válida encontrada.\n\n`;
+        message += `🚫 Símbolos inválidos: ${invalidSymbols.join(', ')}\n\n`;
+        message += `📋 *Símbolos disponíveis:*\n${availableSymbols.join(', ')}\n\n`;
+        message += `💡 Tente novamente ou digite "cancelar" para sair.`;
+        
+        await this.whatsAppBot.sendResponse(contactId, message);
+        return;
+      }
+      
+      // Convert symbols to coin IDs
+      const selectedCoins = top20
+        .filter(coin => validSymbols.includes(coin.symbol.toUpperCase()))
+        .map(coin => coin.id);
+      
+      // Save user preferences
+      await this.whatsAppBot.sendResponse(contactId, '💾 Salvando suas preferências...', true);
+      
+      try {
+        await this.whatsAppBot.cryptoService.saveUserPreferences(contactId, selectedCoins);
+        
+        // Exit selection mode
+        this.whatsAppBot.setMode(contactId, null);
+        
+        let message = `✅ *Preferências salvas com sucesso!*\n\n`;
+        message += `🎯 *Moedas selecionadas (${validSymbols.length}):*\n`;
+        
+        validSymbols.forEach((symbol, index) => {
+          const coin = top20.find(c => c.symbol.toUpperCase() === symbol);
+          message += `${index + 1}. ${symbol} - ${coin.name}\n`;
+        });
+        
+        if (invalidSymbols.length > 0) {
+          message += `\n⚠️ *Símbolos ignorados:* ${invalidSymbols.join(', ')}\n`;
+        }
+        
+        message += `\n💡 *Próximos passos:*\n`;
+        message += `📊 9.1 - Ver cotações das suas moedas\n`;
+        message += `🎯 9.6 - Ver suas preferências\n`;
+        message += `🔔 9.2 - Ativar alertas automáticos`;
+        
+        await this.whatsAppBot.sendResponse(contactId, message);
+        
+      } catch (error) {
+        logger.error(`Erro ao salvar preferências crypto para ${contactId}:`, error);
+        await this.whatsAppBot.sendResponse(contactId, `❌ Erro ao salvar preferências: ${error.message}\n\n💡 Tente novamente ou use a interface web:\nhttp://localhost:3000/crypto-preferences`);
+      }
+      
+    } catch (error) {
+      logger.error(`Erro ao processar seleção crypto para ${contactId}:`, error);
+      this.whatsAppBot.setMode(contactId, null);
+      await this.whatsAppBot.sendResponse(contactId, `❌ Erro interno. Seleção cancelada.\n\n📋 Para voltar ao menu crypto: digite 9`);
+    }
   }
 
   async handleCryptoLLMAnalysisMode(contactId, messageBody) {

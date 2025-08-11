@@ -3,7 +3,9 @@ import {
   NUMERIC_SHORTCUTS, 
   NAVIGATION_STATES, 
   SUBMENU_MESSAGES,
-  MENU_MESSAGE 
+  MENU_MESSAGE,
+  COMMANDS,
+  PROMPTS
 } from '../config/index.js';
 
 export default class MenuNavigationHandler {
@@ -52,7 +54,38 @@ export default class MenuNavigationHandler {
   }
 
   async handleMainMenuNavigation(msg, contactId, numericInput) {
-    // Map numeric inputs to main menu actions
+    // Handle direct hierarchical navigation (like "1.1" without first going to "1")
+    if (numericInput.includes('.')) {
+      const parts = numericInput.split('.');
+      const mainMenu = parts[0];
+      
+      // Map main menu to submenu type
+      const menuTypeMap = {
+        '1': 'AGENDA',
+        '2': 'IA', 
+        '3': 'MIDIA',
+        '4': 'PROFISSIONAL',
+        '5': 'CONFIG',
+        '6': 'SUPORTE',
+        '7': 'VIDEO',
+        '8': 'STATUS_APIS',
+        '9': 'CRYPTO'
+      };
+      
+      const submenuType = menuTypeMap[mainMenu];
+      if (submenuType) {
+        // Set navigation state and handle submenu directly
+        await this.whatsAppBot.setNavigationState(contactId, {
+          submenu: submenuType,
+          level: 1,
+          timestamp: Date.now()
+        });
+        
+        return await this.handleSubmenuNavigation(msg, contactId, numericInput, {submenu: submenuType});
+      }
+    }
+    
+    // Map numeric inputs to main menu actions (single numbers like "1", "2")
     const menuMap = {
       '1': () => this.showSubmenu(contactId, 'AGENDA'),
       '2': () => this.showSubmenu(contactId, 'IA'),
@@ -70,7 +103,7 @@ export default class MenuNavigationHandler {
       return await action();
     }
 
-    await this.whatsAppBot.sendResponse(contactId, '❌ Opção inválida. Digite um número de 1-9.');
+    await this.whatsAppBot.sendResponse(contactId, '❌ Opção inválida. Digite um número de 1-9 ou navegue diretamente (ex: 1.1).');
     return true;
   }
 
@@ -162,8 +195,21 @@ export default class MenuNavigationHandler {
         timestamp: Date.now()
       });
 
+      // Map submenu types to correct message keys
+      const submenuMap = {
+        'AGENDA': SUBMENU_MESSAGES.agenda,
+        'IA': SUBMENU_MESSAGES.ia,
+        'MIDIA': SUBMENU_MESSAGES.midia,
+        'PROFISSIONAL': SUBMENU_MESSAGES.profissional,
+        'CONFIG': SUBMENU_MESSAGES.config,
+        'SUPORTE': SUBMENU_MESSAGES.suporte,
+        'VIDEO': SUBMENU_MESSAGES.video || 'Menu de vídeo não implementado.',
+        'STATUS_APIS': SUBMENU_MESSAGES.status_apis || 'Menu de status de APIs não implementado.',
+        'CRYPTO': SUBMENU_MESSAGES.crypto || 'Menu de criptomoedas não implementado.'
+      };
+
       // Send submenu message
-      const submenuMessage = SUBMENU_MESSAGES[submenuType];
+      const submenuMessage = submenuMap[submenuType];
       if (submenuMessage) {
         await this.whatsAppBot.sendResponse(contactId, submenuMessage);
       } else {
@@ -183,15 +229,103 @@ export default class MenuNavigationHandler {
 
   // Delegate submenu handlers to original whatsAppBot methods
   async handleAgendaSubmenu(msg, contactId, input) {
-    return await this.whatsAppBot.handleAgendaSubmenu(msg, contactId, input);
+    const option = input.includes('.') ? input.split('.')[1] : input;
+    
+    switch (option) {
+      case '1':
+        // 1.1 - Criar agendamento
+        await this.whatsAppBot.setMode(contactId, 'SCHEDULER');
+        await this.whatsAppBot.sendResponse(contactId, '➕ *Criar Agendamento*\n\nDescreva o que deseja agendar (ex: "Reunião amanhã às 14h")');
+        break;
+      case '2':
+        // 1.2 - Listar agendamentos
+        return await this.whatsAppBot.scheduleHandler.handleListarCommand(contactId);
+      case '3':
+        // 1.3 - Deletar agendamento
+        return await this.whatsAppBot.scheduleHandler.handleDeletarCommand(contactId);
+      case '4':
+        // 1.4 - Importar agenda
+        await this.whatsAppBot.setMode(contactId, 'IMPORT_CALENDAR');
+        await this.whatsAppBot.sendResponse(contactId, '📥 *Importar Agenda*\n\nEnvie um arquivo .ics para importar os eventos.');
+        break;
+      case '0':
+        return await this.handleBackCommand(contactId, null);
+      default:
+        await this.whatsAppBot.sendResponse(contactId, '❌ Opção inválida. Use 1, 2, 3, 4 ou 0 para voltar.');
+        break;
+    }
+    return true;
   }
 
   async handleIASubmenu(msg, contactId, input) {
-    return await this.whatsAppBot.handleIASubmenu(msg, contactId, input);
+    const option = input.includes('.') ? input.split('.')[1] : input;
+    
+    switch (option) {
+      case '1':
+        // 2.1 - Bater papo com IA
+        await this.whatsAppBot.setMode(contactId, 'ASSISTANT');
+        await this.whatsAppBot.sendResponse(contactId, '💬 *Modo Conversa Ativado*\n\nAgora você pode conversar comigo! Digite sua pergunta ou mensagem.');
+        break;
+      case '2':
+        // 2.2 - Resumir texto/arquivo
+        await this.whatsAppBot.setMode(contactId, 'RESUMIR');
+        await this.whatsAppBot.sendResponse(contactId, '📄 *Resumir Documento*\n\nEnvie um texto, PDF, DOCX ou TXT para resumir.');
+        break;
+      case '3':
+        // 2.3 - Resumir vídeo YouTube
+        return await this.whatsAppBot.videoSummaryHandler.handleResumirvideo1Command(contactId);
+        break;
+      case '4':
+        // 2.4 - Analisar imagem
+        return await this.whatsAppBot.imageHandler.handleFotoCommand(contactId);
+        break;
+      case '5':
+        // 2.5 - Transcrever e resumir áudio
+        await this.whatsAppBot.setMode(contactId, 'TRANSCREVER_RESUMIR');
+        await this.whatsAppBot.sendResponse(contactId, '🎤 *Transcrever e Resumir*\n\nEnvie um áudio para transcrever e resumir.');
+        break;
+      case '6':
+        // 2.6 - Escolher modelo específico
+        return await this.whatsAppBot.modelManagementHandler.handleChooseModelCommand(contactId);
+        break;
+      case '0':
+        return await this.handleBackCommand(contactId, null);
+      default:
+        await this.whatsAppBot.sendResponse(contactId, '❌ Opção inválida. Use 1, 2, 3, 4, 5, 6 ou 0 para voltar.');
+        break;
+    }
+    return true;
   }
 
   async handleMidiaSubmenu(msg, contactId, input) {
-    return await this.whatsAppBot.handleMidiaSubmenu(msg, contactId, input);
+    const option = input.includes('.') ? input.split('.')[1] : input;
+    
+    switch (option) {
+      case '1':
+        // 3.1 - Transcrever áudio
+        await this.whatsAppBot.setMode(contactId, 'TRANSCRICAO');
+        await this.whatsAppBot.sendResponse(contactId, '🎤 *Modo Transcrição*\n\nEnvie um áudio para transcrever.');
+        break;
+      case '2':
+        // 3.2 - Ativar/desativar voz
+        return await this.whatsAppBot.systemHandler.handleVozCommand(contactId);
+        break;
+      case '3':
+        // 3.3 - Calcular calorias
+        await this.whatsAppBot.setMode(contactId, 'CALORIAS');
+        await this.whatsAppBot.sendResponse(contactId, '🍎 *Calculadora de Calorias*\n\nEnvie uma foto da comida para análise nutricional.');
+        break;
+      case '4':
+        // 3.4 - Escolher endpoint transcrição
+        return await this.whatsAppBot.endpointHandler.handleChooseWhisperEndpointCommand(contactId);
+        break;
+      case '0':
+        return await this.handleBackCommand(contactId, null);
+      default:
+        await this.whatsAppBot.sendResponse(contactId, '❌ Opção inválida. Use 1, 2, 3, 4 ou 0 para voltar.');
+        break;
+    }
+    return true;
   }
 
   async handleProfissionalSubmenu(msg, contactId, input) {
@@ -236,7 +370,284 @@ export default class MenuNavigationHandler {
   }
 
   async trySubmenuNavigation(transcription, navigationState) {
-    // This method is delegated to whatsAppBot for complex transcription matching logic
-    return await this.whatsAppBot.trySubmenuNavigation(transcription, navigationState);
+    const submenuMapping = {
+      // Palavras-chave para navegação de submenu
+      'agenda': 'submenu_agenda',
+      'lembrete': 'submenu_agenda',
+      'compromisso': 'submenu_agenda',
+      'agendamento': 'submenu_agenda',
+      'ia': 'submenu_ia',
+      'inteligencia': 'submenu_ia',
+      'artificial': 'submenu_ia',
+      'chat': 'submenu_ia',
+      'conversa': 'submenu_ia',
+      'midia': 'submenu_midia',
+      'audio': 'submenu_midia',
+      'som': 'submenu_midia',
+      'voz': 'submenu_midia',
+      'profissional': 'submenu_profissional',
+      'linkedin': 'submenu_profissional',
+      'perfil': 'submenu_profissional',
+      'analisar': 'submenu_profissional',
+      'analise': 'submenu_profissional',
+      'config': 'submenu_config',
+      'configuracao': 'submenu_config',
+      'configurar': 'submenu_config',
+      'ajuste': 'submenu_config',
+      'suporte': 'submenu_suporte',
+      'ajuda': 'submenu_suporte',
+      'sistema': 'submenu_suporte',
+      'recurso': 'submenu_suporte'
+    };
+
+    const lowerTranscription = transcription.toLowerCase();
+    
+    for (const [keyword, submenu] of Object.entries(submenuMapping)) {
+      if (lowerTranscription.includes(keyword)) {
+        return submenu;
+      }
+    }
+    
+    return null;
+  }
+
+  async processTextNavigation(msg, contactId, text, navigationState) {
+    logger.flow(`⌨️ Processando navegação por texto. Estado: ${navigationState}, Texto: "${text}"`);
+
+    // Primeiro, tentar navegação hierárquica por texto
+    if (await this.handleHierarchicalNavigation(msg, contactId, text, navigationState)) {
+      return;
+    }
+
+    // Depois, tentar mapear para comando direto ou via LLM
+    const commandPrompt = PROMPTS.audioCommandMapping(text);
+    let mappedCommand = 'INVALIDO';
+
+    const directMapping = {
+      'linkedin': COMMANDS.LINKEDIN,
+      'analisar linkedin': COMMANDS.LINKEDIN,
+      'perfil linkedin': COMMANDS.LINKEDIN,
+      'analisar perfil': COMMANDS.LINKEDIN,
+      'linkedin login': `${COMMANDS.LINKEDIN} login`,
+      'linkedin test': `${COMMANDS.LINKEDIN} test`,
+      'testar linkedin': `${COMMANDS.LINKEDIN} test`
+    };
+
+    const lowerText = text.toLowerCase();
+    for (const [keyword, command] of Object.entries(directMapping)) {
+      if (lowerText.includes(keyword)) {
+        mappedCommand = command;
+        logger.api(`🎯 Mapeamento direto de texto para: ${mappedCommand}`);
+        break;
+      }
+    }
+
+    if (mappedCommand === 'INVALIDO') {
+      try {
+        mappedCommand = await this.whatsAppBot.llmService.generateText(commandPrompt, 0.2);
+        logger.api(`🤖 LLM mapeou texto para: ${mappedCommand}`);
+      } catch (error) {
+        logger.error('❌ Erro ao mapear comando de texto via LLM:', error);
+        logger.flow('🔄 Tentando fallback para navegação por submenu');
+      }
+    }
+
+    if (mappedCommand !== 'INVALIDO' && Object.values(COMMANDS).includes(mappedCommand)) {
+        await this.whatsAppBot.sendResponse(contactId, `✅ Comando interpretado: *${this.getCommandDescription(mappedCommand)}*`, true);
+        await this.whatsAppBot.handleMessage({ ...msg, body: mappedCommand });
+    } else {
+        const submenuCommand = await this.trySubmenuNavigation(text, navigationState);
+
+        if (submenuCommand) {
+            logger.flow(`⌨️ Texto mapeado para navegação de submenu: ${submenuCommand}`);
+            await this.whatsAppBot.sendResponse(contactId, `✅ Navegando para: *${this.getSubmenuDescription(submenuCommand)}*`, true);
+            await this.whatsAppBot.handleMessage({ ...msg, body: submenuCommand });
+        } else {
+            const currentMenuText = this.getCurrentMenuText(navigationState);
+            await this.whatsAppBot.sendResponse(contactId, `😕 Desculpe, não entendi a mensagem "${text}".
+
+💡 *Tente algo como:*\n• "criar lembrete" • "conversar com IA"\n• "transcrever áudio" • "analisar imagem"\n• "ver compromissos" • "ajuda"\n\n${currentMenuText}`);
+        }
+    }
+  }
+
+  getCurrentMenuText(navigationState) {
+    switch (navigationState) {
+      case NAVIGATION_STATES.SUBMENU_AGENDA:
+        return SUBMENU_MESSAGES.agenda;
+      case NAVIGATION_STATES.SUBMENU_IA:
+        return SUBMENU_MESSAGES.ia;
+      case NAVIGATION_STATES.SUBMENU_MIDIA:
+        return SUBMENU_MESSAGES.midia;
+      case NAVIGATION_STATES.SUBMENU_PROFISSIONAL:
+        return SUBMENU_MESSAGES.profissional;
+      case NAVIGATION_STATES.SUBMENU_CONFIG:
+        return SUBMENU_MESSAGES.config;
+      case NAVIGATION_STATES.SUBMENU_SUPORTE:
+        return SUBMENU_MESSAGES.suporte;
+      case NAVIGATION_STATES.SUBMENU_VIDEO:
+        return SUBMENU_MESSAGES.video;
+      default:
+        return MENU_MESSAGE;
+    }
+  }
+
+  // Audio navigation support
+  async processAudioNavigation(msg, contactId, transcription, navigationState) {
+    logger.flow(`🎤 Processando navegação por áudio. Estado: ${navigationState}, Transcrição: "${transcription}"`);
+    await this.whatsAppBot.sendResponse(contactId, '🤔 Interpretando comando de áudio...', true);
+    
+    // Primeiro, tentar navegação hierárquica por áudio
+    if (await this.handleHierarchicalNavigation(msg, contactId, transcription, navigationState)) {
+      return;
+    }
+    
+    // Depois, tentar mapear para comando direto
+    const commandPrompt = PROMPTS.audioCommandMapping(transcription);
+    let mappedCommand = 'INVALIDO';
+    
+    // Mapeamento direto para comandos comuns
+    const directMapping = {
+      'linkedin': COMMANDS.LINKEDIN,
+      'analisar linkedin': COMMANDS.LINKEDIN,
+      'perfil linkedin': COMMANDS.LINKEDIN,
+      'analisar perfil': COMMANDS.LINKEDIN,
+      'linkedin login': `${COMMANDS.LINKEDIN} login`,
+      'linkedin test': `${COMMANDS.LINKEDIN} test`,
+      'testar linkedin': `${COMMANDS.LINKEDIN} test`
+    };
+    
+    const lowerTranscription = transcription.toLowerCase();
+    for (const [keyword, command] of Object.entries(directMapping)) {
+      if (lowerTranscription.includes(keyword)) {
+        mappedCommand = command;
+        logger.api(`🎯 Mapeamento direto de áudio para: ${mappedCommand}`);
+        break;
+      }
+    }
+    
+    // Se não encontrou mapeamento direto, usar LLM
+    if (mappedCommand === 'INVALIDO') {
+      try {
+        mappedCommand = await this.whatsAppBot.llmService.generateText(commandPrompt, 0.2);
+        logger.api(`🤖 LLM mapeou áudio para: ${mappedCommand}`);
+      } catch (error) {
+        logger.error('❌ Erro ao mapear comando de áudio via LLM:', error);
+        // Fallback: tentar navegação por submenu diretamente
+        logger.flow('🔄 Tentando fallback para navegação por submenu');
+      }
+    }
+    
+    if (mappedCommand !== 'INVALIDO' && Object.values(COMMANDS).includes(mappedCommand)) {
+        await this.whatsAppBot.sendResponse(contactId, `✅ Comando de áudio interpretado: *${this.getCommandDescription(mappedCommand)}*`, true);
+        await this.whatsAppBot.handleMessage({ ...msg, body: mappedCommand });
+    } else {
+        // Se não conseguiu mapear diretamente, tentar navegar por submenu
+        const submenuCommand = await this.trySubmenuNavigation(transcription, navigationState);
+        
+        if (submenuCommand) {
+            logger.flow(`🎤 Áudio mapeado para navegação de submenu: ${submenuCommand}`);
+            await this.whatsAppBot.sendResponse(contactId, `✅ Navegando para: *${this.getSubmenuDescription(submenuCommand)}*`, true);
+            await this.showSubmenu(contactId, submenuCommand);
+        } else {
+            const currentMenuText = this.getCurrentMenuText(navigationState);
+            await this.whatsAppBot.sendResponse(contactId, `😕 Desculpe, não entendi o comando de áudio "${transcription}". 
+
+💡 *Tente falar algo como:*
+• "criar lembrete" • "conversar com IA" 
+• "transcrever áudio" • "analisar imagem"
+• "ver compromissos" • "ajuda"
+
+${currentMenuText}`);
+        }
+    }
+  }
+
+  getCommandDescription(command) {
+    const descriptions = {
+      [COMMANDS.AJUDA]: 'Exibir Ajuda',
+      [COMMANDS.DEEP]: 'Chat com IA',
+      [COMMANDS.AGENDA]: 'Criar Agendamento',
+      [COMMANDS.TRANSCREVER]: 'Transcrever Áudio',
+      [COMMANDS.TRANSCREVER_RESUMIR]: 'Transcrever e Resumir',
+      [COMMANDS.FOTO]: 'Analisar Imagem',
+      [COMMANDS.CALORIAS]: 'Calcular Calorias',
+      [COMMANDS.LISTAR]: 'Listar Compromissos',
+      [COMMANDS.LINKEDIN]: 'Analisar LinkedIn',
+      [COMMANDS.DELETAR]: 'Deletar Compromisso',
+      [COMMANDS.VOZ]: 'Alternar Voz/Texto',
+      [COMMANDS.TTS_CONFIG]: 'Configurar TTS',
+      [COMMANDS.RECURSO]: 'Recursos do Sistema',
+      [COMMANDS.RESUMIR]: 'Resumir Documento',
+      [COMMANDS.RESUMIRVIDEO]: 'Resumir Vídeo',
+      [COMMANDS.MENU]: 'Menu Principal',
+      [COMMANDS.VOLTAR]: 'Voltar'
+    };
+    return descriptions[command] || command;
+  }
+
+  getSubmenuDescription(submenu) {
+    const descriptions = {
+      'submenu_agenda': 'Agenda & Lembretes',
+      'submenu_ia': 'Inteligência Artificial',
+      'submenu_midia': 'Mídia & Conteúdo',
+      'submenu_profissional': 'Análise Profissional',
+      'submenu_config': 'Configurações',
+      'submenu_suporte': 'Suporte & Sistema',
+      'submenu_whispersilent': 'WhisperSilent API'
+    };
+    return descriptions[submenu] || submenu;
+  }
+
+  // Enhanced showSubmenu with proper state handling
+  async showSubmenu(contactId, submenuType) {
+    switch (submenuType) {
+      case 'submenu_agenda':
+        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_AGENDA);
+        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.agenda);
+        break;
+      case 'submenu_ia':
+        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_IA);
+        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.ia);
+        break;
+      case 'submenu_midia':
+        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_MIDIA);
+        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.midia);
+        break;
+      case 'submenu_profissional':
+        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_PROFISSIONAL);
+        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.profissional);
+        break;
+      case 'submenu_config':
+        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_CONFIG);
+        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.config);
+        break;
+      case 'submenu_suporte':
+        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_SUPORTE);
+        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.suporte);
+        break;
+      case 'submenu_video':
+        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_VIDEO);
+        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.video);
+        break;
+      case 'submenu_whispersilent':
+        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_WHISPERSILENT);
+        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.whispersilent);
+        break;
+      case 'submenu_status_apis':
+        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_STATUS_APIS);
+        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.status_apis);
+        break;
+      case 'submenu_crypto':
+        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_CRYPTO);
+        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.crypto);
+        break;
+      case 'submenu_crypto_ml':
+        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_CRYPTO_ML);
+        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.crypto_ml);
+        break;
+      default:
+        await this.whatsAppBot.sendResponse(contactId, MENU_MESSAGE);
+    }
   }
 }

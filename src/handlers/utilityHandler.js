@@ -1,8 +1,119 @@
 import logger from '../utils/logger.js';
+import { CHAT_MODES, MODE_MESSAGES, COMMANDS } from '../config/index.js';
 
 export default class UtilityHandler {
   constructor(whatsAppBot) {
     this.whatsAppBot = whatsAppBot;
+  }
+
+  async handleDeepCommand(contactId, originalText) {
+    try {
+      await this.whatsAppBot.setMode(contactId, CHAT_MODES.ASSISTANT);
+      const query = originalText.substring(COMMANDS.DEEP.length).trim();
+      if (!query) {
+        await this.whatsAppBot.sendResponse(contactId, MODE_MESSAGES[CHAT_MODES.ASSISTANT]);
+        return;
+      }
+      await this.whatsAppBot.sendResponse(contactId, '🤔 Pensando...', true);
+      const response = await this.whatsAppBot.llmService.getAssistantResponse(contactId, query);
+      await this.whatsAppBot.sendResponse(contactId, response);
+    } catch (error) {
+      logger.error(`❌ Erro ao processar comando deep para ${contactId}:`, error);
+      await this.whatsAppBot.sendErrorMessage(contactId, 'Erro ao processar sua pergunta.');
+    }
+  }
+
+  async handleRecursoCommand(contactId) {
+    try {
+      await this.handleRecursoDetalhadoCommand(contactId);
+    } catch (error) {
+      logger.error(`❌ Erro ao mostrar recursos para ${contactId}:`, error);
+      await this.whatsAppBot.sendResponse(contactId, '❌ Erro ao obter informações do sistema. Tente novamente.');
+    }
+  }
+
+  async handleRecursoDetalhadoCommand(contactId) {
+    try {
+      logger.info(`📊 Coletando recursos do sistema para ${contactId}`);
+      
+      // Import systeminformation here to avoid loading it globally
+      const si = await import('systeminformation');
+      
+      // Get system information
+      const [cpu, mem, currentLoad, osInfo, networkStats, diskLayout] = await Promise.all([
+        si.cpu(),
+        si.mem(),
+        si.currentLoad(),
+        si.osInfo(),
+        si.networkStats(),
+        si.diskLayout()
+      ]);
+
+      // Calculate CPU usage
+      const cpuUsage = currentLoad.currentLoad ? currentLoad.currentLoad.toFixed(1) : 'N/A';
+      
+      // Memory calculations
+      const totalMemory = Math.round(mem.total / 1024 / 1024 / 1024);
+      const freeMemory = Math.round(mem.free / 1024 / 1024 / 1024);
+      const usedMemory = totalMemory - freeMemory;
+      const memoryUsage = ((usedMemory / totalMemory) * 100).toFixed(1);
+
+      // Network information
+      const networkInfo = networkStats && networkStats.length > 0 ? networkStats[0] : null;
+      
+      // Disk information
+      const totalDiskSize = diskLayout.reduce((total, disk) => total + (disk.size || 0), 0);
+      const totalDiskGB = Math.round(totalDiskSize / 1024 / 1024 / 1024);
+
+      const response = `🖥️ *Recursos do Sistema*
+
+*💾 Memória:*
+• Total: ${totalMemory} GB
+• Usado: ${usedMemory} GB (${memoryUsage}%)
+• Disponível: ${freeMemory} GB
+
+*🧠 CPU:*
+• Modelo: ${cpu.manufacturer} ${cpu.brand}
+• Cores: ${cpu.cores} (${cpu.physicalCores} físicos)
+• Uso: ${cpuUsage}%
+
+*🏠 Sistema:*
+• OS: ${osInfo.distro} ${osInfo.release}
+• Arquitetura: ${osInfo.arch}
+• Hostname: ${osInfo.hostname}
+
+*💽 Armazenamento:*
+• Total: ${totalDiskGB} GB
+• Discos: ${diskLayout.length}
+
+*🌐 Rede:*
+• Interface: ${networkInfo?.iface || 'N/A'}
+• Velocidade: ${networkInfo?.speed ? `${networkInfo.speed} Mbps` : 'N/A'}
+
+*⏱️ Sistema Online há:* ${this.formatUptime(osInfo.uptime)}`;
+
+      await this.whatsAppBot.sendResponse(contactId, response);
+      
+    } catch (error) {
+      logger.error(`❌ Erro ao coletar recursos do sistema:`, error);
+      await this.whatsAppBot.sendResponse(contactId, '❌ Erro ao obter informações do sistema. O serviço pode não estar disponível.');
+    }
+  }
+
+  formatUptime(seconds) {
+    if (!seconds) return 'N/A';
+    
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    
+    if (days > 0) {
+      return `${days}d ${hours}h ${minutes}m`;
+    } else if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    } else {
+      return `${minutes}m`;
+    }
   }
 
   // Validation methods

@@ -1,5 +1,5 @@
 import logger from '../utils/logger.js';
-import { CHAT_MODES } from '../config/index.js';
+import { CHAT_MODES, SUCCESS_MESSAGES, ERROR_MESSAGES } from '../config/index.js';
 import fs from 'fs/promises';
 
 export default class ScheduleHandler {
@@ -49,6 +49,60 @@ export default class ScheduleHandler {
       await this.whatsAppBot.sendErrorMessage(contactId, 'Erro ao iniciar AgendaBot.');
       return false;
     }
+  }
+
+  async processAgendabotMessage(contactId, text) {
+    try {
+      await this.whatsAppBot.sendResponse(contactId, '📅 Processando agendamento...', true);
+      const responseText = await this.whatsAppBot.llmService.getChatGPTResponse(contactId, text);
+      
+      let scheduleDataRaw;
+      try {
+        scheduleDataRaw = JSON.parse(responseText);
+      } catch (parseError) {
+        logger.verbose('LLM não retornou JSON válido, tentando novamente com prompt mais restritivo...');
+        
+        // Tentar novamente com prompt mais restritivo
+        const restrictivePrompt = `CRITICAL: Responda APENAS com JSON válido. Nenhum texto adicional. Use esta estrutura:
+{
+  "message": "Texto do lembrete extraído da mensagem do usuário",
+  "status": "approved",
+  "scheduledTime": { "$date": "DATA_EM_ISO8601_UTC" },
+  "expiryTime": { "$date": "DATA_EM_ISO8601_UTC" },
+  "sentAt": null,
+  "attempts": 0,
+  "lastAttemptAt": null
+}
+
+Mensagem do usuário: ${text}`;
+        
+        try {
+          const retryResponse = await this.whatsAppBot.llmService.chat(contactId, restrictivePrompt, CHAT_MODES.AGENDABOT);
+          scheduleDataRaw = JSON.parse(retryResponse);
+        } catch (retryError) {
+          logger.error('Falha ao obter JSON válido mesmo após tentativa restritiva:', retryError);
+          await this.whatsAppBot.sendResponse(contactId, `❌ **Erro de processamento**\n\nNão consegui processar seu agendamento. Tente ser mais específico com data, hora e mensagem.\n\n**Exemplo:**\n"Lembrar de reunião amanhã às 14h"\n\n**Resposta original do sistema:**\n${responseText}`);
+          return;
+        }
+      }
+
+      const scheduleResult = await this.createSchedule(contactId, scheduleDataRaw);
+      if (!scheduleResult.success) {
+        await this.whatsAppBot.sendResponse(contactId, `❌ Erro ao criar agendamento: ${scheduleResult.error}`);
+        return;
+      }
+      await this.whatsAppBot.sendResponse(contactId, SUCCESS_MESSAGES.SCHEDULE_CREATED);
+      this.whatsAppBot.llmService.clearContext(contactId, CHAT_MODES.AGENDABOT);
+      
+    } catch (err) {
+      logger.error(`❌ Erro ao processar mensagem Agendabot para ${contactId}`, err);
+      await this.whatsAppBot.sendErrorMessage(contactId, ERROR_MESSAGES.GENERIC);
+    }
+  }
+
+  async createSchedule(contactId, scheduleDataRaw) {
+    // Delegate to the scheduler service
+    return await this.whatsAppBot.scheduler.createSchedule(contactId, scheduleDataRaw);
   }
 
   async handleListarCommand(contactId) {

@@ -231,8 +231,13 @@ export default class FlowHandler {
 
   async processFlowMessage(contactId, text) {
     try {
-      // Delegate to whatsAppBot's flow processing
-      return await this.whatsAppBot.processFlowMessage(contactId, text);
+      // Process flow message using flowExecutionService
+      if (this.whatsAppBot.flowExecutionService) {
+        return await this.whatsAppBot.flowExecutionService.processMessage(contactId, text);
+      }
+      
+      logger.warn('⚠️ FlowExecutionService não disponível');
+      return false;
     } catch (error) {
       logger.error('❌ Erro ao processar mensagem de flow:', error);
       return false;
@@ -241,7 +246,14 @@ export default class FlowHandler {
 
   async hasActiveFlow(contactId) {
     try {
-      return await this.whatsAppBot.hasActiveFlow(contactId);
+      // Check if flowExecutionService is available and has active flow
+      if (this.whatsAppBot.flowExecutionService) {
+        return await this.whatsAppBot.flowExecutionService.hasActiveFlow(contactId);
+      }
+      
+      // Fallback: check if user has any flow-related session state
+      const session = this.whatsAppBot.sessions?.get(contactId);
+      return !!(session && session.activeFlowId);
     } catch (error) {
       logger.error('❌ Erro ao verificar flow ativo:', error);
       return false;
@@ -250,7 +262,13 @@ export default class FlowHandler {
 
   async startFlow(contactId, flowId, initialMessage = '') {
     try {
-      return await this.whatsAppBot.startFlow(contactId, flowId, initialMessage);
+      if (this.whatsAppBot.flowExecutionService) {
+        return await this.whatsAppBot.flowExecutionService.startFlow(contactId, flowId, initialMessage);
+      }
+      
+      logger.warn('⚠️ FlowExecutionService não disponível');
+      await this.whatsAppBot.sendResponse(contactId, '❌ Serviço de flows não está disponível no momento.');
+      return false;
     } catch (error) {
       logger.error('❌ Erro ao iniciar flow:', error);
       return false;
@@ -259,7 +277,13 @@ export default class FlowHandler {
 
   async stopFlow(contactId) {
     try {
-      return await this.whatsAppBot.stopFlow(contactId);
+      if (this.whatsAppBot.flowExecutionService) {
+        return await this.whatsAppBot.flowExecutionService.stopFlow(contactId);
+      }
+      
+      logger.warn('⚠️ FlowExecutionService não disponível');
+      await this.whatsAppBot.sendResponse(contactId, '❌ Serviço de flows não está disponível no momento.');
+      return false;
     } catch (error) {
       logger.error('❌ Erro ao parar flow:', error);
       return false;

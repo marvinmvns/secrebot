@@ -13,7 +13,7 @@ describe('API Integration Tests', () => {
   test('Initialize Application Factory', async () => {
     try {
       appFactory = new ApplicationFactory();
-      await appFactory.initialize();
+      await appFactory.initializeApplication();
       llmService = appFactory.services.llmService;
       
       assert(llmService, 'LLM Service should be available');

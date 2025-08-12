@@ -239,6 +239,49 @@ class AudioTranscriber {
     return getDynamicConfig(mongoConfig);
   }
 
+  getAvailableEndpoints() {
+    try {
+      // Return endpoints from WhisperAPIPool plus local endpoint
+      const endpoints = [];
+      
+      // Add local Whisper endpoint
+      endpoints.push({
+        url: 'local',
+        name: 'Whisper Local (CPU)',
+        type: 'local',
+        priority: 999,
+        enabled: true,
+        healthy: true
+      });
+      
+      // Add API endpoints from pool
+      if (this.whisperApiPool && this.whisperApiPool.clients) {
+        this.whisperApiPool.clients.forEach((client, index) => {
+          endpoints.push({
+            url: client.endpoint?.url || client.url,
+            name: client.endpoint?.name || `Whisper API ${index + 1}`,
+            type: client.endpoint?.type || 'api',
+            priority: client.endpoint?.priority || index,
+            enabled: client.endpoint?.enabled !== false,
+            healthy: !client.lastError
+          });
+        });
+      }
+      
+      return endpoints.sort((a, b) => a.priority - b.priority);
+    } catch (error) {
+      logger.error('❌ Erro ao obter endpoints disponíveis:', error);
+      return [{
+        url: 'local',
+        name: 'Whisper Local (CPU)',
+        type: 'local',
+        priority: 999,
+        enabled: true,
+        healthy: true
+      }];
+    }
+  }
+
   async transcribe(audioBuffer, inputFormat = 'ogg', userId = 'unknown') {
     return this.queue.add(async () => {
       const startTime = Date.now();

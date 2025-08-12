@@ -5,7 +5,8 @@ import {
   SUBMENU_MESSAGES,
   MENU_MESSAGE,
   COMMANDS,
-  PROMPTS
+  PROMPTS,
+  CHAT_MODES
 } from '../config/index.js';
 
 export default class MenuNavigationHandler {
@@ -40,13 +41,22 @@ export default class MenuNavigationHandler {
     try {
       const numericInput = text.trim();
       logger.info(`🔢 Navegação hierárquica: ${numericInput} de ${contactId}`);
+      logger.debug(`🐛 handleHierarchicalNavigation - navigationState: ${navigationState ? JSON.stringify(navigationState) : 'NULL'}`);
 
       // Handle based on current navigation state
-      if (!navigationState) {
-        return await this.handleMainMenuNavigation(msg, contactId, numericInput);
+      // If user types a single digit (1-9), always treat as main menu navigation
+      const isSingleDigit = /^[1-9]$/.test(numericInput);
+      if (!navigationState || navigationState === 'MAIN_MENU' || typeof navigationState === 'string' || isSingleDigit) {
+        logger.debug(`🐛 Chamando handleMainMenuNavigation para "${numericInput}" (state: ${navigationState}, singleDigit: ${isSingleDigit})`);
+        const result = await this.handleMainMenuNavigation(msg, contactId, numericInput);
+        logger.debug(`🐛 handleMainMenuNavigation retornou: ${result}`);
+        return result;
       }
 
-      return await this.handleSubmenuNavigation(msg, contactId, numericInput, navigationState);
+      logger.debug(`🐛 Chamando handleSubmenuNavigation para "${numericInput}"`);
+      const result = await this.handleSubmenuNavigation(msg, contactId, numericInput, navigationState);
+      logger.debug(`🐛 handleSubmenuNavigation retornou: ${result}`);
+      return result;
     } catch (error) {
       logger.error('❌ Erro na navegação hierárquica:', error);
       return false;
@@ -54,8 +64,11 @@ export default class MenuNavigationHandler {
   }
 
   async handleMainMenuNavigation(msg, contactId, numericInput) {
+    logger.debug(`🐛 handleMainMenuNavigation chamado com numericInput: "${numericInput}"`);
+    
     // Handle direct hierarchical navigation (like "1.1" without first going to "1")
     if (numericInput.includes('.')) {
+      logger.debug(`🐛 Navegação hierárquica detectada: ${numericInput}`);
       const parts = numericInput.split('.');
       const mainMenu = parts[0];
       
@@ -73,6 +86,8 @@ export default class MenuNavigationHandler {
       };
       
       const submenuType = menuTypeMap[mainMenu];
+      logger.debug(`🐛 Menu hierárquico "${mainMenu}" mapeado para: ${submenuType}`);
+      
       if (submenuType) {
         // Set navigation state and handle submenu directly
         await this.whatsAppBot.setNavigationState(contactId, {
@@ -85,8 +100,11 @@ export default class MenuNavigationHandler {
       }
     }
     
-    // Map numeric inputs to main menu actions (single numbers like "1", "2")
+    // Map numeric inputs to main menu actions (single numbers like "0", "1", "2")
+    logger.debug(`🐛 Processando entrada de menu principal: "${numericInput}"`);
+    
     const menuMap = {
+      '0': () => this.handleBackCommand(contactId, null),
       '1': () => this.showSubmenu(contactId, 'AGENDA'),
       '2': () => this.showSubmenu(contactId, 'IA'),
       '3': () => this.showSubmenu(contactId, 'MIDIA'),
@@ -99,11 +117,17 @@ export default class MenuNavigationHandler {
     };
 
     const action = menuMap[numericInput];
+    logger.debug(`🐛 Ação encontrada para "${numericInput}": ${action ? 'SIM' : 'NÃO'}`);
+    
     if (action) {
-      return await action();
+      logger.debug(`🐛 Executando ação para entrada "${numericInput}"`);
+      const result = await action();
+      logger.debug(`🐛 Resultado da ação: ${result}`);
+      return result;
     }
 
-    await this.whatsAppBot.sendResponse(contactId, '❌ Opção inválida. Digite um número de 1-9 ou navegue diretamente (ex: 1.1).');
+    logger.debug(`🐛 Entrada inválida: "${numericInput}"`);
+    await this.whatsAppBot.sendResponse(contactId, '❌ Opção inválida. Digite 0 para menu principal, 1-9 para submenus, ou navegue diretamente (ex: 1.1).');
     return true;
   }
 
@@ -188,6 +212,8 @@ export default class MenuNavigationHandler {
 
   async showSubmenu(contactId, submenuType) {
     try {
+      logger.debug(`🐛 showSubmenu chamado com contactId: ${contactId}, submenuType: ${submenuType}`);
+      
       // Set navigation state
       await this.whatsAppBot.setNavigationState(contactId, {
         submenu: submenuType,
@@ -210,12 +236,19 @@ export default class MenuNavigationHandler {
 
       // Send submenu message
       const submenuMessage = submenuMap[submenuType];
+      logger.debug(`🐛 submenuMessage para ${submenuType}: ${submenuMessage ? 'ENCONTRADA' : 'NÃO ENCONTRADA'}`);
+      
       if (submenuMessage) {
+        logger.debug(`🐛 Enviando mensagem do submenu: ${submenuMessage.substring(0, 100)}...`);
         await this.whatsAppBot.sendResponse(contactId, submenuMessage);
+        logger.debug(`🐛 Mensagem do submenu enviada com sucesso`);
       } else {
-        await this.whatsAppBot.sendResponse(contactId, `Menu ${submenuType} não implementado.`);
+        const errorMsg = `Menu ${submenuType} não implementado.`;
+        logger.debug(`🐛 Enviando mensagem de erro: ${errorMsg}`);
+        await this.whatsAppBot.sendResponse(contactId, errorMsg);
       }
       
+      logger.debug(`🐛 showSubmenu concluído com sucesso para ${submenuType}`);
       return true;
     } catch (error) {
       logger.error(`❌ Erro ao mostrar submenu ${submenuType}:`, error);
@@ -234,7 +267,8 @@ export default class MenuNavigationHandler {
     switch (option) {
       case '1':
         // 1.1 - Criar agendamento
-        await this.whatsAppBot.setMode(contactId, 'SCHEDULER');
+        await this.clearNavigationState(contactId); // Clear navigation state when entering specific mode
+        await this.whatsAppBot.setMode(contactId, CHAT_MODES.SCHEDULER);
         await this.whatsAppBot.sendResponse(contactId, '➕ *Criar Agendamento*\n\nDescreva o que deseja agendar (ex: "Reunião amanhã às 14h")');
         break;
       case '2':
@@ -245,6 +279,7 @@ export default class MenuNavigationHandler {
         return await this.whatsAppBot.scheduleHandler.handleDeletarCommand(contactId);
       case '4':
         // 1.4 - Importar agenda
+        await this.clearNavigationState(contactId); // Clear navigation state when entering specific mode
         await this.whatsAppBot.setMode(contactId, 'IMPORT_CALENDAR');
         await this.whatsAppBot.sendResponse(contactId, '📥 *Importar Agenda*\n\nEnvie um arquivo .ics para importar os eventos.');
         break;
@@ -263,12 +298,12 @@ export default class MenuNavigationHandler {
     switch (option) {
       case '1':
         // 2.1 - Bater papo com IA
-        await this.whatsAppBot.setMode(contactId, 'ASSISTANT');
+        await this.whatsAppBot.setMode(contactId, CHAT_MODES.ASSISTANT);
         await this.whatsAppBot.sendResponse(contactId, '💬 *Modo Conversa Ativado*\n\nAgora você pode conversar comigo! Digite sua pergunta ou mensagem.');
         break;
       case '2':
         // 2.2 - Resumir texto/arquivo
-        await this.whatsAppBot.setMode(contactId, 'RESUMIR');
+        await this.whatsAppBot.setMode(contactId, CHAT_MODES.RESUMIR);
         await this.whatsAppBot.sendResponse(contactId, '📄 *Resumir Documento*\n\nEnvie um texto, PDF, DOCX ou TXT para resumir.');
         break;
       case '3':
@@ -281,7 +316,7 @@ export default class MenuNavigationHandler {
         break;
       case '5':
         // 2.5 - Transcrever e resumir áudio
-        await this.whatsAppBot.setMode(contactId, 'TRANSCREVER_RESUMIR');
+        await this.whatsAppBot.setMode(contactId, CHAT_MODES.TRANSCREVER_RESUMIR);
         await this.whatsAppBot.sendResponse(contactId, '🎤 *Transcrever e Resumir*\n\nEnvie um áudio para transcrever e resumir.');
         break;
       case '6':
@@ -303,7 +338,7 @@ export default class MenuNavigationHandler {
     switch (option) {
       case '1':
         // 3.1 - Transcrever áudio
-        await this.whatsAppBot.setMode(contactId, 'TRANSCRICAO');
+        await this.whatsAppBot.setMode(contactId, CHAT_MODES.TRANSCRICAO);
         await this.whatsAppBot.sendResponse(contactId, '🎤 *Modo Transcrição*\n\nEnvie um áudio para transcrever.');
         break;
       case '2':
@@ -312,7 +347,7 @@ export default class MenuNavigationHandler {
         break;
       case '3':
         // 3.3 - Calcular calorias
-        await this.whatsAppBot.setMode(contactId, 'CALORIAS');
+        await this.whatsAppBot.setMode(contactId, CHAT_MODES.CALORIAS);
         await this.whatsAppBot.sendResponse(contactId, '🍎 *Calculadora de Calorias*\n\nEnvie uma foto da comida para análise nutricional.');
         break;
       case '4':
@@ -414,8 +449,8 @@ export default class MenuNavigationHandler {
   async processTextNavigation(msg, contactId, text, navigationState) {
     logger.flow(`⌨️ Processando navegação por texto. Estado: ${navigationState}, Texto: "${text}"`);
 
-    // Primeiro, tentar navegação hierárquica por texto
-    if (await this.handleHierarchicalNavigation(msg, contactId, text, navigationState)) {
+    // Primeiro, verificar se é input numérico para navegação hierárquica
+    if (this.isNumericInput(text) && await this.handleHierarchicalNavigation(msg, contactId, text, navigationState)) {
       return;
     }
 
@@ -599,55 +634,4 @@ ${currentMenuText}`);
     return descriptions[submenu] || submenu;
   }
 
-  // Enhanced showSubmenu with proper state handling
-  async showSubmenu(contactId, submenuType) {
-    switch (submenuType) {
-      case 'submenu_agenda':
-        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_AGENDA);
-        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.agenda);
-        break;
-      case 'submenu_ia':
-        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_IA);
-        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.ia);
-        break;
-      case 'submenu_midia':
-        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_MIDIA);
-        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.midia);
-        break;
-      case 'submenu_profissional':
-        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_PROFISSIONAL);
-        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.profissional);
-        break;
-      case 'submenu_config':
-        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_CONFIG);
-        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.config);
-        break;
-      case 'submenu_suporte':
-        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_SUPORTE);
-        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.suporte);
-        break;
-      case 'submenu_video':
-        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_VIDEO);
-        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.video);
-        break;
-      case 'submenu_whispersilent':
-        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_WHISPERSILENT);
-        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.whispersilent);
-        break;
-      case 'submenu_status_apis':
-        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_STATUS_APIS);
-        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.status_apis);
-        break;
-      case 'submenu_crypto':
-        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_CRYPTO);
-        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.crypto);
-        break;
-      case 'submenu_crypto_ml':
-        await this.whatsAppBot.setNavigationState(contactId, NAVIGATION_STATES.SUBMENU_CRYPTO_ML);
-        await this.whatsAppBot.sendResponse(contactId, SUBMENU_MESSAGES.crypto_ml);
-        break;
-      default:
-        await this.whatsAppBot.sendResponse(contactId, MENU_MESSAGE);
-    }
-  }
 }

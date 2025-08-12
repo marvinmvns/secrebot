@@ -110,6 +110,9 @@ export default class CommandHandler {
         case COMMANDS.WHISPER_SILENT_SEARCH:
           return await this.handleWhisperSilentSearchCommand(contactId);
         
+        case COMMANDS.RESET:
+          return await this.handleResetCommand(contactId);
+        
         default:
           // Handle flow commands
           if (lowerText.startsWith('!flow ')) {
@@ -324,5 +327,38 @@ export default class CommandHandler {
 
   async handleWhisperSilentCommand(contactId, action) {
     return await this.whatsAppBot.handleWhisperSilentCommand(contactId, action);
+  }
+
+  async handleResetCommand(contactId) {
+    try {
+      logger.info(`🔄 Iniciando reset completo da sessão para ${contactId}`);
+      
+      // Clear navigation state
+      await this.whatsAppBot.menuNavigationHandler.clearNavigationState(contactId);
+      
+      // Clear chat mode
+      await this.whatsAppBot.clearCurrentMode(contactId);
+      
+      // Clear any active sessions/context
+      await this.whatsAppBot.clearContext(contactId);
+      
+      // Clear session data from MongoDB (remove user's phone number from sessions collection)
+      const phoneNumber = contactId.replace('@c.us', '');
+      if (this.whatsAppBot.sessionService && this.whatsAppBot.sessionService.clearSession) {
+        const sessionCleared = await this.whatsAppBot.sessionService.clearSession(phoneNumber);
+        logger.info(`🗑️ Limpeza da sessão MongoDB para ${phoneNumber}: ${sessionCleared ? 'sucesso' : 'não encontrada'}`);
+      }
+      
+      // Send confirmation and main menu
+      await this.whatsAppBot.sendResponse(contactId, '🔄 Sessão resetada com sucesso! Todos os dados foram limpos da base.');
+      await this.whatsAppBot.sendResponse(contactId, this.whatsAppBot.getMenuMessage());
+      
+      logger.info(`✅ Reset completo finalizado para ${contactId}`);
+      return true;
+    } catch (error) {
+      logger.error('❌ Erro ao resetar sessão:', error);
+      await this.whatsAppBot.sendErrorMessage(contactId, 'Erro ao resetar sessão.');
+      return false;
+    }
   }
 }

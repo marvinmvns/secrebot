@@ -195,14 +195,28 @@ export default class EndpointHandler {
 
   async transcribeWithSpecificEndpoint(msg, endpointInfo) {
     try {
-      // This would use the specific endpoint for transcription
-      // For now, use the default transcriber with endpoint info
-      const result = await this.whatsAppBot.transcriber.transcribe(msg, {
+      // Download the audio data from the message
+      const media = await msg.downloadMedia();
+      if (!media || !media.data) {
+        return {
+          success: false,
+          error: 'Não foi possível baixar o áudio.'
+        };
+      }
+      
+      // Convert base64 to buffer
+      const audioBuffer = Buffer.from(media.data, 'base64');
+      
+      // Use the specific endpoint for transcription
+      const result = await this.whatsAppBot.transcriber.transcribe(audioBuffer, 'ogg', msg.from, {
         endpoint: endpointInfo.url,
         preferredEndpoint: endpointInfo.url
       });
       
-      return result;
+      return {
+        success: true,
+        text: result
+      };
     } catch (error) {
       logger.error('❌ Erro na transcrição com endpoint específico:', error);
       return {

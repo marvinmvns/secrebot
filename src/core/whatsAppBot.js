@@ -338,6 +338,11 @@ class WhatsAppBot {
     return await this.aiSubmenuHandler.handleSuporteSubmenu(msg, contactId, input);
   }
 
+  async handleCryptoSubmenu(msg, contactId, input) {
+    // Delegate to crypto handler
+    return await this.cryptoHandler.handleCryptoSubmenu(msg, contactId, input);
+  }
+
   async showSubmenu(contactId, submenuType) {
     // Delegate to menu navigation handler
     return await this.menuNavigationHandler.showSubmenu(contactId, submenuType);
@@ -404,6 +409,13 @@ class WhatsAppBot {
     // Delegate to MessageProcessor for modular handling
     const processed = await this.messageProcessor.processMessage(msg);
     if (processed) {
+      return;
+    }
+
+    // Check if user has navigation state - if so, avoid legacy processing
+    const navigationState = await this.getNavigationState(contactId);
+    if (navigationState) {
+      // Already processed by MessageProcessor, avoid duplicate processing
       return;
     }
 

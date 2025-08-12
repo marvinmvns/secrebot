@@ -17,6 +17,7 @@ export const COMMANDS = {
   RESUMIRVIDEO2: '!resumirvideo2',
   IMPORTAR_AGENDA: '!importaragenda',
   VOLTAR: '!voltar',
+  RESET: '!reset',
   LISTAR_ENDPOINTS_WHISPER: '!listarendpointswhisper',
   LISTAR_ENDPOINTS_OLLAMA: '!listarendpointsollama',
   STATUS_ENDPOINTS: '!statusendpoints',

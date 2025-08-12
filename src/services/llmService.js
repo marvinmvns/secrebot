@@ -885,6 +885,11 @@ ${structuredText}`;
     return await this.ollama.list();
   }
 
+  // Alias for getAvailableModels (used by handlers)
+  async getAvailableModels() {
+    return await this.listModels();
+  }
+
   async listModelsFromAllEndpoints() {
     // Se o pool de APIs estiver ativo, usar o método do pool
     if (await this.shouldUseApiPool()) {

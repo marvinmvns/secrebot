@@ -43,6 +43,8 @@ export default class AudioTranscriptionHandler {
         return await this.processTranscriptionMode(msg, contactId);
       } else if (currentMode === CHAT_MODES.TRANSCRIBE_SUMMARIZE) {
         return await this.processTranscribeSummarizeMode(msg, contactId);
+      } else if (currentMode === CHAT_MODES.SCHEDULER) {
+        return await this.processSchedulerMode(msg, contactId);
       } else if (navigationState) {
         return await this.processAudioNavigation(msg, contactId);
       } else {
@@ -59,17 +61,23 @@ export default class AudioTranscriptionHandler {
     try {
       await this.whatsAppBot.sendResponse(contactId, '🎤 Transcrevendo áudio...', true);
       
-      const transcription = await this.whatsAppBot.transcriber.transcribe(msg);
-      
-      if (transcription.success) {
-        await this.whatsAppBot.sendResponse(contactId, `📝 *Transcrição:*\n\n${transcription.text}`);
-        
-        // Exit transcription mode
-        await this.whatsAppBot.setMode(contactId, null);
-        await this.whatsAppBot.sendResponse(contactId, '✅ Transcrição concluída!\n\n🔙 Para voltar ao menu: !menu');
-      } else {
-        await this.whatsAppBot.sendResponse(contactId, `❌ Erro na transcrição: ${transcription.error}\n\nTente novamente ou digite "cancelar" para sair.`);
+      // Download the audio data from the message
+      const media = await msg.downloadMedia();
+      if (!media || !media.data) {
+        await this.whatsAppBot.sendResponse(contactId, '❌ Não foi possível baixar o áudio.');
+        return false;
       }
+      
+      // Convert base64 to buffer
+      const audioBuffer = Buffer.from(media.data, 'base64');
+      
+      const transcription = await this.whatsAppBot.transcriber.transcribe(audioBuffer, 'ogg', contactId);
+      
+      await this.whatsAppBot.sendResponse(contactId, `📝 *Transcrição:*\n\n${transcription}`);
+      
+      // Exit transcription mode
+      await this.whatsAppBot.setMode(contactId, null);
+      await this.whatsAppBot.sendResponse(contactId, '✅ Transcrição concluída!\n\n🔙 Para voltar ao menu: !menu');
       
       return true;
     } catch (error) {
@@ -83,7 +91,17 @@ export default class AudioTranscriptionHandler {
     try {
       await this.whatsAppBot.sendResponse(contactId, '🎤📝 Transcrevendo e resumindo áudio...', true);
       
-      const result = await this.whatsAppBot.transcriber.transcribeAndSummarize(msg);
+      // Download the audio data from the message
+      const media = await msg.downloadMedia();
+      if (!media || !media.data) {
+        await this.whatsAppBot.sendResponse(contactId, '❌ Não foi possível baixar o áudio.');
+        return false;
+      }
+      
+      // Convert base64 to buffer
+      const audioBuffer = Buffer.from(media.data, 'base64');
+      
+      const result = await this.whatsAppBot.transcriber.transcribeAndSummarize(audioBuffer);
       
       if (result.success) {
         let response = `📝 *Transcrição + Resumo:*\n\n`;
@@ -118,25 +136,56 @@ export default class AudioTranscriptionHandler {
       // Transcribe audio for navigation purposes
       await this.whatsAppBot.sendResponse(contactId, '🎤 Processando comando de voz...', true);
       
-      const transcription = await this.whatsAppBot.transcriber.transcribe(msg, { 
-        quickMode: true,
-        maxDuration: 30 
-      });
-      
-      if (transcription.success) {
-        logger.info(`🎤 Comando de voz transcrito: "${transcription.text}" de ${contactId}`);
-        
-        // Process transcription as navigation command
-        const navigationState = await this.whatsAppBot.getNavigationState(contactId);
-        return await this.whatsAppBot.menuNavigationHandler.processAudioNavigation(
-          msg, contactId, transcription.text, navigationState
-        );
-      } else {
-        await this.whatsAppBot.sendResponse(contactId, 'Não consegui entender o comando de voz. Tente novamente ou use texto.');
-        return true;
+      // Download the audio data from the message
+      const media = await msg.downloadMedia();
+      if (!media || !media.data) {
+        await this.whatsAppBot.sendResponse(contactId, '❌ Não foi possível baixar o áudio.');
+        return false;
       }
+      
+      // Convert base64 to buffer
+      const audioBuffer = Buffer.from(media.data, 'base64');
+      
+      const transcription = await this.whatsAppBot.transcriber.transcribe(audioBuffer, 'ogg', contactId);
+      
+      logger.info(`🎤 Comando de voz transcrito: "${transcription}" de ${contactId}`);
+      
+      // Process transcription as navigation command
+      const navigationState = await this.whatsAppBot.getNavigationState(contactId);
+      return await this.whatsAppBot.menuNavigationHandler.processAudioNavigation(
+        msg, contactId, transcription, navigationState
+      );
     } catch (error) {
       logger.error('❌ Erro na navegação por áudio:', error);
+      return false;
+    }
+  }
+
+  async processSchedulerMode(msg, contactId) {
+    try {
+      await this.whatsAppBot.sendResponse(contactId, '🎤 Transcrevendo para criar agendamento...', true);
+      
+      // Download the audio data from the message
+      const media = await msg.downloadMedia();
+      if (!media || !media.data) {
+        await this.whatsAppBot.sendResponse(contactId, '❌ Não foi possível baixar o áudio.');
+        return false;
+      }
+      
+      // Convert base64 to buffer
+      const audioBuffer = Buffer.from(media.data, 'base64');
+      
+      const transcription = await this.whatsAppBot.transcriber.transcribe(audioBuffer, 'ogg', contactId);
+      
+      // Process the transcribed text as scheduler input
+      logger.info(`📝 Agendamento via áudio transcrito: "${transcription}" de ${contactId}`);
+      
+      // Delegate to scheduler handler to process the transcribed text
+      return await this.whatsAppBot.scheduleHandler.processSchedulerMessage(contactId, transcription);
+      
+    } catch (error) {
+      logger.error('❌ Erro no modo scheduler via áudio:', error);
+      await this.whatsAppBot.sendErrorMessage(contactId, 'Erro ao processar áudio para agendamento.');
       return false;
     }
   }
@@ -146,23 +195,29 @@ export default class AudioTranscriptionHandler {
       // Default audio processing with suggestion to summarize
       await this.whatsAppBot.sendResponse(contactId, '🎤 Processando áudio...', true);
       
-      const transcription = await this.whatsAppBot.transcriber.transcribe(msg);
+      // Download the audio data from the message
+      const media = await msg.downloadMedia();
+      if (!media || !media.data) {
+        await this.whatsAppBot.sendResponse(contactId, '❌ Não foi possível baixar o áudio.');
+        return false;
+      }
       
-      if (transcription.success) {
-        await this.whatsAppBot.sendResponse(contactId, `📝 *Transcrição:*\n\n${transcription.text}`);
+      // Convert base64 to buffer
+      const audioBuffer = Buffer.from(media.data, 'base64');
+      
+      const transcription = await this.whatsAppBot.transcriber.transcribe(audioBuffer, 'ogg', contactId);
+      
+      await this.whatsAppBot.sendResponse(contactId, `📝 *Transcrição:*\n\n${transcription}`);
+      
+      // Suggest summarization for longer audios
+      if (transcription.length > 500) {
+        await this.whatsAppBot.sendResponse(contactId, '💡 *Áudio longo detectado!*\n\nDeseja que eu faça um resumo?\n\n1️⃣ - Sim, fazer resumo\n❌ - Não, obrigado');
         
-        // Suggest summarization for longer audios
-        if (transcription.text.length > 500) {
-          await this.whatsAppBot.sendResponse(contactId, '💡 *Áudio longo detectado!*\n\nDeseja que eu faça um resumo?\n\n1️⃣ - Sim, fazer resumo\n❌ - Não, obrigado');
-          
-          // Store audio buffer for potential summarization
-          this.whatsAppBot.setUserPreference(contactId, 'awaitingSummarizationResponse', {
-            audioBuffer: msg,
-            timestamp: Date.now()
-          });
-        }
-      } else {
-        await this.whatsAppBot.sendResponse(contactId, `❌ Erro na transcrição: ${transcription.error}`);
+        // Store audio buffer for potential summarization
+        this.whatsAppBot.setUserPreference(contactId, 'awaitingSummarizationResponse', {
+          audioBuffer: audioBuffer,
+          timestamp: Date.now()
+        });
       }
       
       return true;

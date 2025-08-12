@@ -70,9 +70,8 @@ export default class MessageProcessor {
         return await this.whatsAppBot.processTextNavigation(msg, contactId, text, navigationState);
       }
 
-      // Default: show menu if no specific context
-      await this.whatsAppBot.sendResponse(contactId, this.whatsAppBot.getMenuMessage());
-      return true;
+      // No navigation state - let legacy handler process it
+      return false;
     } catch (error) {
       logger.error('❌ Erro ao processar mensagem de texto:', error);
       await this.whatsAppBot.sendErrorMessage(contactId, 'Erro ao processar sua mensagem.');
@@ -82,7 +81,7 @@ export default class MessageProcessor {
 
   async processAudioMessage(msg, contactId) {
     try {
-      return await this.whatsAppBot.handleAudioMessage(msg, contactId);
+      return await this.whatsAppBot.audioTranscriptionHandler.handleAudioMessage(msg, contactId);
     } catch (error) {
       logger.error('❌ Erro ao processar áudio:', error);
       await this.whatsAppBot.sendErrorMessage(contactId, 'Erro ao processar áudio.');
